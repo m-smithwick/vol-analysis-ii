@@ -17,8 +17,16 @@ A sophisticated Python tool for analyzing stock accumulation and distribution pa
 
 ### **Command Line Interface**
 - **Flexible Usage**: Analyze any stock ticker with customizable time periods
+- **Batch Processing**: Process multiple tickers from files with individual output reports
 - **Multi-timeframe Analysis**: Cross-reference signals across different time horizons
 - **Screen Optimized**: Charts sized perfectly for 16-inch Mac displays
+
+### **Batch Processing & File Output**
+- **File Input**: Process ticker lists from text files (one ticker per line)
+- **Individual Reports**: Generate separate analysis files for each ticker
+- **Stealth Ranking**: Focus on recent stealth accumulation over historical averages
+- **Chart Export**: Optional PNG chart generation for batch processing
+- **Summary Reports**: Consolidated rankings with stealth activity scores
 
 ## 📦 Installation
 
@@ -48,23 +56,57 @@ python vol_analysis.py NVDA --period 6mo
 python vol_analysis.py MSFT -p 3mo
 ```
 
+### Batch Processing (NEW)
+```bash
+# Process all tickers from a file
+python vol_analysis.py --file stocks.txt
+
+# Batch processing with custom period and output directory
+python vol_analysis.py -f stocks.txt --period 3mo --output-dir results
+
+# Include chart images for all tickers
+python vol_analysis.py -f stocks.txt --save-charts
+
+# Full batch processing example
+python vol_analysis.py -f watchlist.txt -p 6mo -o analysis_output --save-charts
+```
+
 ### Advanced Options
 ```bash
-# Multi-timeframe analysis
+# Multi-timeframe analysis (single ticker)
 python vol_analysis.py GOOGL --multi
-
-# Custom interval (for shorter periods)
-python vol_analysis.py AAPL -p 1mo -i 1h
 
 # Get help
 python vol_analysis.py --help
 ```
 
+### Ticker File Format
+Create a text file with one ticker symbol per line:
+```
+AAPL
+MSFT
+GOOGL
+TSLA
+NVDA
+# Comments start with # and are ignored
+AMZN
+```
+
+### Batch Processing Output
+All files are saved to the `results/` directory by default.
+
+**Individual Analysis Files**: `{TICKER}_{PERIOD}_{STARTDATE}_{ENDDATE}_analysis.txt`
+- Example: `results/AAPL_6mo_20240404_20241003_analysis.txt`
+
+**Chart Files** (when `--save-charts` used): `{TICKER}_{PERIOD}_{STARTDATE}_{ENDDATE}_chart.png`
+- Example: `results/AAPL_6mo_20240404_20241003_chart.png`
+
+**Summary Report**: `batch_summary_{PERIOD}_{TIMESTAMP}.txt`
+- Example: `results/batch_summary_6mo_20241004_122312.txt`
+- Contains ranked list of all processed tickers
+
 ### Available Time Periods
 - `1d`, `5d`, `1mo`, `3mo`, `6mo`, `1y`, `2y`, `5y`, `10y`, `ytd`, `max`
-
-### Available Intervals
-- `1m`, `2m`, `5m`, `15m`, `30m`, `60m`, `90m`, `1h`, `1d`, `5d`, `1wk`, `1mo`, `3mo`
 
 ## 📈 Chart Interpretation Guide
 
@@ -151,6 +193,47 @@ Points awarded for:
 
 **Final score**: Normalized to 0-10 scale
 
+## 🎯 Stealth Accumulation Ranking System (NEW)
+
+The batch processing feature uses a **Recent Stealth Activity Score** instead of traditional averages to identify stocks with fresh institutional buying that haven't broken out yet.
+
+### **Stealth Scoring Algorithm (0-10 scale)**
+
+**Recent Stealth Signals** (0-4 points):
+- Counts stealth accumulation signals in the last 10 trading days
+- Multiple recent signals = higher score
+
+**Signal Recency** (0-3 points):
+- Days since the last stealth accumulation signal
+- More recent signals = higher score
+- Recent (≤2 days) gets maximum points
+
+**Price Containment** (0-3 points):
+- Price appreciation during the stealth accumulation period
+- Lower price gains = higher score (ideal for stealth buying)
+- ≤2% gain = 3 points, ≤5% gain = 2 points, ≤10% gain = 1 point
+
+### **Batch Processing Ranking Display**
+```
+🎯 TOP STEALTH ACCUMULATION CANDIDATES (by recent activity):
+   1. AMZN  - Stealth:  8.0/10 🎯 (Last: Recent, Recent: 1, Price: +0.0%, Total: 1)
+   2. AI    - Stealth:  5.3/10 💎 (Last: Recent, Recent: 1, Price: +9.5%, Total: 1)
+   3. MSFT  - Stealth:  0.0/10 💤 (Last: None, Recent: 0, Price: +0.0%, Total: 0)
+```
+
+**Explanation**:
+- **Stealth Score**: Recent activity score (0-10)
+- **Last**: Days since last stealth signal ("Recent" = ≤2 days)
+- **Recent**: Count of stealth signals in last 10 days
+- **Price**: Price change during stealth accumulation period
+- **Total**: Total stealth signals across entire analysis period
+
+### **Stealth Score Emojis**
+- 🎯 **7-10**: High recent stealth activity - prime candidates
+- 💎 **5-7**: Moderate recent stealth activity
+- 👁️ **3-5**: Low recent stealth activity
+- 💤 **0-3**: No meaningful recent stealth activity
+
 ## 🔍 Multi-Timeframe Analysis
 
 Use the `--multi` flag to analyze across multiple timeframes:
@@ -208,8 +291,8 @@ pip install yfinance
 
 ### **Performance Tips**
 - Use shorter periods (`3mo`, `6mo`) for faster analysis
-- Avoid intraday intervals (`1m`, `5m`) for daily analysis
-- Use `1d` interval for most stock analysis
+- Daily intervals only - simplified for closing price analysis
+- Longer periods provide more reliable signals
 
 ## 📖 Example Analysis Workflow
 
