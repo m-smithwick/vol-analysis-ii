@@ -5,8 +5,220 @@ import matplotlib.pyplot as plt
 import argparse
 import sys
 import os
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import List, Optional, Dict, Any
+
+def get_cache_directory() -> str:
+    """Get or create the data cache directory."""
+    cache_dir = os.path.join(os.getcwd(), 'data_cache')
+    if not os.path.exists(cache_dir):
+        os.makedirs(cache_dir)
+        print(f"📁 Created cache directory: {cache_dir}")
+    return cache_dir
+
+def get_cache_filepath(ticker: str) -> str:
+    """Get the cache file path for a given ticker."""
+    cache_dir = get_cache_directory()
+    return os.path.join(cache_dir, f"{ticker}_data.csv")
+
+def load_cached_data(ticker: str) -> Optional[pd.DataFrame]:
+    """Load cached data for a ticker if it exists."""
+    cache_file = get_cache_filepath(ticker)
+    
+    if not os.path.exists(cache_file):
+        return None
+    
+    try:
+        df = pd.read_csv(cache_file, index_col=0, parse_dates=True)
+        print(f"📊 Loaded cached data for {ticker}: {len(df)} days ({df.index[0].date()} to {df.index[-1].date()})")
+        return df
+    except Exception as e:
+        print(f"⚠️  Error loading cache for {ticker}: {e}")
+        return None
+
+def save_to_cache(ticker: str, df: pd.DataFrame) -> None:
+    """Save DataFrame to cache."""
+    cache_file = get_cache_filepath(ticker)
+    try:
+        df.to_csv(cache_file)
+        print(f"💾 Cached data for {ticker}: {len(df)} days saved to cache")
+    except Exception as e:
+        print(f"⚠️  Error saving cache for {ticker}: {e}")
+
+def append_to_cache(ticker: str, new_data: pd.DataFrame) -> None:
+    """Append new data to existing cache file."""
+    cache_file = get_cache_filepath(ticker)
+    try:
+        # Append new data to the CSV file
+        new_data.to_csv(cache_file, mode='a', header=False)
+        print(f"📈 Appended {len(new_data)} new days to {ticker} cache")
+    except Exception as e:
+        print(f"⚠️  Error appending to cache for {ticker}: {e}")
+
+def get_smart_data(ticker: str, period: str, force_refresh: bool = False) -> pd.DataFrame:
+    """
+    Smart data fetching with caching support.
+    
+    Args:
+        ticker (str): Stock symbol
+        period (str): Requested period (e.g., '6mo', '1y')
+        force_refresh (bool): If True, ignore cache and download fresh data
+        
+    Returns:
+        pd.DataFrame: Stock data with OHLCV columns
+    """
+    # Convert period to days for calculations
+    period_days = {
+        '1d': 1, '5d': 5, '1mo': 30, '3mo': 90, '6mo': 180, 
+        '1y': 365, '2y': 730, '5y': 1825, '10y': 3650, 'ytd': 365, 'max': 7300
+    }
+    
+    requested_days = period_days.get(period, 365)
+    cutoff_date = datetime.now() - timedelta(days=requested_days)
+    
+    if force_refresh:
+        print(f"🔄 Force refresh enabled - downloading fresh data for {ticker}")
+        df = yf.download(ticker, period=period, interval='1d', auto_adjust=True)
+        if isinstance(df.columns, pd.MultiIndex):
+            df.columns = df.columns.droplevel(1)
+        df.dropna(inplace=True)
+        save_to_cache(ticker, df)
+        return df
+    
+    # Try to load cached data
+    cached_df = load_cached_data(ticker)
+    
+    if cached_df is None:
+        # No cache exists - download full period
+        print(f"📥 No cache found for {ticker} - downloading {period} data from Yahoo Finance")
+        df = yf.download(ticker, period=period, interval='1d', auto_adjust=True)
+        if isinstance(df.columns, pd.MultiIndex):
+            df.columns = df.columns.droplevel(1)
+        df.dropna(inplace=True)
+        save_to_cache(ticker, df)
+        return df
+    
+    # Check if cached data covers the requested period
+    cache_start_date = cached_df.index[0]
+    cache_end_date = cached_df.index[-1]
+    
+    # Check if we need to download more recent data
+    today = datetime.now().date()
+    last_cached_date = cache_end_date.date()
+    days_behind = (today - last_cached_date).days
+    
+    if days_behind <= 1:
+        # Cache is up to date (within 1 day)
+        print(f"✅ Cache is current for {ticker} - using cached data")
+        # Filter cached data to requested period if needed
+        filtered_df = cached_df[cached_df.index >= cutoff_date] if cutoff_date > cache_start_date else cached_df
+        return filtered_df
+    
+    # Need to download recent data
+    print(f"📥 Cache is {days_behind} days behind - downloading recent data for {ticker}")
+    
+    # Download from day after last cached date to today
+    start_date = (cache_end_date + timedelta(days=1)).strftime('%Y-%m-%d')
+    new_data = yf.download(ticker, start=start_date, interval='1d', auto_adjust=True)
+    
+    if isinstance(new_data.columns, pd.MultiIndex):
+        new_data.columns = new_data.columns.droplevel(1)
+    new_data.dropna(inplace=True)
+    
+    if not new_data.empty:
+        # Append new data to cache
+        append_to_cache(ticker, new_data)
+        
+        # Combine cached and new data
+        combined_df = pd.concat([cached_df, new_data])
+        combined_df = combined_df[~combined_df.index.duplicated(keep='last')]  # Remove any duplicates
+        combined_df.sort_index(inplace=True)
+        
+        # Update the cache with the complete dataset
+        save_to_cache(ticker, combined_df)
+        
+        # Filter to requested period
+        filtered_df = combined_df[combined_df.index >= cutoff_date] if cutoff_date > combined_df.index[0] else combined_df
+        return filtered_df
+    else:
+        print(f"ℹ️  No new data available for {ticker}")
+        filtered_df = cached_df[cached_df.index >= cutoff_date] if cutoff_date > cache_start_date else cached_df
+        return filtered_df
+
+def clear_cache(ticker: str = None) -> None:
+    """
+    Clear cache for a specific ticker or all tickers.
+    
+    Args:
+        ticker (str, optional): Specific ticker to clear cache for. If None, clears entire cache.
+    """
+    cache_dir = get_cache_directory()
+    
+    if ticker:
+        # Clear specific ticker cache
+        cache_file = get_cache_filepath(ticker)
+        if os.path.exists(cache_file):
+            os.remove(cache_file)
+            print(f"🗑️  Cleared cache for {ticker}")
+        else:
+            print(f"ℹ️  No cache found for {ticker}")
+    else:
+        # Clear entire cache directory
+        if os.path.exists(cache_dir):
+            import shutil
+            shutil.rmtree(cache_dir)
+            print(f"🗑️  Cleared entire cache directory")
+        else:
+            print(f"ℹ️  No cache directory found")
+
+def list_cache_info() -> None:
+    """Display information about cached data."""
+    cache_dir = get_cache_directory()
+    
+    if not os.path.exists(cache_dir):
+        print("ℹ️  No cache directory found")
+        return
+    
+    cache_files = [f for f in os.listdir(cache_dir) if f.endswith('_data.csv')]
+    
+    if not cache_files:
+        print("ℹ️  No cached data found")
+        return
+    
+    print(f"\n📁 CACHE INFORMATION ({len(cache_files)} tickers cached)")
+    print("="*60)
+    
+    total_size = 0
+    for cache_file in sorted(cache_files):
+        ticker = cache_file.replace('_data.csv', '')
+        cache_path = os.path.join(cache_dir, cache_file)
+        
+        try:
+            # Get file info
+            file_size = os.path.getsize(cache_path)
+            total_size += file_size
+            modified_time = datetime.fromtimestamp(os.path.getmtime(cache_path))
+            
+            # Read first and last dates
+            df = pd.read_csv(cache_path, index_col=0, parse_dates=True)
+            start_date = df.index[0].strftime('%Y-%m-%d')
+            end_date = df.index[-1].strftime('%Y-%m-%d')
+            days_count = len(df)
+            
+            # Calculate days behind
+            today = datetime.now().date()
+            last_date = df.index[-1].date()
+            days_behind = (today - last_date).days
+            
+            status = "🟢 Current" if days_behind <= 1 else f"🟡 {days_behind}d behind" if days_behind <= 7 else f"🔴 {days_behind}d behind"
+            
+            print(f"  {ticker:6s}: {days_count:4d} days ({start_date} to {end_date}) - {status}")
+            print(f"          Size: {file_size/1024:.1f}KB, Modified: {modified_time.strftime('%Y-%m-%d %H:%M')}")
+            
+        except Exception as e:
+            print(f"  {ticker:6s}: ❌ Error reading cache ({e})")
+    
+    print(f"\nTotal cache size: {total_size/1024:.1f}KB")
 
 def read_ticker_file(filepath: str) -> List[str]:
     """
@@ -131,7 +343,7 @@ def generate_analysis_text(ticker: str, df: pd.DataFrame, period: str) -> str:
     
     return "\n".join(output)
 
-def analyze_ticker(ticker: str, period='6mo', save_to_file=False, output_dir='.', save_chart=False):
+def analyze_ticker(ticker: str, period='6mo', save_to_file=False, output_dir='.', save_chart=False, force_refresh=False):
     """
     Retrieve and analyze price-volume data for a given ticker symbol.
     
@@ -141,15 +353,10 @@ def analyze_ticker(ticker: str, period='6mo', save_to_file=False, output_dir='.'
         save_to_file (bool): Whether to save analysis to file instead of printing
         output_dir (str): Directory to save output files
         save_chart (bool): Whether to save chart as PNG file
+        force_refresh (bool): If True, ignore cache and download fresh data
     """
-    # --- Retrieve Data ---
-    df = yf.download(ticker, period=period, interval='1d', auto_adjust=True)
-    
-    # Check if we have MultiIndex columns and flatten if necessary
-    if isinstance(df.columns, pd.MultiIndex):
-        df.columns = df.columns.droplevel(1)  # Remove the ticker level
-    
-    df.dropna(inplace=True)
+    # --- Retrieve Data with Smart Caching ---
+    df = get_smart_data(ticker, period, force_refresh=force_refresh)
     
     # --- OBV (On-Balance Volume) ---
     df['OBV'] = ( (df['Close'] > df['Close'].shift(1)) * df['Volume']
@@ -816,9 +1023,39 @@ Available periods: 1d, 5d, 1mo, 3mo, 6mo, 1y, 2y, 5y, 10y, ytd, max
         help='Run multi-timeframe analysis instead of single period (single ticker mode only)'
     )
     
+    parser.add_argument(
+        '--force-refresh',
+        action='store_true',
+        help='Force refresh - ignore cache and download fresh data'
+    )
+    
+    parser.add_argument(
+        '--clear-cache',
+        help='Clear cache for specific ticker or all tickers. Use "all" to clear entire cache, or specify ticker symbol.'
+    )
+    
+    parser.add_argument(
+        '--cache-info',
+        action='store_true',
+        help='Display information about cached data'
+    )
+    
     args = parser.parse_args()
     
     try:
+        # Handle cache management commands first
+        if args.clear_cache:
+            if args.clear_cache.lower() == 'all':
+                clear_cache()
+            else:
+                clear_cache(args.clear_cache.upper())
+            return
+        
+        if args.cache_info:
+            list_cache_info()
+            return
+        
+        # Regular analysis modes
         if args.file:
             # Batch processing mode
             print(f"🚀 Starting batch processing from file: {args.file}")
@@ -838,8 +1075,8 @@ Available periods: 1d, 5d, 1mo, 3mo, 6mo, 1y, 2y, 5y, 10y, ytd, max
                 # Run multi-timeframe analysis
                 results = multi_timeframe_analysis(ticker)
             else:
-                # Run single period analysis
-                df = analyze_ticker(ticker, period=args.period)
+                # Run single period analysis with force refresh option
+                df = analyze_ticker(ticker, period=args.period, force_refresh=args.force_refresh)
                 
             print(f"\n✅ Analysis complete for {ticker}!")
             

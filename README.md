@@ -21,6 +21,14 @@ A sophisticated Python tool for analyzing stock accumulation and distribution pa
 - **Multi-timeframe Analysis**: Cross-reference signals across different time horizons
 - **Screen Optimized**: Charts sized perfectly for 16-inch Mac displays
 
+### **Smart Data Caching System (NEW)**
+- **Local Cache**: Stores Yahoo Finance data locally to avoid redundant downloads
+- **Incremental Updates**: Only downloads new data since last cache update
+- **Automatic Management**: Creates and maintains cache automatically
+- **Cache Information**: View cached tickers and their status
+- **Selective Clearing**: Clear cache for specific tickers or entire cache
+- **Force Refresh**: Override cache when fresh data is needed
+
 ### **Batch Processing & File Output**
 - **File Input**: Process ticker lists from text files (one ticker per line)
 - **Individual Reports**: Generate separate analysis files for each ticker
@@ -69,6 +77,24 @@ python vol_analysis.py -f stocks.txt --save-charts
 
 # Full batch processing example
 python vol_analysis.py -f watchlist.txt -p 6mo -o analysis_output --save-charts
+```
+
+### Data Caching Options (NEW)
+```bash
+# View cache information
+python vol_analysis.py --cache-info
+
+# Clear cache for specific ticker
+python vol_analysis.py --clear-cache AAPL
+
+# Clear entire cache
+python vol_analysis.py --clear-cache all
+
+# Force refresh (ignore cache)
+python vol_analysis.py AAPL --force-refresh
+
+# Force refresh in batch processing
+python vol_analysis.py -f stocks.txt --force-refresh
 ```
 
 ### Advanced Options

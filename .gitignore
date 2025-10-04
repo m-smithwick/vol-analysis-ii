@@ -1,6 +1,9 @@
 # Output directories
 results/
 
+# Data cache (local storage, should not be committed)
+data_cache/
+
 # macOS system files
 .DS_Store
 .DS_Store?
