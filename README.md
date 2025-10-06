@@ -4,16 +4,17 @@ A sophisticated Python tool for analyzing stock accumulation and distribution pa
 
 ## 🚀 Features
 
-### **Enhanced Accumulation Detection**
-- **6 Different Signal Types**: Strong Buy, Moderate Buy, Sell, Stealth Accumulation, Multi-Signal Confluence, Volume Breakouts
+### **Complete Entry & Exit Signal System**
+- **6 Entry Signal Types**: Strong Buy, Moderate Buy, Stealth Accumulation, Multi-Signal Confluence, Volume Breakouts, Sell Avoidance
+- **5 Exit Signal Types**: Profit Taking, Distribution Warning, Sell Signals, Momentum Exhaustion, Stop Loss Triggers
 - **Advanced Technical Indicators**: OBV divergence, A/D Line analysis, VWAP positioning, support level detection
-- **Confidence Scoring**: 0-10 scale with threshold-based alerts and visual markers
+- **Dual Scoring System**: Entry Score (0-10) + Exit Score (1-10) with threshold-based alerts and visual markers
 
 ### **Professional Visualization**
-- **Color-coded Signal Markers**: 🟢 Green dots (Strong Buy), 🟡 Yellow dots (Moderate Buy), 🔴 Red dots (Sell)
-- **Special Symbol Detection**: 💎 Diamonds (Stealth), ⭐ Stars (Confluence), 🔥 Triangles (Breakouts)
-- **Multi-panel Charts**: Price action, Volume indicators with divergences, Volume bars with accumulation score
-- **Threshold Lines**: Visual buy/sell zones at confidence levels 3, 5, and 7
+- **Entry Signal Markers**: 🟢 Green dots (Strong Buy), 🟡 Yellow dots (Moderate Buy), 💎 Cyan diamonds (Stealth), ⭐ Magenta stars (Confluence), 🔥 Orange triangles (Breakouts)
+- **Exit Signal Markers**: 🟠 Orange dots (Profit Taking), ⚠️ Gold squares (Distribution Warning), 🔴 Red dots (Sell), 💜 Purple X's (Momentum Exhaustion), 🛑 Dark red triangles (Stop Loss)
+- **Multi-panel Charts**: Price action with all signals, Volume indicators with divergences, Volume bars with dual scoring
+- **Enhanced Threshold Lines**: Visual zones at levels 2, 4, 6, 7, and 8 for both entry and exit scoring
 
 ### **Command Line Interface**
 - **Flexible Usage**: Analyze any stock ticker with customizable time periods
@@ -155,37 +156,61 @@ All files are saved to the `results/` directory by default.
 - **Purple line**: Accumulation confidence score (0-10 scale)
 - **Horizontal threshold lines**: Buy zones at scores 3, 5, and 7
 
-## 🎯 Signal Types Explained
+## 🎯 Complete Signal System Explained
 
-### **🟢 Strong Buy Signals (Large Green Dots)**
+### **ENTRY SIGNALS**
+
+#### **🟢 Strong Buy Signals (Large Green Dots)**
 **Criteria**: Score ≥7, near support, above VWAP, moderate volume (1.2-3.0x average)
 - **Meaning**: Highest confidence accumulation opportunity
 - **Action**: Prime entry point for accumulation
 
-### **🟡 Moderate Buy Signals (Medium Yellow Dots)**
+#### **🟡 Moderate Buy Signals (Medium Yellow Dots)**
 **Criteria**: Score 5-7, divergence signals, above VWAP
 - **Meaning**: Good accumulation opportunity with some risk
 - **Action**: Consider entry with position sizing
 
-### **🔴 Sell Signals (Large Red Dots)**
-**Criteria**: Distribution phase, below VWAP, high volume
-- **Meaning**: Institutional selling pressure detected
-- **Action**: Consider exit or avoid entry
-
-### **💎 Stealth Accumulation (Cyan Diamonds)**
+#### **💎 Stealth Accumulation (Cyan Diamonds)**
 **Criteria**: Score ≥6, low volume (<1.3x), A/D divergence
 - **Meaning**: Hidden accumulation without price movement
 - **Action**: Early accumulation opportunity
 
-### **⭐ Multi-Signal Confluence (Magenta Stars)**
+#### **⭐ Multi-Signal Confluence (Magenta Stars)**
 **Criteria**: Multiple indicators aligned (Score ≥6, support, volume, VWAP, divergences)
 - **Meaning**: Strongest possible accumulation signal
 - **Action**: High-conviction entry point
 
-### **🔥 Volume Breakout (Orange Triangles)**
+#### **🔥 Volume Breakout (Orange Triangles)**
 **Criteria**: Score ≥5, volume >2.5x average, price up, above VWAP
 - **Meaning**: Accumulation with momentum breakout
 - **Action**: Momentum-based entry
+
+### **EXIT SIGNALS**
+
+#### **🟠 Profit Taking (Orange Dots)**
+**Criteria**: New 20-day highs, high volume (>1.8x), above VWAP, but accumulation waning (<4)
+- **Meaning**: Take profits on strength before momentum fades
+- **Action**: Consider taking partial profits
+
+#### **⚠️ Distribution Warning (Gold Squares)**
+**Criteria**: Distribution phase, below VWAP, above average volume, declining A/D line
+- **Meaning**: Early warning signs of institutional selling
+- **Action**: Prepare exit strategy, monitor closely
+
+#### **🔴 Sell Signals (Red Dots)**
+**Criteria**: Distribution phase, below VWAP, breaking support, declining OBV and A/D line
+- **Meaning**: Strong institutional selling pressure detected
+- **Action**: Consider exit or avoid entry
+
+#### **💜 Momentum Exhaustion (Purple X's)**
+**Criteria**: Price rising but volume declining, low accumulation, extended above MA
+- **Meaning**: Volume/price divergence indicating exhaustion
+- **Action**: Prepare for potential reversal
+
+#### **🛑 Stop Loss Triggers (Dark Red Triangles)**
+**Criteria**: Below support, high volume breakdown, below VWAP and 5-day MA
+- **Meaning**: Urgent exit signal for risk management
+- **Action**: Immediate exit consideration
 
 ## 📊 Technical Indicators Used
 
@@ -209,7 +234,9 @@ All files are saved to the `results/` directory by default.
 - **Near Support**: Within 5% of support level
 - **Significance**: Potential bounce/accumulation zone
 
-### **Confidence Scoring Algorithm**
+### **Dual Scoring System**
+
+#### **Entry Score (0-10 scale)**
 Points awarded for:
 - **A/D Line divergence**: +2 points
 - **OBV trend divergence**: +2 points  
@@ -217,7 +244,17 @@ Points awarded for:
 - **Above VWAP**: +1 point
 - **Near support**: +1 point
 
-**Final score**: Normalized to 0-10 scale
+#### **Exit Score (1-10 scale)**
+Points awarded for:
+- **Distribution phase**: +2 points
+- **Below VWAP**: +1.5 points
+- **Below support**: +2 points
+- **High volume (>2.5x)**: +1.5 points
+- **Declining A/D line**: +1 point
+- **Declining OBV**: +1 point
+- **Low accumulation**: +1 point
+
+**Final scores**: Normalized and clipped to respective scales
 
 ## 🎯 Stealth Accumulation Ranking System (NEW)
 
@@ -280,16 +317,27 @@ python vol_analysis.py AAPL --multi
 ## 📋 Sample Output Interpretation
 
 ```
-🎯 ENHANCED SIGNAL SUMMARY:
+🎯 ENTRY SIGNAL SUMMARY:
   🟢 Strong Buy Signals: 2 (Large green dots - Score ≥7, near support, above VWAP)
   🟡 Moderate Buy Signals: 5 (Medium yellow dots - Score 5-7, divergence signals)
-  🔴 Sell Signals: 0 (Red dots - Distribution below VWAP)
   💎 Stealth Accumulation: 3 (Cyan diamonds - High score, low volume)
   ⭐ Multi-Signal Confluence: 1 (Magenta stars - All indicators aligned)
   🔥 Volume Breakouts: 0 (Orange triangles - 2.5x+ volume)
+
+🚪 EXIT SIGNAL SUMMARY:
+  🟠 Profit Taking: 1 (Orange dots - New highs with waning accumulation)
+  ⚠️ Distribution Warning: 0 (Gold squares - Early distribution signs)
+  🔴 Sell Signals: 0 (Red dots - Strong distribution below VWAP)
+  💜 Momentum Exhaustion: 0 (Purple X's - Rising price, declining volume)
+  🛑 Stop Loss Triggers: 0 (Dark red triangles - Support breakdown)
+
+📊 CURRENT EXIT ANALYSIS:
+  Current Exit Score: 2.3/10 - ✅ LOW
+  Recent Exit Activity (5 days): No
+  🎯 RECOMMENDATION: LOW RISK - Normal monitoring, position appears stable
 ```
 
-**Analysis**: This shows a stock in accumulation phase with multiple buy signals, no sell pressure, and one high-confidence confluence signal.
+**Analysis**: This shows a stock in accumulation phase with multiple entry signals, minimal exit pressure, and one profit-taking opportunity. Low exit score indicates position is stable for continued holding.
 
 ## 🛠️ Troubleshooting
 
@@ -332,17 +380,32 @@ pip install yfinance
 
 ## 🎨 Chart Color Guide
 
+### **Entry Signals**
 | Color | Meaning |
 |-------|---------|
-| 🟢 Lime/Dark Green | Strong accumulation signals |
-| 🟡 Gold/Orange | Moderate accumulation signals |  
-| 🔴 Red/Dark Red | Distribution/sell signals |
+| 🟢 Lime/Dark Green | Strong buy signals |
+| 🟡 Gold | Moderate buy signals |
 | 💎 Cyan | Stealth accumulation |
 | ⭐ Magenta | Multi-signal confluence |
 | 🔥 Orange Red | Volume breakouts |
+
+### **Exit Signals**
+| Color | Meaning |
+|-------|---------|
+| 🟠 Orange | Profit taking opportunities |
+| ⚠️ Gold (Square) | Distribution warnings |
+| 🔴 Red | Strong sell signals |
+| 💜 Purple | Momentum exhaustion |
+| 🛑 Dark Red | Stop loss triggers |
+
+### **Chart Elements**
+| Color | Meaning |
+|-------|---------|
 | 🟦 Blue | OBV trend line |
 | 🟧 Orange | A/D Line |
-| 🟣 Purple | VWAP and accumulation score |
+| 🟣 Purple | VWAP |
+| 🟢 Green Line | Entry/Accumulation score |
+| 🔴 Red Line | Exit score |
 | ⚫ Black | Price line |
 | 🔘 Gray | Support level |
 
@@ -354,17 +417,31 @@ pip install yfinance
 - **Check timeframe**: Longer periods give more reliable signals
 - **Watch divergences**: OBV/A/D rising while price flat = accumulation
 
+### **Complete Trading System**
+- **Entry Strategy**: Use entry signals (🟢🟡💎⭐🔥) for position initiation
+- **Exit Strategy**: Monitor exit signals (🟠⚠️🔴💜🛑) for position management
+- **Dual Scoring**: Entry score >7 = strong buy, Exit score >6 = high risk
+- **Signal Transitions**: Watch for Entry→Hold→Exit phase changes
+
 ### **Risk Management**
-- **Position sizing**: Use signal strength for position sizing
-- **Stop losses**: Place below recent support levels
-- **Confirmation**: Wait for multiple signal types to align
+- **Position sizing**: Use entry signal strength for initial position sizing
+- **Profit taking**: Act on 🟠 profit taking signals for partial exits
+- **Stop losses**: Respond to 🛑 stop loss triggers immediately
+- **Early warnings**: Prepare exit strategy on ⚠️ distribution warnings
 - **Market context**: Consider overall market conditions
 
-### **Entry Strategies**
-- **Conservative**: Only trade ⭐ confluence signals
-- **Moderate**: Trade 🟢 strong buy signals
-- **Aggressive**: Include 🟡 moderate buy signals
-- **Avoid**: Never trade against 🔴 sell signals
+### **Trading Strategies**
+- **Conservative**: Only trade ⭐ confluence entries, exit on ⚠️ warnings
+- **Moderate**: Trade 🟢 strong buy signals, exit on 🔴 sell signals
+- **Aggressive**: Include 🟡 moderate buy signals, use 💜 exhaustion exits
+- **Risk-Averse**: Exit immediately on 🛑 stop loss triggers
+
+### **Exit Score Interpretation**
+- **8-10**: 🚨 URGENT - Consider immediate exit or tight stop loss
+- **6-8**: ⚠️ HIGH RISK - Reduce position size significantly
+- **4-6**: 💡 MODERATE RISK - Monitor closely, consider partial exit
+- **2-4**: ✅ LOW RISK - Normal monitoring, position appears stable
+- **1-2**: 🟢 MINIMAL RISK - Position looks healthy for continued holding
 
 ## 📚 Further Reading
 

@@ -22,7 +22,7 @@ def get_cache_filepath(ticker: str) -> str:
     return os.path.join(cache_dir, f"{ticker}_data.csv")
 
 def load_cached_data(ticker: str) -> Optional[pd.DataFrame]:
-    """Load cached data for a ticker if it exists."""
+    """Load cached data for a ticker if it exists and is valid."""
     cache_file = get_cache_filepath(ticker)
     
     if not os.path.exists(cache_file):
@@ -30,10 +30,23 @@ def load_cached_data(ticker: str) -> Optional[pd.DataFrame]:
     
     try:
         df = pd.read_csv(cache_file, index_col=0, parse_dates=True)
+        
+        # Validate cached data
+        if df.empty:
+            print(f"⚠️  Empty cache file for {ticker} - will redownload")
+            os.remove(cache_file)  # Remove invalid cache
+            return None
+            
         print(f"📊 Loaded cached data for {ticker}: {len(df)} days ({df.index[0].date()} to {df.index[-1].date()})")
         return df
     except Exception as e:
         print(f"⚠️  Error loading cache for {ticker}: {e}")
+        # Remove corrupted cache file
+        try:
+            os.remove(cache_file)
+            print(f"🗑️  Removed corrupted cache file for {ticker}")
+        except:
+            pass
         return None
 
 def save_to_cache(ticker: str, df: pd.DataFrame) -> None:
@@ -55,22 +68,57 @@ def append_to_cache(ticker: str, new_data: pd.DataFrame) -> None:
     except Exception as e:
         print(f"⚠️  Error appending to cache for {ticker}: {e}")
 
+def normalize_period(period: str) -> str:
+    """
+    Normalize period parameter to ensure compatibility with yfinance.
+    Converts user-friendly periods to yfinance-compatible format.
+    
+    Args:
+        period (str): User input period
+        
+    Returns:
+        str: Normalized period compatible with yfinance
+    """
+    # Period mapping for common user inputs
+    period_mapping = {
+        '1yr': '12mo',
+        '2yr': '24mo', 
+        '3yr': '36mo',
+        '5yr': '60mo',
+        '10yr': '120mo',
+        '1y': '12mo',
+        '2y': '24mo',
+        '5y': '60mo',
+        '10y': '120mo'
+    }
+    
+    normalized = period_mapping.get(period.lower(), period)
+    print(f"📅 Period normalized: {period} → {normalized}")
+    return normalized
+
 def get_smart_data(ticker: str, period: str, force_refresh: bool = False) -> pd.DataFrame:
     """
     Smart data fetching with caching support.
     
     Args:
         ticker (str): Stock symbol
-        period (str): Requested period (e.g., '6mo', '1y')
+        period (str): Requested period (e.g., '6mo', '12mo')
         force_refresh (bool): If True, ignore cache and download fresh data
         
     Returns:
         pd.DataFrame: Stock data with OHLCV columns
+        
+    Raises:
+        ValueError: If no valid data is available for the ticker
     """
+    # Normalize the period first
+    period = normalize_period(period)
+    
     # Convert period to days for calculations
     period_days = {
         '1d': 1, '5d': 5, '1mo': 30, '3mo': 90, '6mo': 180, 
-        '1y': 365, '2y': 730, '5y': 1825, '10y': 3650, 'ytd': 365, 'max': 7300
+        '12mo': 365, '24mo': 730, '36mo': 1095, '60mo': 1825, '120mo': 3650, 
+        'ytd': 365, 'max': 7300
     }
     
     requested_days = period_days.get(period, 365)
@@ -82,6 +130,11 @@ def get_smart_data(ticker: str, period: str, force_refresh: bool = False) -> pd.
         if isinstance(df.columns, pd.MultiIndex):
             df.columns = df.columns.droplevel(1)
         df.dropna(inplace=True)
+        
+        # Validate downloaded data
+        if df.empty:
+            raise ValueError(f"No data available for {ticker} (possibly delisted or invalid symbol)")
+        
         save_to_cache(ticker, df)
         return df
     
@@ -95,6 +148,11 @@ def get_smart_data(ticker: str, period: str, force_refresh: bool = False) -> pd.
         if isinstance(df.columns, pd.MultiIndex):
             df.columns = df.columns.droplevel(1)
         df.dropna(inplace=True)
+        
+        # Validate downloaded data
+        if df.empty:
+            raise ValueError(f"No data available for {ticker} (possibly delisted or invalid symbol)")
+        
         save_to_cache(ticker, df)
         return df
     
@@ -318,24 +376,36 @@ def generate_analysis_text(ticker: str, df: pd.DataFrame, period: str) -> str:
             output.append(f"  Most recent: {last_date.strftime('%Y-%m-%d')} (Score: {last_score:.1f}, Price: ${last_price:.2f})")
             output.append(f"  That was {days_ago} trading days ago")
     
-    # Signal counts
-    signal_counts = {
+    # Signal counts - Entry and Exit
+    entry_signals = {
         'Strong_Buy': df['Strong_Buy'].sum(),
         'Moderate_Buy': df['Moderate_Buy'].sum(), 
-        'Sell_Signal': df['Sell_Signal'].sum(),
         'Stealth_Accumulation': df['Stealth_Accumulation'].sum(),
         'Confluence_Signal': df['Confluence_Signal'].sum(),
         'Volume_Breakout': df['Volume_Breakout'].sum()
     }
     
-    output.append(f"\n🎯 ENHANCED SIGNAL SUMMARY:")
-    output.append("  Visual markers on charts represent:")
-    output.append(f"  🟢 Strong Buy Signals: {signal_counts['Strong_Buy']} (Large green dots - Score ≥7, near support, above VWAP)")
-    output.append(f"  🟡 Moderate Buy Signals: {signal_counts['Moderate_Buy']} (Medium yellow dots - Score 5-7, divergence signals)")
-    output.append(f"  🔴 Sell Signals: {signal_counts['Sell_Signal']} (Red dots - Distribution below VWAP)")
-    output.append(f"  💎 Stealth Accumulation: {signal_counts['Stealth_Accumulation']} (Cyan diamonds - High score, low volume)")
-    output.append(f"  ⭐ Multi-Signal Confluence: {signal_counts['Confluence_Signal']} (Magenta stars - All indicators aligned)")
-    output.append(f"  🔥 Volume Breakouts: {signal_counts['Volume_Breakout']} (Orange triangles - 2.5x+ volume)")
+    exit_signals = {
+        'Profit_Taking': df['Profit_Taking'].sum(),
+        'Distribution_Warning': df['Distribution_Warning'].sum(),
+        'Sell_Signal': df['Sell_Signal'].sum(),
+        'Momentum_Exhaustion': df['Momentum_Exhaustion'].sum(),
+        'Stop_Loss': df['Stop_Loss'].sum()
+    }
+    
+    output.append(f"\n🎯 ENTRY SIGNAL SUMMARY:")
+    output.append("  🟢 Strong Buy Signals: {} (Large green dots - Score ≥7, near support, above VWAP)".format(entry_signals['Strong_Buy']))
+    output.append("  🟡 Moderate Buy Signals: {} (Medium yellow dots - Score 5-7, divergence signals)".format(entry_signals['Moderate_Buy']))
+    output.append("  � Stealth Accumulation: {} (Cyan diamonds - High score, low volume)".format(entry_signals['Stealth_Accumulation']))
+    output.append("  ⭐ Multi-Signal Confluence: {} (Magenta stars - All indicators aligned)".format(entry_signals['Confluence_Signal']))
+    output.append("  � Volume Breakouts: {} (Orange triangles - 2.5x+ volume)".format(entry_signals['Volume_Breakout']))
+    
+    output.append(f"\n🚪 EXIT SIGNAL SUMMARY:")
+    output.append("  🟠 Profit Taking: {} (Orange dots - New highs with waning accumulation)".format(exit_signals['Profit_Taking']))
+    output.append("  ⚠️ Distribution Warning: {} (Gold squares - Early distribution signs)".format(exit_signals['Distribution_Warning']))
+    output.append("  🔴 Sell Signals: {} (Red dots - Strong distribution below VWAP)".format(exit_signals['Sell_Signal']))
+    output.append("  � Momentum Exhaustion: {} (Purple X's - Rising price, declining volume)".format(exit_signals['Momentum_Exhaustion']))
+    output.append("  🛑 Stop Loss Triggers: {} (Dark red triangles - Support breakdown)".format(exit_signals['Stop_Loss']))
     
     output.append(f"\n📋 ANALYSIS PERIOD: {period}")
     output.append(f"📅 DATE RANGE: {df.index[0].strftime('%Y-%m-%d')} to {df.index[-1].strftime('%Y-%m-%d')}")
@@ -349,14 +419,21 @@ def analyze_ticker(ticker: str, period='6mo', save_to_file=False, output_dir='.'
     
     Args:
         ticker (str): Stock symbol, e.g. 'AAPL' or 'MSFT'
-        period (str): Data period, e.g. '1y', '6mo', '5y'
+        period (str): Data period, e.g. '12mo', '6mo', '36mo'
         save_to_file (bool): Whether to save analysis to file instead of printing
         output_dir (str): Directory to save output files
         save_chart (bool): Whether to save chart as PNG file
         force_refresh (bool): If True, ignore cache and download fresh data
+        
+    Raises:
+        ValueError: If no valid data is available for the ticker
     """
     # --- Retrieve Data with Smart Caching ---
-    df = get_smart_data(ticker, period, force_refresh=force_refresh)
+    try:
+        df = get_smart_data(ticker, period, force_refresh=force_refresh)
+    except ValueError as e:
+        # Re-raise with more context
+        raise ValueError(f"Failed to get data for {ticker}: {str(e)}")
     
     # --- OBV (On-Balance Volume) ---
     df['OBV'] = ( (df['Close'] > df['Close'].shift(1)) * df['Volume']
@@ -434,6 +511,28 @@ def analyze_ticker(ticker: str, period='6mo', save_to_file=False, output_dir='.'
     # Normalize score to 0-10 scale
     df['Accumulation_Score'] = np.clip(df['Accumulation_Score'] * 10 / 7, 0, 10)
     
+    # --- ENHANCED EXIT SCORING SYSTEM (1-10 scale) ---
+    df['Exit_Score'] = 0
+    
+    # Distribution and trend factors (0-4 points)
+    df.loc[df['Phase'] == 'Distribution', 'Exit_Score'] += 2  # Distribution phase
+    df.loc[~df['Above_VWAP'], 'Exit_Score'] += 1.5  # Below VWAP
+    df.loc[df['Close'] < df['Support_Level'], 'Exit_Score'] += 2  # Below support
+    df.loc[df['Close'] < df['Close'].rolling(10).mean(), 'Exit_Score'] += 0.5  # Below 10-day MA
+    
+    # Volume and momentum factors (0-3 points)
+    df.loc[df['Relative_Volume'] > 2.5, 'Exit_Score'] += 1.5  # Very high volume
+    df.loc[df['Relative_Volume'] > 1.8, 'Exit_Score'] += 1  # High volume
+    df.loc[df['Volume'] < df['Volume'].shift(3), 'Exit_Score'] += 0.5  # Declining volume trend
+    
+    # Technical indicator factors (0-3 points)
+    df.loc[df['AD_Line'] < df['AD_MA'], 'Exit_Score'] += 1  # A/D line declining
+    df.loc[df['OBV'] < df['OBV_MA'], 'Exit_Score'] += 1  # OBV declining
+    df.loc[df['Accumulation_Score'] < 2, 'Exit_Score'] += 1  # Very low accumulation
+    
+    # Normalize exit score to 1-10 scale (minimum 1 for any position)
+    df['Exit_Score'] = np.clip(df['Exit_Score'] * 10 / 10, 1, 10)
+    
     # --- Enhanced Signal Generation for Visual Markers ---
     
     # BUY SIGNALS (Green Dots)
@@ -452,11 +551,52 @@ def analyze_ticker(ticker: str, period='6mo', save_to_file=False, output_dir='.'
         df['Above_VWAP']
     )
     
-    # SELL SIGNALS (Red Dots)
+    # === ENHANCED EXIT SIGNALS ===
+    
+    # 1. PROFIT TAKING SIGNALS (Orange Dots) - Take profits on strength
+    profit_taking_conditions = (
+        (df['Close'] > df['Close'].rolling(20).max().shift(1)) &  # New highs
+        (df['Relative_Volume'] > 1.8) &  # High volume
+        df['Above_VWAP'] &  # Still above VWAP
+        (df['Accumulation_Score'] < 4) &  # But accumulation waning
+        (df['Close'] > df['Close'].shift(1))  # Price up on the day
+    )
+    
+    # 2. DISTRIBUTION WARNING (Gold Squares) - Early warning signs
+    distribution_warning_conditions = (
+        (df['Phase'] == 'Distribution') &
+        (df['Close'] < df['VWAP']) &  # Below VWAP
+        (df['Relative_Volume'] > 1.3) &  # Above average volume
+        (df['Close'] < df['Close'].shift(3)) &  # Price declining over 3 days
+        (df['AD_Line'] < df['AD_MA'])  # A/D line declining
+    )
+    
+    # 3. ENHANCED SELL SIGNALS (Red Dots) - Strong exit signals
     sell_conditions = (
         (df['Phase'] == 'Distribution') &
         ~df['Above_VWAP'] &
-        (df['Relative_Volume'] > 1.5)
+        (df['Relative_Volume'] > 1.5) &
+        (df['Close'] < df['Support_Level'] * 1.02) &  # Breaking support
+        (df['AD_Line'] < df['AD_MA']) &  # A/D line declining
+        (df['OBV'] < df['OBV_MA'])  # OBV also declining
+    )
+    
+    # 4. MOMENTUM EXHAUSTION (Purple X's) - Volume/price divergence
+    momentum_exhaustion_conditions = (
+        (df['Close'] > df['Close'].shift(5)) &  # Price still rising
+        (df['Relative_Volume'] < 0.8) &  # But volume declining
+        (df['Accumulation_Score'] < 3) &  # Low accumulation
+        (df['Close'] > df['Close'].rolling(10).mean() * 1.03) &  # Extended above MA
+        (df['Volume'] < df['Volume'].shift(3))  # Volume declining trend
+    )
+    
+    # 5. STOP LOSS TRIGGERS (Dark Red Triangles) - Urgent exit signals
+    stop_loss_conditions = (
+        (df['Close'] < df['Support_Level']) &  # Below support
+        (df['Relative_Volume'] > 1.8) &  # High volume breakdown
+        ~df['Above_VWAP'] &  # Below VWAP
+        (df['Close'] < df['Close'].rolling(5).mean() * 0.97) &  # 3% below 5-day MA
+        (df['Close'] < df['Close'].shift(1))  # Price declining
     )
     
     # SPECIAL SIGNALS
@@ -489,6 +629,12 @@ def analyze_ticker(ticker: str, period='6mo', save_to_file=False, output_dir='.'
     df['Confluence_Signal'] = confluence_signals
     df['Volume_Breakout'] = volume_breakout & ~strong_buy_conditions
     
+    # EXIT SIGNAL FLAGS
+    df['Profit_Taking'] = profit_taking_conditions
+    df['Distribution_Warning'] = distribution_warning_conditions & ~sell_conditions
+    df['Momentum_Exhaustion'] = momentum_exhaustion_conditions
+    df['Stop_Loss'] = stop_loss_conditions
+    
     # --- Enhanced Visualization with Accumulation Signals (Optimized for 16" Mac) ---
     fig, (ax1, ax2, ax3) = plt.subplots(3, 1, figsize=(12, 9), sharex=True)
     
@@ -511,11 +657,37 @@ def analyze_ticker(ticker: str, period='6mo', save_to_file=False, output_dir='.'
         ax1.scatter(moderate_buys.index, moderate_buys['Close'], color='gold', marker='o', 
                    s=100, label='Moderate Buy', zorder=9, edgecolors='orange', linewidth=1.5)
     
-    # SELL SIGNALS (Large Red Dots)
+    # === EXIT SIGNALS ===
+    
+    # PROFIT TAKING (Orange Dots)
+    profit_takes = df[df['Profit_Taking']]
+    if not profit_takes.empty:
+        ax1.scatter(profit_takes.index, profit_takes['Close'], color='orange', marker='o', 
+                   s=120, label='Profit Taking', zorder=10, edgecolors='darkorange', linewidth=2)
+    
+    # DISTRIBUTION WARNING (Gold Squares)
+    dist_warnings = df[df['Distribution_Warning']]
+    if not dist_warnings.empty:
+        ax1.scatter(dist_warnings.index, dist_warnings['Close'], color='gold', marker='s', 
+                   s=100, label='Distribution Warning', zorder=9, edgecolors='darkgoldenrod', linewidth=2)
+    
+    # SELL SIGNALS (Red Dots)
     sells = df[df['Sell_Signal']]
     if not sells.empty:
         ax1.scatter(sells.index, sells['Close'], color='red', marker='o', 
                    s=120, label='Sell Signal', zorder=10, edgecolors='darkred', linewidth=2)
+    
+    # MOMENTUM EXHAUSTION (Purple X's)
+    momentum_exhausts = df[df['Momentum_Exhaustion']]
+    if not momentum_exhausts.empty:
+        ax1.scatter(momentum_exhausts.index, momentum_exhausts['Close'], color='purple', marker='x', 
+                   s=120, label='Momentum Exhaustion', zorder=9, linewidth=3)
+    
+    # STOP LOSS TRIGGERS (Dark Red Triangles Down)
+    stop_losses = df[df['Stop_Loss']]
+    if not stop_losses.empty:
+        ax1.scatter(stop_losses.index, stop_losses['Close'], color='darkred', marker='v', 
+                   s=130, label='Stop Loss Trigger', zorder=11, edgecolors='black', linewidth=2)
     
     # STEALTH ACCUMULATION (Diamond Symbols)
     stealth = df[df['Stealth_Accumulation']]
@@ -579,25 +751,48 @@ def analyze_ticker(ticker: str, period='6mo', save_to_file=False, output_dir='.'
         ax3.scatter(breakouts.index, breakouts.index.map(lambda x: df.loc[x, 'Volume']), 
                    color='orangered', marker='^', s=100, zorder=9, edgecolors='darkred')
     
+    # Add exit signal markers to volume panel
+    if not profit_takes.empty:
+        ax3.scatter(profit_takes.index, profit_takes.index.map(lambda x: df.loc[x, 'Volume']), 
+                   color='orange', marker='o', s=80, zorder=9, edgecolors='darkorange')
+    
+    if not stop_losses.empty:
+        ax3.scatter(stop_losses.index, stop_losses.index.map(lambda x: df.loc[x, 'Volume']), 
+                   color='darkred', marker='v', s=100, zorder=10, edgecolors='black')
+    
     ax3.set_ylabel('Volume')
     ax3.legend(loc='upper left')
     
-    # Accumulation score line with threshold markers
+    # Dual scoring system: Accumulation and Exit scores
     ax3_twin.plot(df.index, df['Accumulation_Score'], label='Accumulation Score', 
-                  color='purple', linewidth=2)
+                  color='green', linewidth=2, alpha=0.8)
+    ax3_twin.plot(df.index, df['Exit_Score'], label='Exit Score', 
+                  color='red', linewidth=2, alpha=0.8)
     
-    # Add horizontal threshold lines
-    ax3_twin.axhline(y=7, color='lime', linestyle=':', alpha=0.7, label='Strong Buy Threshold')
-    ax3_twin.axhline(y=5, color='gold', linestyle=':', alpha=0.7, label='Moderate Buy Threshold')
-    ax3_twin.axhline(y=3, color='lightcoral', linestyle=':', alpha=0.7, label='Caution Threshold')
+    # Add horizontal threshold lines for both entry and exit scores
+    ax3_twin.axhline(y=8, color='darkred', linestyle=':', alpha=0.8, label='Urgent Exit (8)')
+    ax3_twin.axhline(y=7, color='lime', linestyle=':', alpha=0.7, label='Strong Entry (7)')
+    ax3_twin.axhline(y=6, color='orange', linestyle=':', alpha=0.7, label='High Exit Risk (6)')
+    ax3_twin.axhline(y=4, color='gold', linestyle=':', alpha=0.6, label='Moderate Risk (4)')
+    ax3_twin.axhline(y=2, color='lightcoral', linestyle=':', alpha=0.5, label='Low Risk (2)')
     
-    # Mark threshold crossovers
-    high_score_points = df[df['Accumulation_Score'] >= 7]
-    if not high_score_points.empty:
-        ax3_twin.scatter(high_score_points.index, high_score_points['Accumulation_Score'], 
+    # Mark threshold crossovers for both scores
+    high_acc_points = df[df['Accumulation_Score'] >= 7]
+    if not high_acc_points.empty:
+        ax3_twin.scatter(high_acc_points.index, high_acc_points['Accumulation_Score'], 
                         color='lime', marker='o', s=50, zorder=10, alpha=0.8)
     
-    ax3_twin.set_ylabel('Accumulation Score (0-10)')
+    high_exit_points = df[df['Exit_Score'] >= 6]
+    if not high_exit_points.empty:
+        ax3_twin.scatter(high_exit_points.index, high_exit_points['Exit_Score'], 
+                        color='red', marker='s', s=40, zorder=10, alpha=0.8)
+    
+    urgent_exit_points = df[df['Exit_Score'] >= 8]
+    if not urgent_exit_points.empty:
+        ax3_twin.scatter(urgent_exit_points.index, urgent_exit_points['Exit_Score'], 
+                        color='darkred', marker='X', s=60, zorder=11, alpha=0.9)
+    
+    ax3_twin.set_ylabel('Entry/Exit Scores (0-10)')
     ax3_twin.legend(loc='upper right')
     ax3_twin.set_ylim(0, 10)
     
@@ -693,35 +888,85 @@ def analyze_ticker(ticker: str, period='6mo', save_to_file=False, output_dir='.'
                 print(f"  Most recent: {last_date.strftime('%Y-%m-%d')} (Score: {last_score:.1f}, Price: ${last_price:.2f})")
                 print(f"  That was {days_ago} trading days ago")
         
-        # Enhanced signal counts
-        signal_counts = {
+        # Enhanced signal counts - Entry and Exit
+        entry_signals = {
             'Strong_Buy': df['Strong_Buy'].sum(),
             'Moderate_Buy': df['Moderate_Buy'].sum(), 
-            'Sell_Signal': df['Sell_Signal'].sum(),
             'Stealth_Accumulation': df['Stealth_Accumulation'].sum(),
             'Confluence_Signal': df['Confluence_Signal'].sum(),
             'Volume_Breakout': df['Volume_Breakout'].sum()
         }
         
-        print(f"\n🎯 ENHANCED SIGNAL SUMMARY:")
-        print("  Visual markers on charts represent:")
-        print(f"  🟢 Strong Buy Signals: {signal_counts['Strong_Buy']} (Large green dots - Score ≥7, near support, above VWAP)")
-        print(f"  🟡 Moderate Buy Signals: {signal_counts['Moderate_Buy']} (Medium yellow dots - Score 5-7, divergence signals)")
-        print(f"  🔴 Sell Signals: {signal_counts['Sell_Signal']} (Red dots - Distribution below VWAP)")
-        print(f"  💎 Stealth Accumulation: {signal_counts['Stealth_Accumulation']} (Cyan diamonds - High score, low volume)")
-        print(f"  ⭐ Multi-Signal Confluence: {signal_counts['Confluence_Signal']} (Magenta stars - All indicators aligned)")
-        print(f"  🔥 Volume Breakouts: {signal_counts['Volume_Breakout']} (Orange triangles - 2.5x+ volume)")
+        exit_signals = {
+            'Profit_Taking': df['Profit_Taking'].sum(),
+            'Distribution_Warning': df['Distribution_Warning'].sum(),
+            'Sell_Signal': df['Sell_Signal'].sum(),
+            'Momentum_Exhaustion': df['Momentum_Exhaustion'].sum(),
+            'Stop_Loss': df['Stop_Loss'].sum()
+        }
         
-        print(f"\n📋 CHART READING GUIDE:")
-        print("  • Top Panel: Price action with buy/sell signals")
-        print("  • Middle Panel: OBV & A/D Line divergences marked")
-        print("  • Bottom Panel: Color-coded volume bars + accumulation score")
-        print("  • Purple score line above 7 = Strong accumulation zone")
-        print("  • Look for clustering of multiple signal types")
+        print(f"\n🎯 ENTRY SIGNAL SUMMARY:")
+        print("  🟢 Strong Buy Signals: {} (Large green dots - Score ≥7, near support, above VWAP)".format(entry_signals['Strong_Buy']))
+        print("  🟡 Moderate Buy Signals: {} (Medium yellow dots - Score 5-7, divergence signals)".format(entry_signals['Moderate_Buy']))
+        print("  💎 Stealth Accumulation: {} (Cyan diamonds - High score, low volume)".format(entry_signals['Stealth_Accumulation']))
+        print("  ⭐ Multi-Signal Confluence: {} (Magenta stars - All indicators aligned)".format(entry_signals['Confluence_Signal']))
+        print("  🔥 Volume Breakouts: {} (Orange triangles - 2.5x+ volume)".format(entry_signals['Volume_Breakout']))
+        
+        print(f"\n🚪 EXIT SIGNAL SUMMARY:")
+        print("  🟠 Profit Taking: {} (Orange dots - New highs with waning accumulation)".format(exit_signals['Profit_Taking']))
+        print("  ⚠️ Distribution Warning: {} (Gold squares - Early distribution signs)".format(exit_signals['Distribution_Warning']))
+        print("  🔴 Sell Signals: {} (Red dots - Strong distribution below VWAP)".format(exit_signals['Sell_Signal']))
+        print("  💜 Momentum Exhaustion: {} (Purple X's - Rising price, declining volume)".format(exit_signals['Momentum_Exhaustion']))
+        print("  🛑 Stop Loss Triggers: {} (Dark red triangles - Support breakdown)".format(exit_signals['Stop_Loss']))
+        
+        # Enhanced exit strategy guidance
+        current_exit_score = df['Exit_Score'].iloc[-1]
+        exit_urgency = ("🚨 URGENT" if current_exit_score >= 8 else 
+                       "⚠️ HIGH" if current_exit_score >= 6 else 
+                       "💡 MODERATE" if current_exit_score >= 4 else 
+                       "✅ LOW" if current_exit_score >= 2 else "🟢 MINIMAL")
+        
+        # Check for recent exit signals
+        recent_exit_signals = df[['Profit_Taking', 'Distribution_Warning', 'Sell_Signal', 'Momentum_Exhaustion', 'Stop_Loss']].tail(5)
+        has_recent_exit_signal = recent_exit_signals.any().any()
+        latest_exit_signal = df[['Profit_Taking', 'Distribution_Warning', 'Sell_Signal', 'Momentum_Exhaustion', 'Stop_Loss']].iloc[-1].any()
+        
+        print(f"\n📊 CURRENT EXIT ANALYSIS:")
+        print(f"  Current Exit Score: {current_exit_score:.1f}/10 - {exit_urgency}")
+        print(f"  Latest Exit Signal: {'Yes' if latest_exit_signal else 'No'}")
+        print(f"  Recent Exit Activity (5 days): {'Yes' if has_recent_exit_signal else 'No'}")
+        
+        # Enhanced recommendations based on exit score ranges
+        if current_exit_score >= 8:
+            print(f"  🎯 RECOMMENDATION: URGENT - Consider immediate exit or tight stop loss")
+        elif current_exit_score >= 6:
+            print(f"  🎯 RECOMMENDATION: HIGH RISK - Reduce position size significantly")
+        elif current_exit_score >= 4:
+            print(f"  🎯 RECOMMENDATION: MODERATE RISK - Monitor closely, consider partial exit")
+        elif current_exit_score >= 2:
+            print(f"  🎯 RECOMMENDATION: LOW RISK - Normal monitoring, position appears stable")
+        else:
+            print(f"  🎯 RECOMMENDATION: MINIMAL RISK - Position looks healthy for continued holding")
+        
+        # Additional context based on signal types
+        if df['Stop_Loss'].iloc[-1]:
+            print(f"  ⚠️ ALERT: Stop loss trigger detected - immediate action recommended")
+        elif df['Profit_Taking'].iloc[-1]:
+            print(f"  💰 OPPORTUNITY: Profit taking signal - consider taking partial profits")
+        elif df['Distribution_Warning'].iloc[-1]:
+            print(f"  👀 WATCH: Early distribution warning - prepare exit strategy")
+        
+        print(f"\n📋 ENHANCED CHART READING GUIDE:")
+        print("  • Top Panel: Price with complete entry/exit signal system")
+        print("  • Middle Panel: OBV & A/D Line with signal confirmations")
+        print("  • Bottom Panel: Volume + dual scoring (Entry=Green, Exit=Red)")
+        print("  • Green score >7 = Strong accumulation | Red score >5 = Exit consideration")
+        print("  • Look for signal transitions: Entry→Hold→Exit phases")
+        print("  • Best trades: Strong entry signals followed by clear exit signals")
         
         return df
 
-def multi_timeframe_analysis(ticker: str, periods=['1mo', '3mo', '6mo', '1y']):
+def multi_timeframe_analysis(ticker: str, periods=['1mo', '3mo', '6mo', '12mo']):
     """
     Analyze accumulation signals across multiple timeframes for stronger confirmation.
     """
@@ -820,7 +1065,7 @@ def calculate_recent_stealth_score(df: pd.DataFrame) -> Dict[str, float]:
         'price_change_pct': price_change_pct if not stealth_signals.empty else 0
     }
 
-def batch_process_tickers(ticker_file: str, period='1y', output_dir='results', save_charts=False):
+def batch_process_tickers(ticker_file: str, period='12mo', output_dir='results', save_charts=False):
     """
     Process multiple tickers from a file and save individual analysis reports.
     
@@ -886,9 +1131,22 @@ def batch_process_tickers(ticker_file: str, period='1y', output_dir='results', s
                     'strong_signals': df['Strong_Buy'].sum(),
                     'moderate_signals': df['Moderate_Buy'].sum(),
                     'total_stealth_signals': df['Stealth_Accumulation'].sum(),
-                    'latest_phase': df['Phase'].iloc[-1]
+                    'latest_phase': df['Phase'].iloc[-1],
+                    'exit_score': df['Exit_Score'].iloc[-1],
+                    'profit_taking_signals': df['Profit_Taking'].sum(),
+                    'sell_signals': df['Sell_Signal'].sum(),
+                    'stop_loss_signals': df['Stop_Loss'].sum()
                 })
             
+        except ValueError as e:
+            # Handle data availability errors more gracefully
+            if "No data available" in str(e) or "possibly delisted" in str(e):
+                print(f"⚠️  {ticker}: No data available (possibly delisted or invalid symbol)")
+                errors.append({'ticker': ticker, 'error': 'No data available (possibly delisted)'})
+            else:
+                print(f"❌ {ticker}: {str(e)}")
+                errors.append({'ticker': ticker, 'error': str(e)})
+            continue
         except Exception as e:
             error_msg = f"Error processing {ticker}: {str(e)}"
             print(f"❌ {error_msg}")
@@ -970,19 +1228,21 @@ def main():
         epilog="""
 Examples:
   # Single ticker analysis
-  python vol_analysis.py                    # Analyze AAPL with default 1-year period
-  python vol_analysis.py TSLA               # Analyze TESLA with 1-year period
-  python vol_analysis.py NVDA --period 6mo  # Analyze NVIDIA with 6-month period
-  python vol_analysis.py MSFT -p 3mo        # Analyze Microsoft with 3-month period
-  python vol_analysis.py GOOGL --multi      # Run multi-timeframe analysis
+  python vol_analysis.py                     # Analyze AAPL with default 12-month period
+  python vol_analysis.py TSLA                # Analyze TESLA with 12-month period
+  python vol_analysis.py NVDA --period 6mo   # Analyze NVIDIA with 6-month period
+  python vol_analysis.py MSFT -p 3mo         # Analyze Microsoft with 3-month period
+  python vol_analysis.py GOOGL --multi       # Run multi-timeframe analysis
+  python vol_analysis.py AAPL -p 36mo        # Analyze AAPL with 3-year period
 
   # Batch processing from file
   python vol_analysis.py --file stocks.txt                    # Process all tickers in stocks.txt
-  python vol_analysis.py -f stocks.txt --period 3mo           # Process with 3-month period
+  python vol_analysis.py -f stocks.txt --period 6mo           # Process with 6-month period
   python vol_analysis.py -f stocks.txt --output-dir results   # Save to 'results' directory
   python vol_analysis.py -f stocks.txt --save-charts          # Also save chart images
 
-Available periods: 1d, 5d, 1mo, 3mo, 6mo, 1y, 2y, 5y, 10y, ytd, max
+Available periods: 1d, 5d, 1mo, 3mo, 6mo, 12mo, 24mo, 36mo, 60mo, ytd, max
+Note: Legacy periods (1y, 2y, 5y, etc.) are automatically converted to month equivalents
         """
     )
     
@@ -1000,8 +1260,8 @@ Available periods: 1d, 5d, 1mo, 3mo, 6mo, 1y, 2y, 5y, 10y, ytd, max
     
     parser.add_argument(
         '-p', '--period',
-        default='1y',
-        help='Analysis period (default: 1y). Options: 1d, 5d, 1mo, 3mo, 6mo, 1y, 2y, 5y, 10y, ytd, max'
+        default='12mo',
+        help='Analysis period (default: 12mo). Options: 1d, 5d, 1mo, 3mo, 6mo, 12mo, 24mo, 36mo, 60mo, ytd, max'
     )
     
     
