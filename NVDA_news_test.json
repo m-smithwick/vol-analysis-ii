@@ -1,0 +1,38 @@
+[
+  {
+    "timestamp": "2025-10-13T10:00:00",
+    "headline": "Top Analyst Raises NVIDIA Price Target to $1200, Citing Unabated AI Demand",
+    "summary": "A prominent Wall Street analyst firm upgraded NVIDIA's stock, increasing its price target to $1200 from $1050, based on projections of continued exponential growth in AI infrastructure spending and NVIDIA's dominant position with its Blackwell architecture and software ecosystem.",
+    "source": "Bloomberg",
+    "sentiment": 0.85,
+    "relevance": 0.95,
+    "type": "analyst"
+  },
+  {
+    "timestamp": "2025-10-14T14:30:00",
+    "headline": "Report: Key Hyperscalers Accelerating Custom AI Chip Development, Potential Threat to NVIDIA's Long-Term Dominance",
+    "summary": "A tech industry report details significant investments by major cloud providers like Microsoft Azure and Google Cloud in their custom AI accelerator designs, suggesting a potential long-term shift away from exclusive reliance on NVIDIA's GPUs, though current demand remains robust.",
+    "source": "Wall Street Journal",
+    "sentiment": -0.4,
+    "relevance": 0.88,
+    "type": "analyst"
+  },
+  {
+    "timestamp": "2025-10-15T09:15:00",
+    "headline": "NVIDIA Unveils 'Omniverse Robotics' Platform, Expanding AI Reach into Industrial Automation",
+    "summary": "NVIDIA officially launched its highly anticipated 'Omniverse Robotics' platform, integrating its AI simulation capabilities with real-world robotics development, aiming to capture a significant share of the rapidly growing industrial automation and autonomous systems market.",
+    "source": "Reuters",
+    "sentiment": 0.75,
+    "relevance": 0.92,
+    "type": "analyst"
+  },
+  {
+    "timestamp": "2025-10-16T11:45:00",
+    "headline": "Semiconductor Stocks Slide Amid Fears of Broader US-China Tech Export Restrictions",
+    "summary": "The broader semiconductor sector, including NVIDIA, saw declines following rumors and unofficial leaks suggesting the US government is preparing to implement new, more stringent export controls on advanced AI chips and related technologies to China, potentially impacting future sales in the region.",
+    "source": "Financial Times",
+    "sentiment": -0.6,
+    "relevance": 0.9,
+    "type": "regulatory"
+  }
+]

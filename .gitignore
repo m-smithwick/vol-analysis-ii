@@ -1,8 +1,11 @@
 # Output directories
 results/
+results_news/
+results_volume/
 
 # Data cache (local storage, should not be committed)
 data_cache/
+news_cache/
 
 # macOS system files
 .DS_Store

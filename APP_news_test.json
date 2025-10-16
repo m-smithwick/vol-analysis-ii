@@ -1,0 +1,38 @@
+[
+  {
+    "timestamp": "2025-10-13T09:00:00",
+    "headline": "APP Stock Jumps on Analyst Upgrade, Anticipation for Q3 Earnings",
+    "summary": "Shares of APP Inc. surged after a prominent investment bank upgraded the stock from 'Hold' to 'Buy,' citing strong preliminary data for Q3 2025 user engagement and monetization. Analysts predict better-than-expected revenue growth driven by new premium features.",
+    "source": "Bloomberg",
+    "sentiment": 0.8,
+    "relevance": 0.95,
+    "type": "earnings"
+  },
+  {
+    "timestamp": "2025-10-14T11:30:00",
+    "headline": "APP Unveils Major AI Integration for Flagship Platform, Boosting User Experience",
+    "summary": "APP Inc. announced a significant update to its core platform, introducing advanced AI-powered features designed to personalize user experiences, streamline workflows, and enhance content discovery. The company expects the integration to drive user retention and attract new subscribers.",
+    "source": "TechCrunch",
+    "sentiment": 0.7,
+    "relevance": 0.9,
+    "type": "product"
+  },
+  {
+    "timestamp": "2025-10-15T14:45:00",
+    "headline": "Regulatory Scrutiny Intensifies on APP's Data Privacy Practices",
+    "summary": "A coalition of privacy advocacy groups and European regulators have reportedly initiated a formal inquiry into APP Inc.'s data collection and usage policies, raising concerns about user consent and potential anti-competitive practices in data monetization. The news sent a slight tremor through the stock.",
+    "source": "Reuters",
+    "sentiment": -0.6,
+    "relevance": 0.85,
+    "type": "general"
+  },
+  {
+    "timestamp": "2025-10-16T08:30:00",
+    "headline": "APP Announces Strategic Partnership with Global Cloud Provider for Infrastructure Expansion",
+    "summary": "APP Inc. has entered into a multi-year strategic partnership with a leading global cloud infrastructure provider to scale its operations, improve service reliability, and support its international expansion efforts. The collaboration aims to optimize costs and accelerate product development.",
+    "source": "Wall Street Journal",
+    "sentiment": 0.6,
+    "relevance": 0.88,
+    "type": "product"
+  }
+]

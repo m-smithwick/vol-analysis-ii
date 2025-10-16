@@ -1,6 +1,6 @@
 # 📊 Advanced Stock Volume Analysis Tool
 
-A sophisticated Python tool for analyzing stock accumulation and distribution patterns using advanced volume indicators and visual signal detection.
+A sophisticated Python tool for analyzing stock accumulation and distribution patterns using advanced volume indicators and visual signal detection, with news influence analysis capabilities.
 
 ## 🚀 Features
 
@@ -22,13 +22,26 @@ A sophisticated Python tool for analyzing stock accumulation and distribution pa
 - **Multi-timeframe Analysis**: Cross-reference signals across different time horizons
 - **Screen Optimized**: Charts sized perfectly for 16-inch Mac displays
 
-### **Smart Data Caching System (NEW)**
+### **Smart Data Caching System**
 - **Local Cache**: Stores Yahoo Finance data locally to avoid redundant downloads
 - **Incremental Updates**: Only downloads new data since last cache update
 - **Automatic Management**: Creates and maintains cache automatically
 - **Cache Information**: View cached tickers and their status
 - **Selective Clearing**: Clear cache for specific tickers or entire cache
 - **Force Refresh**: Override cache when fresh data is needed
+- **Timezone Handling**: Robust timezone management for consistent data processing
+  - Automatically normalizes timezone-aware and timezone-naive datetime objects
+  - Uses period-based API calls instead of explicit dates to avoid timezone conflicts
+  - Ensures consistent timezone handling between cached and newly downloaded data
+
+### **News & Research Influence Analysis (NEW)**
+- **Intraday Analysis**: Detect news-influenced price movements using hourly data
+- **News Correlation**: Link price jumps to relevant news and research reports
+- **Classification System**: Identify whether movements are news-driven or technical
+- **Confidence Scoring**: 0-100% confidence scores for news influence detection
+- **News Categorization**: Classify news by type (earnings, analyst ratings, product announcements, etc.)
+- **Historical Analysis**: Review past price-news correlations with date range flexibility
+- **Gemini AI Integration**: Utilizes Google's Gemini 2.5 Flash model for enhanced financial news fetching and analysis
 
 ### **Batch Processing & File Output**
 - **File Input**: Process ticker lists from text files (one ticker per line)
@@ -41,7 +54,7 @@ A sophisticated Python tool for analyzing stock accumulation and distribution pa
 
 ### Requirements
 ```bash
-pip install pandas numpy yfinance matplotlib argparse
+pip install pandas numpy yfinance matplotlib argparse requests
 ```
 
 ### Python Version
@@ -65,7 +78,26 @@ python vol_analysis.py NVDA --period 6mo
 python vol_analysis.py MSFT -p 3mo
 ```
 
-### Batch Processing (NEW)
+### News Influence Analysis Usage
+```bash
+# Analyze news influence for AAPL (past 30 days)
+python news_analysis.py AAPL
+
+# Analyze specific date
+python news_analysis.py TSLA --date 2025-10-15
+
+# Use different intraday interval (default: 1h)
+python news_analysis.py NVDA --intervaile
+python news_analysis.py --file stocks.txt
+
+# Save chart visualizations
+python news_analysis.py MSFT --save-charts
+
+# Specify lookback period (days)
+python news_analysis.py AAPL --days 10
+```
+
+### Batch Processing
 ```bash
 # Process all tickers from a file
 python vol_analysis.py --file stocks.txt
@@ -134,6 +166,12 @@ All files are saved to the `results/` directory by default.
 
 ### Available Time Periods
 - `1d`, `5d`, `1mo`, `3mo`, `6mo`, `1y`, `2y`, `5y`, `10y`, `ytd`, `max`
+
+### Available Intraday Intervals
+- `1h` (recommended default for news influence analysis)
+- `30m` (more detailed but higher processing requirements)
+- `15m` (finer granularity for rapid market responses)
+- `5m` (highest detail, limited historical data)
 
 ## 📈 Chart Interpretation Guide
 
@@ -443,12 +481,31 @@ pip install yfinance
 - **2-4**: ✅ LOW RISK - Normal monitoring, position appears stable
 - **1-2**: 🟢 MINIMAL RISK - Position looks healthy for continued holding
 
+## 🔧 Advanced Debugging Tools
+
+### **Debug Scripts**
+- **debug_timezone_simple.py**: Test script for quick verification of timezone handling with a single stock and date
+- **debug_timezone.py**: More comprehensive timezone debugging tool with detailed logging
+- **test_news_influence.py**: Targeted test for news influence analysis functionality
+- **test_timezone.py**: Specialized test for timezone-related operations
+
+### **Timezone Handling Improvements**
+- **Consistent Normalization**: All datetime objects consistently normalized to timezone-naive format for reliable comparisons
+- **Yahoo Finance Compatibility**: Smart handling of Yahoo Finance API's timezone-aware datetimes (UTC)
+- **Cache Consistency**: Ensured cache loading/saving preserves correct timezone information
+- **Period-based API Calls**: Using periods (like "1d", "7d") instead of explicit dates to avoid timezone conflicts
+- **News-Price Correlation**: Fixed timezone handling in news correlation functions for accurate event timing
+- **Error Recovery**: Improved error handling for timezone-related failures with graceful fallbacks
+- **Data Merging**: Proper handling when combining cached data with newly downloaded data
+- **Debug Tools**: Created specialized debugging scripts for detecting and resolving timezone issues
+
 ## 📚 Further Reading
 
 - **On-Balance Volume**: [Investopedia OBV](https://www.investopedia.com/terms/o/onbalancevolume.asp)
 - **Accumulation/Distribution**: [A/D Line Explanation](https://www.investopedia.com/terms/a/accumulationdistribution.asp)
 - **VWAP Trading**: [Volume Weighted Average Price](https://www.investopedia.com/terms/v/vwap.asp)
 - **Volume Analysis**: [Volume and Price Analysis](https://www.investopedia.com/articles/technical/02/010702.asp)
+- **Timezone Handling in Python**: [Python datetime documentation](https://docs.python.org/3/library/datetime.html#aware-and-naive-objects)
 
 ## 📄 License
 
