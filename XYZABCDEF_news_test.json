@@ -1,0 +1,38 @@
+[
+  {
+    "timestamp": "2025-10-13T10:00:00",
+    "headline": "XYZABCDEF Receives 'Strong Buy' Rating Ahead of Q3 Earnings",
+    "summary": "A prominent investment bank has upgraded XYZABCDEF's stock to 'Strong Buy' from 'Outperform,' citing anticipated strong Q3 earnings driven by market share gains and promising new product pipeline. The report highlighted the stock's current undervaluation relative to its growth prospects.",
+    "source": "Wall Street Journal",
+    "sentiment": 0.75,
+    "relevance": 0.95,
+    "type": "earnings"
+  },
+  {
+    "timestamp": "2025-10-14T14:30:00",
+    "headline": "XYZABCDEF Announces Strategic Partnership with Global Tech Giant for AI Integration",
+    "summary": "XYZABCDEF today revealed a major strategic partnership with 'GlobalTech Solutions' to integrate cutting-edge AI capabilities across its flagship product lines. This collaboration is expected to significantly enhance user experience and open new revenue streams, bolstering XYZABCDEF's competitive edge.",
+    "source": "Reuters",
+    "sentiment": 0.85,
+    "relevance": 0.92,
+    "type": "earnings"
+  },
+  {
+    "timestamp": "2025-10-15T16:05:00",
+    "headline": "XYZABCDEF Beats EPS Estimates but Revenue Growth Slows, Stock Futures React Negatively",
+    "summary": "After market close, XYZABCDEF announced Q3 earnings, surpassing analyst expectations for Earnings Per Share (EPS). However, the company reported a slower-than-anticipated revenue growth rate and issued conservative guidance for Q4, causing a negative reaction in after-hours trading.",
+    "source": "Bloomberg",
+    "sentiment": -0.3,
+    "relevance": 1.0,
+    "type": "earnings"
+  },
+  {
+    "timestamp": "2025-10-16T09:00:00",
+    "headline": "XYZABCDEF Shares Dip as Analysts Re-evaluate Growth Trajectory Post-Earnings",
+    "summary": "Following yesterday's mixed Q3 earnings report, XYZABCDEF's stock opened lower as several analysts revised their price targets downwards, expressing concerns over the decelerating revenue growth and the company's cautious forward guidance. Investor sentiment appears to have shifted despite the EPS beat.",
+    "source": "CNBC",
+    "sentiment": -0.6,
+    "relevance": 0.98,
+    "type": "earnings"
+  }
+]

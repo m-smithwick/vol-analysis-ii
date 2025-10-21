@@ -1,5 +1,6 @@
 """
 News influence analysis module for detecting when price increases are influenced by news or research.
+With Gemini integration for financial news fetching, including hallucination detection.
 """
 
 import pandas as pd
@@ -11,14 +12,227 @@ import json
 import os
 import re
 from concurrent.futures import ThreadPoolExecutor
+import yfinance as yf
+
+try:
+    import google.generativeai as genai
+    GEMINI_AVAILABLE = True
+except ImportError:
+    GEMINI_AVAILABLE = False
+    print("⚠️ google-generativeai package not found. Install it with 'pip install google-generativeai' to use Gemini for news.")
 
 # Constants
 NEWS_CACHE_DIR = "news_cache"
 NEWS_API_KEY = None  # Configure via environment variable or settings file
+GEMINI_API_KEY_PATH = "gemini-api-key"  # Path to Gemini API key file
+REAL_TICKERS_CACHE = {}  # Cache to store verified real tickers
 
 # Ensure news cache directory exists
 if not os.path.exists(NEWS_CACHE_DIR):
     os.makedirs(NEWS_CACHE_DIR)
+
+def _load_gemini_api_key():
+    """Load Gemini API key from file."""
+    try:
+        with open(GEMINI_API_KEY_PATH, 'r') as f:
+            return f.read().strip()
+    except Exception as e:
+        print(f"⚠️ Error loading Gemini API key: {str(e)}")
+        return None
+
+def verify_ticker_exists(ticker: str) -> bool:
+    """
+    Verify if a ticker symbol exists by checking with Yahoo Finance API.
+    Caches results to avoid repeated API calls.
+    
+    Args:
+        ticker (str): Stock symbol to verify
+        
+    Returns:
+        bool: True if ticker exists, False otherwise
+    """
+    # Check cache first
+    if ticker in REAL_TICKERS_CACHE:
+        return REAL_TICKERS_CACHE[ticker]
+    
+    try:
+        # Try to get basic info from Yahoo Finance
+        stock = yf.Ticker(ticker)
+        info = stock.info
+        
+        # Check if we got valid data (look for market cap as a signal of a valid stock)
+        if 'marketCap' in info and info['marketCap'] is not None:
+            REAL_TICKERS_CACHE[ticker] = True
+            return True
+        else:
+            REAL_TICKERS_CACHE[ticker] = False
+            return False
+    except Exception:
+        # If there's any error, the ticker likely doesn't exist
+        REAL_TICKERS_CACHE[ticker] = False
+        return False
+
+def detect_hallucinations(ticker: str, news_items: List[Dict], start_date: datetime, end_date: datetime) -> Tuple[List[Dict], List[str]]:
+    """
+    Detect likely hallucinated news from Gemini.
+    
+    Args:
+        ticker (str): Stock symbol
+        news_items (List[Dict]): List of news items to check
+        start_date (datetime): Start date for news period
+        end_date (datetime): End date for news period
+        
+    Returns:
+        Tuple[List[Dict], List[str]]: Filtered news items and list of warning messages
+    """
+    warnings = []
+    filtered_news = []
+    
+    # Check 1: Verify the ticker exists
+    ticker_exists = verify_ticker_exists(ticker)
+    if not ticker_exists:
+        warnings.append(f"⚠️ Ticker '{ticker}' may not be a valid stock symbol")
+        return [], warnings
+    
+    # Check 2: No future dates allowed
+    now = datetime.now()
+    if start_date > now or end_date > now:
+        warnings.append("⚠️ Requested news for future dates, no valid results possible")
+        return [], warnings
+    
+    # Check 3: Verify timestamps are within the requested range
+    for item in news_items:
+        if 'timestamp' not in item or not item['timestamp']:
+            warnings.append("⚠️ News item missing timestamp")
+            continue
+            
+        try:
+            news_time = pd.to_datetime(item['timestamp'])
+            if news_time.tzinfo is not None:
+                news_time = news_time.tz_localize(None)
+                
+            # Check if timestamp is in the future
+            if news_time > now:
+                warnings.append(f"⚠️ News item has future timestamp: {item.get('headline', 'Unknown')}")
+                continue
+                
+            # Check if timestamp is within requested range
+            # Add 1 day buffer to both sides for pre/post market events
+            if news_time < (start_date - timedelta(days=1)) or news_time > (end_date + timedelta(days=1)):
+                warnings.append(f"⚠️ News item outside requested date range: {item.get('headline', 'Unknown')}")
+                continue
+                
+            # Item passed all checks, add to filtered list
+            filtered_news.append(item)
+        except Exception as e:
+            warnings.append(f"⚠️ Error processing news timestamp: {str(e)}")
+            continue
+    
+    # If all news was filtered out, that's suspicious
+    if news_items and not filtered_news:
+        warnings.append("⚠️ All news items were filtered out due to hallucination detection")
+    
+    return filtered_news, warnings
+
+def fetch_financial_news_from_gemini(ticker: str, start_date: datetime, end_date: datetime) -> List[Dict]:
+    """
+    Fetch financial news for a ticker using Google's Gemini, with hallucination detection.
+    
+    Args:
+        ticker (str): Stock symbol
+        start_date (datetime): Start date for news
+        end_date (datetime): End date for news
+        
+    Returns:
+        List[Dict]: List of news items with timestamp, headline, etc.
+    """
+    print(f"🔍 DEBUG: Starting Gemini fetch for {ticker} from {start_date.strftime('%Y-%m-%d')} to {end_date.strftime('%Y-%m-%d')}")
+    
+    if not GEMINI_AVAILABLE:
+        print("❌ DEBUG: Gemini not available")
+        return []
+    
+    api_key = _load_gemini_api_key()
+    if not api_key:
+        print("❌ DEBUG: No Gemini API key found")
+        return []
+    
+    print(f"✅ DEBUG: API key loaded, length: {len(api_key)}")
+    
+    # Configure Gemini with the API key
+    genai.configure(api_key=api_key)
+    
+    # Format the prompt for Gemini with explicit instructions against hallucinations
+    prompt = f"""
+    Please provide REAL financial news for {ticker} stock from {start_date.strftime('%Y-%m-%d')} to {end_date.strftime('%Y-%m-%d')}.
+
+    IMPORTANT: If you don't have information about real news for this ticker during this period, return an empty array [].
+    DO NOT generate fictional or made-up news. Only return news you know is real.
+    
+    For each news item, include:
+    1. Timestamp (in ISO format with time - example: "2025-10-15T09:30:00")
+    2. Headline
+    3. Brief summary
+    4. Source (like Bloomberg, CNBC, etc.)
+    5. Estimated sentiment (number between -1.0 and 1.0 where negative is bad news and positive is good news)
+    6. Relevance to the ticker (number between 0.0 and 1.0)
+    
+    Return ONLY valid JSON format like:
+    [
+        {{"timestamp": "2025-10-15T09:30:00", "headline": "Example Headline", "summary": "Brief summary", "source": "Source Name", "sentiment": 0.5, "relevance": 0.9}}
+    ]
+    
+    If no real news is available, return [].
+    """
+    
+    try:
+        print("🔄 DEBUG: Calling Gemini API...")
+        # Call Gemini 2.5 Flash
+        model = genai.GenerativeModel('gemini-2.5-flash')
+        response = model.generate_content(prompt)
+        
+        print(f"📥 DEBUG: Gemini response received, length: {len(response.text)}")
+        print(f"📄 DEBUG: Raw response: {response.text[:500]}...")
+        
+        # Parse the response
+        json_match = re.search(r'\[\s*{.*}\s*\]', response.text, re.DOTALL)
+        if json_match:
+            json_str = json_match.group(0)
+            print(f"✅ DEBUG: Found JSON match, parsing...")
+            news_items = json.loads(json_str)
+        else:
+            # Try to parse the entire response as JSON
+            try:
+                print("🔄 DEBUG: No JSON match found, trying to parse entire response...")
+                news_items = json.loads(response.text)
+            except json.JSONDecodeError as e:
+                print(f"❌ DEBUG: JSON decode error: {str(e)}")
+                # If that fails, assume empty response
+                news_items = []
+        
+        print(f"📊 DEBUG: Parsed {len(news_items)} raw news items from Gemini")
+        
+        # Run hallucination detection
+        print("🔍 DEBUG: Running hallucination detection...")
+        filtered_news, warnings = detect_hallucinations(ticker, news_items, start_date, end_date)
+        
+        print(f"⚖️ DEBUG: After filtering: {len(filtered_news)} items, {len(warnings)} warnings")
+        
+        # Log any warnings
+        for warning in warnings:
+            print(warning)
+            
+        # Add type field based on headline content
+        for item in filtered_news:
+            item['type'] = classify_news_type(item.get('headline', '') + ' ' + item.get('summary', ''))
+        
+        print(f"📰 Retrieved {len(filtered_news)} validated news items from Gemini for {ticker}")
+        return filtered_news
+    except Exception as e:
+        print(f"⚠️ Error getting news from Gemini: {str(e)}")
+        import traceback
+        print(f"🔥 DEBUG: Full traceback: {traceback.format_exc()}")
+        return []
 
 def detect_intraday_price_jumps(df: pd.DataFrame, threshold: float = 0.5) -> List[datetime]:
     """
@@ -61,18 +275,22 @@ def fetch_financial_news(ticker: str, start_date: datetime, end_date: Optional[d
     if end_date is None:
         end_date = start_date + timedelta(days=1)
     
-    # Format dates for API
-    start_str = start_date.strftime('%Y-%m-%d')
-    end_str = end_date.strftime('%Y-%m-%d')
+    # Try Gemini first
+    news_items = fetch_financial_news_from_gemini(ticker, start_date, end_date)
+    if news_items:
+        # Cache the results
+        _save_to_news_cache(ticker, start_date, end_date, news_items)
+        return news_items
     
-    # This is a placeholder function that would be replaced with an actual news API implementation
-    # For now, we'll implement a simple mock to demonstrate the structure
+    # Fall back to Alpha Vantage if Gemini fails
     try:
         # Try to get actual news from a free API (Alpha Vantage news endpoint if key is provided)
         api_key = os.environ.get('ALPHA_VANTAGE_API_KEY', NEWS_API_KEY)
         
         if api_key:
             # Alpha Vantage news API
+            start_str = start_date.strftime('%Y-%m-%d')
+            end_str = end_date.strftime('%Y-%m-%d')
             url = f"https://www.alphavantage.co/query?function=NEWS_SENTIMENT&tickers={ticker}&time_from={start_str}T0000&time_to={end_str}T2359&apikey={api_key}"
             
             response = requests.get(url)
@@ -105,15 +323,12 @@ def fetch_financial_news(ticker: str, start_date: datetime, end_date: Optional[d
                     print(f"⚠️ No news data found in API response for {ticker}")
             else:
                 print(f"⚠️ Failed to fetch news: {response.status_code}")
-        
-        # If we reach here, either API key wasn't provided or API call failed
-        # Generate mock news data for demonstration
-        return _generate_mock_news(ticker, start_date, end_date)
-        
     except Exception as e:
-        print(f"⚠️ Error fetching news for {ticker}: {str(e)}")
-        # Generate mock data as fallback
-        return _generate_mock_news(ticker, start_date, end_date)
+        print(f"⚠️ Error fetching news from API: {str(e)}")
+    
+    # If we reach here, all external sources failed
+    print(f"ℹ️ No news found for {ticker} from {start_date.strftime('%Y-%m-%d')} to {end_date.strftime('%Y-%m-%d')}")
+    return []
 
 def classify_news_type(news_text: str) -> str:
     """
@@ -540,6 +755,8 @@ def _save_to_news_cache(ticker: str, start_date: datetime, end_date: Optional[da
         end_date (datetime, optional): End date
         news_data (List[Dict]): News data to cache
     """
+    print(f"💾 DEBUG: Attempting to save {len(news_data)} news items to cache for {ticker}")
+    
     # Ensure dates are timezone-naive
     if hasattr(start_date, 'tzinfo') and start_date.tzinfo is not None:
         start_date = start_date.replace(tzinfo=None)
@@ -552,111 +769,30 @@ def _save_to_news_cache(ticker: str, start_date: datetime, end_date: Optional[da
     cache_key = f"{ticker}_{start_date.strftime('%Y%m%d')}_{end_date.strftime('%Y%m%d')}"
     cache_file = os.path.join(NEWS_CACHE_DIR, f"{cache_key}.json")
     
+    print(f"📁 DEBUG: Cache file path: {cache_file}")
+    print(f"📂 DEBUG: Cache directory exists: {os.path.exists(NEWS_CACHE_DIR)}")
+    
+    if not news_data:
+        print("⚠️ DEBUG: No news data to cache, skipping save")
+        return
+    
     try:
+        print(f"✍️ DEBUG: Writing to cache file...")
         with open(cache_file, 'w') as f:
-            json.dump(news_data, f)
+            json.dump(news_data, f, indent=2)
+        print(f"✅ DEBUG: Successfully saved to cache: {cache_file}")
+        
+        # Verify the file was actually created
+        if os.path.exists(cache_file):
+            file_size = os.path.getsize(cache_file)
+            print(f"📏 DEBUG: Cached file size: {file_size} bytes")
+        else:
+            print("❌ DEBUG: Cache file was not created!")
+            
     except Exception as e:
         print(f"⚠️ Error saving to news cache: {str(e)}")
-
-def _generate_mock_news(ticker: str, start_date: datetime, end_date: datetime) -> List[Dict]:
-    """
-    Generate mock news data for testing and demonstration.
-    
-    Args:
-        ticker (str): Stock symbol
-        start_date (datetime): Start date
-        end_date (datetime): End date
-        
-    Returns:
-        List[Dict]: Mock news items
-    """
-    news_items = []
-    current_date = start_date
-    
-    # Generate mock news for the requested period
-    while current_date <= end_date:
-        # Generate 0-3 news items per day
-        n_items = np.random.randint(0, 4)
-        
-        for _ in range(n_items):
-            # Randomly assign a time during the day
-            hour = np.random.randint(5, 18)  # 5 AM to 6 PM
-            minute = np.random.randint(0, 60)
-            
-            news_time = current_date.replace(hour=hour, minute=minute)
-            
-            # Generate news type
-            news_types = ['earnings', 'analyst', 'product', 'regulatory', 'management', 'general']
-            weights = [0.15, 0.25, 0.15, 0.1, 0.1, 0.25]
-            news_type = np.random.choice(news_types, p=weights)
-            
-            # Generate headline based on type
-            headlines = {
-                'earnings': [
-                    f"{ticker} Reports Q{np.random.randint(1, 5)} Earnings",
-                    f"{ticker} Beats Earnings Estimates",
-                    f"{ticker} Misses Revenue Expectations",
-                    f"{ticker} Raises Full-Year Guidance"
-                ],
-                'analyst': [
-                    f"Analyst Upgrades {ticker} to Buy",
-                    f"Goldman Sachs Raises {ticker} Price Target",
-                    f"Morgan Stanley Initiates {ticker} Coverage with Overweight Rating",
-                    f"JPMorgan Downgrades {ticker} to Neutral"
-                ],
-                'product': [
-                    f"{ticker} Unveils New Product Line",
-                    f"{ticker} Announces Partnership with Major Tech Company",
-                    f"{ticker} Launches Next-Generation Platform",
-                    f"{ticker} Files Patent for Innovative Technology"
-                ],
-                'regulatory': [
-                    f"{ticker} Receives FDA Approval",
-                    f"{ticker} Settles Regulatory Investigation",
-                    f"{ticker} Faces New Legal Challenge",
-                    f"Regulators Review {ticker}'s Market Practices"
-                ],
-                'management': [
-                    f"{ticker} Names New CEO",
-                    f"{ticker} CFO Steps Down",
-                    f"{ticker} Announces Board Restructuring",
-                    f"{ticker} Expands Leadership Team"
-                ],
-                'general': [
-                    f"{ticker} Shares Trade Higher on Market Optimism",
-                    f"{ticker} Stock Volatile Amid Sector Rotation",
-                    f"{ticker} Mentioned in Industry Report",
-                    f"{ticker} Among Most Active Stocks Today"
-                ]
-            }
-            
-            headline = np.random.choice(headlines[news_type])
-            
-            # Generate sentiment (more positive for product announcements, mixed for others)
-            if news_type == 'product':
-                sentiment = np.random.uniform(0.2, 0.8)
-            elif news_type == 'regulatory':
-                sentiment = np.random.uniform(-0.7, 0.3)
-            else:
-                sentiment = np.random.uniform(-0.5, 0.5)
-            
-            news_items.append({
-                'timestamp': news_time.isoformat(),
-                'headline': headline,
-                'summary': f"This is a mock summary for {ticker} news on {news_time.strftime('%Y-%m-%d')}.",
-                'source': np.random.choice(['Reuters', 'Bloomberg', 'CNBC', 'WSJ', 'MarketWatch']),
-                'url': f"https://example.com/news/{ticker}/{news_time.strftime('%Y%m%d')}/{np.random.randint(1000, 9999)}",
-                'type': news_type,
-                'sentiment': sentiment,
-                'relevance': np.random.uniform(0.5, 1.0)
-            })
-        
-        current_date += timedelta(days=1)
-    
-    # Cache this mock data
-    _save_to_news_cache(ticker, start_date, end_date, news_items)
-    
-    return news_items
+        import traceback
+        print(f"🔥 DEBUG: Cache save traceback: {traceback.format_exc()}")
 
 def clear_news_cache(ticker: str = None, start_date: datetime = None, end_date: datetime = None) -> None:
     """

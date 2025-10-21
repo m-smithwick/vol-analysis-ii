@@ -42,6 +42,9 @@ A sophisticated Python tool for analyzing stock accumulation and distribution pa
 - **News Categorization**: Classify news by type (earnings, analyst ratings, product announcements, etc.)
 - **Historical Analysis**: Review past price-news correlations with date range flexibility
 - **Gemini AI Integration**: Utilizes Google's Gemini 2.5 Flash model for enhanced financial news fetching and analysis
+- **Hallucination Detection**: Improved module filters out hallucinated news data from AI models
+- **Ticker Verification**: Validates ticker symbols against real market data
+- **Real Data Guarantee**: No mock/fake data generation when real news is unavailable
 
 ### **Batch Processing & File Output**
 - **File Input**: Process ticker lists from text files (one ticker per line)
@@ -87,14 +90,25 @@ python news_analysis.py AAPL
 python news_analysis.py TSLA --date 2025-10-15
 
 # Use different intraday interval (default: 1h)
-python news_analysis.py NVDA --intervaile
-python news_analysis.py --file stocks.txt
+python news_analysis.py NVDA --interval 30m
+
+# Process all tickers from a file
+s
 
 # Save chart visualizations
 python news_analysis.py MSFT --save-charts
 
 # Specify lookback period (days)
 python news_analysis.py AAPL --days 10
+
+# Analyze with hallucination detection (automatically enabled)
+python news_analysis.py AAPL
+
+# Clear news cache to remove any mock data
+python news_analysis.py --clear-news-cache
+
+# Clear news cache for specific ticker
+python news_analysis.py --clear-news-cache AAPL
 ```
 
 ### Batch Processing
@@ -401,6 +415,14 @@ pip install yfinance
 - Verify ticker symbol is correct and actively traded
 - Use proper exchange format (e.g., `BRK-A` not `BRKA`)
 
+#### **Mock news data in cache**
+```
+⚠️ This news appears to be mock data, not real financial news
+```
+- Clear news cache with `python news_analysis.py --clear-news-cache`
+- The system now automatically prevents mock data generation
+- Hallucination detection is built-in and always active
+
 ### **Performance Tips**
 - Use shorter periods (`3mo`, `6mo`) for faster analysis
 - Daily intervals only - simplified for closing price analysis
@@ -498,6 +520,13 @@ pip install yfinance
 - **Error Recovery**: Improved error handling for timezone-related failures with graceful fallbacks
 - **Data Merging**: Proper handling when combining cached data with newly downloaded data
 - **Debug Tools**: Created specialized debugging scripts for detecting and resolving timezone issues
+
+### **News Cache Management**
+- **Automatic Caching**: News data is automatically cached in the `news_cache` directory
+- **Cache Clearing**: Use `--clear-news-cache` to remove cached news data that might contain mock entries
+- **Hallucination Detection**: Built-in hallucination detection and ticker verification
+- **Cache Organization**: Files are stored as `{TICKER}_{STARTDATE}_{ENDDATE}.json` for easy identification
+- **Mock Data Prevention**: System never generates mock data when real news is unavailable
 
 ## 📚 Further Reading
 
