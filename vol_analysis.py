@@ -776,11 +776,12 @@ def analyze_ticker(ticker: str, period='6mo', save_to_file=False, output_dir='.'
     ax3_twin.axhline(y=4, color='gold', linestyle=':', alpha=0.6, label='Moderate Risk (4)')
     ax3_twin.axhline(y=2, color='lightcoral', linestyle=':', alpha=0.5, label='Low Risk (2)')
     
-    # Mark threshold crossovers for both scores
-    high_acc_points = df[df['Accumulation_Score'] >= 7]
-    if not high_acc_points.empty:
-        ax3_twin.scatter(high_acc_points.index, high_acc_points['Accumulation_Score'], 
-                        color='lime', marker='o', s=50, zorder=10, alpha=0.8)
+    # Mark actual Strong Buy signal occurrences (not just score thresholds)
+    actual_strong_buys = df[df['Strong_Buy'] == True]
+    if not actual_strong_buys.empty:
+        ax3_twin.scatter(actual_strong_buys.index, actual_strong_buys['Accumulation_Score'], 
+                        color='lime', marker='o', s=50, zorder=10, alpha=0.8, 
+                        label='Strong Buy Signals')
     
     high_exit_points = df[df['Exit_Score'] >= 6]
     if not high_exit_points.empty:
@@ -793,7 +794,7 @@ def analyze_ticker(ticker: str, period='6mo', save_to_file=False, output_dir='.'
                         color='darkred', marker='X', s=60, zorder=11, alpha=0.9)
     
     ax3_twin.set_ylabel('Entry/Exit Scores (0-10)')
-    ax3_twin.legend(loc='upper right')
+    ax3_twin.legend(loc='upper left')
     ax3_twin.set_ylim(0, 10)
     
     ax3.grid(True, alpha=0.3)
@@ -1065,7 +1066,88 @@ def calculate_recent_stealth_score(df: pd.DataFrame) -> Dict[str, float]:
         'price_change_pct': price_change_pct if not stealth_signals.empty else 0
     }
 
-def batch_process_tickers(ticker_file: str, period='12mo', output_dir='results', save_charts=False):
+def calculate_recent_entry_score(df: pd.DataFrame) -> Dict[str, float]:
+    """
+    Calculate recent strong entry signal activity score focusing on momentum signals.
+    
+    Args:
+        df (pd.DataFrame): Analysis results dataframe
+        
+    Returns:
+        Dict[str, float]: Dictionary with entry signal metrics
+    """
+    # Focus on recent 10 days for entry activity
+    recent_df = df.tail(10)
+    
+    # Count different types of entry signals in recent period
+    recent_strong_buy = recent_df['Strong_Buy'].sum()
+    recent_confluence = recent_df['Confluence_Signal'].sum()
+    recent_volume_breakout = recent_df['Volume_Breakout'].sum()
+    
+    # 1. Signal diversity and strength (0-4 points)
+    signal_strength_score = 0
+    if recent_strong_buy > 0:
+        signal_strength_score += min(recent_strong_buy * 1.5, 2)  # Strong buy signals worth more
+    if recent_confluence > 0:
+        signal_strength_score += min(recent_confluence * 2, 2)  # Confluence signals are premium
+    if recent_volume_breakout > 0:
+        signal_strength_score += min(recent_volume_breakout * 1, 1)  # Volume breakouts
+    signal_strength_score = min(signal_strength_score, 4)
+    
+    # 2. Days since last strong entry signal (0-3 points)
+    entry_signals = df[(df['Strong_Buy'] == True) | (df['Confluence_Signal'] == True) | (df['Volume_Breakout'] == True)]
+    if not entry_signals.empty:
+        last_entry_date = entry_signals.index[-1]
+        days_since_entry = (df.index[-1] - last_entry_date).days
+        # More recent = higher score
+        recency_score = max(3 - (days_since_entry / 2), 0)  # Max 3 points, faster decay than stealth
+    else:
+        recency_score = 0
+        days_since_entry = 999
+    
+    # 3. Signal momentum - are signals increasing or decreasing? (0-3 points)
+    # Compare recent 5 days vs previous 5 days
+    if len(df) >= 10:
+        recent_5 = df.tail(5)
+        previous_5 = df.tail(10).head(5)
+        
+        recent_total = (recent_5['Strong_Buy'].sum() + 
+                       recent_5['Confluence_Signal'].sum() + 
+                       recent_5['Volume_Breakout'].sum())
+        previous_total = (previous_5['Strong_Buy'].sum() + 
+                         previous_5['Confluence_Signal'].sum() + 
+                         previous_5['Volume_Breakout'].sum())
+        
+        if recent_total > previous_total:
+            momentum_score = 3  # Increasing momentum
+            momentum_direction = "up"
+        elif recent_total == previous_total and recent_total > 0:
+            momentum_score = 2  # Steady momentum
+            momentum_direction = "steady"
+        elif recent_total > 0:
+            momentum_score = 1  # Some activity but declining
+            momentum_direction = "down"
+        else:
+            momentum_score = 0  # No activity
+            momentum_direction = "none"
+    else:
+        momentum_score = 0
+        momentum_direction = "none"
+    
+    # Total entry score (0-10 scale)
+    total_entry_score = signal_strength_score + recency_score + momentum_score
+    
+    return {
+        'entry_score': min(total_entry_score, 10),
+        'recent_strong_buy': recent_strong_buy,
+        'recent_confluence': recent_confluence,
+        'recent_volume_breakout': recent_volume_breakout,
+        'days_since_entry': days_since_entry,
+        'momentum_direction': momentum_direction,
+        'total_recent_signals': recent_strong_buy + recent_confluence + recent_volume_breakout
+    }
+
+def batch_process_tickers(ticker_file: str, period='12mo', output_dir='results_volume', save_charts=False):
     """
     Process multiple tickers from a file and save individual analysis reports.
     
@@ -1116,9 +1198,10 @@ def batch_process_tickers(ticker_file: str, period='12mo', output_dir='results',
                 filename = os.path.basename(filepath)
                 print(f"✅ {ticker}: Analysis saved to {filename}")
                 
-                # Collect summary data using new stealth scoring
+                # Collect summary data using both stealth and entry scoring
                 phase_counts = df['Phase'].value_counts()
                 stealth_metrics = calculate_recent_stealth_score(df)
+                entry_metrics = calculate_recent_entry_score(df)
                 
                 results.append({
                     'ticker': ticker,
@@ -1127,6 +1210,13 @@ def batch_process_tickers(ticker_file: str, period='12mo', output_dir='results',
                     'recent_stealth_count': stealth_metrics['recent_stealth_count'],
                     'days_since_stealth': stealth_metrics['days_since_stealth'],
                     'price_change_pct': stealth_metrics['price_change_pct'],
+                    'entry_score': entry_metrics['entry_score'],
+                    'recent_strong_buy': entry_metrics['recent_strong_buy'],
+                    'recent_confluence': entry_metrics['recent_confluence'],
+                    'recent_volume_breakout': entry_metrics['recent_volume_breakout'],
+                    'days_since_entry': entry_metrics['days_since_entry'],
+                    'momentum_direction': entry_metrics['momentum_direction'],
+                    'total_recent_entry_signals': entry_metrics['total_recent_signals'],
                     'total_days': len(df),
                     'strong_signals': df['Strong_Buy'].sum(),
                     'moderate_signals': df['Moderate_Buy'].sum(),
@@ -1165,9 +1255,9 @@ def batch_process_tickers(ticker_file: str, period='12mo', output_dir='results',
                 print(f"   • {error['ticker']}: {error['error']}")
         
         print(f"\n🎯 TOP STEALTH ACCUMULATION CANDIDATES (by recent activity):")
-        sorted_results = sorted(results, key=lambda x: x['stealth_score'], reverse=True)
+        sorted_stealth_results = sorted(results, key=lambda x: x['stealth_score'], reverse=True)
         
-        for i, result in enumerate(sorted_results[:10], 1):  # Top 10
+        for i, result in enumerate(sorted_stealth_results[:10], 1):  # Top 10
             stealth_score = result['stealth_score']
             recent_count = result['recent_stealth_count']
             days_since = result['days_since_stealth']
@@ -1181,6 +1271,28 @@ def batch_process_tickers(ticker_file: str, period='12mo', output_dir='results',
             
             print(f"  {i:2d}. {result['ticker']:5s} - Stealth: {stealth_score:4.1f}/10 {score_emoji} "
                   f"(Last: {recency_text}, Recent: {recent_count}, Price: {price_change:+4.1f}%, Total: {total_stealth})")
+
+        print(f"\n🚀 TOP RECENT STRONG ENTRY CANDIDATES (by signal strength):")
+        sorted_entry_results = sorted(results, key=lambda x: x['entry_score'], reverse=True)
+        
+        for i, result in enumerate(sorted_entry_results[:10], 1):  # Top 10
+            entry_score = result['entry_score']
+            recent_strong = result['recent_strong_buy']
+            recent_confluence = result['recent_confluence']
+            recent_volume = result['recent_volume_breakout']
+            days_since = result['days_since_entry']
+            momentum = result['momentum_direction']
+            
+            score_emoji = "🔥" if entry_score >= 9 else "⚡" if entry_score >= 7 else "💪" if entry_score >= 5 else "👁️"
+            
+            # Display days since or "Recent" if very recent
+            recency_text = "Recent" if days_since <= 2 else f"{days_since}d ago" if days_since < 999 else "None"
+            
+            # Momentum arrow
+            momentum_arrow = "↗️" if momentum == "up" else "→" if momentum == "steady" else "↘️" if momentum == "down" else "💤"
+            
+            print(f"  {i:2d}. {result['ticker']:5s} - Entry: {entry_score:5.1f}/10 {score_emoji} "
+                  f"(Last: {recency_text:7s}, Strong: {recent_strong}, Conf: {recent_confluence}, Vol: {recent_volume}, Momentum: {momentum_arrow})")
         
         # Generate consolidated summary file
         summary_filename = f"batch_summary_{period}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt"
@@ -1206,11 +1318,23 @@ def batch_process_tickers(ticker_file: str, period='12mo', output_dir='results',
             f.write(f"{'Rank':<4} {'Ticker':<6} {'Stealth':<7} {'Recent':<6} {'DaysAgo':<7} {'Price%':<7} {'Total':<5} {'File'}\n")
             f.write("-" * 90 + "\n")
             
-            for i, result in enumerate(sorted_results, 1):
+            for i, result in enumerate(sorted_stealth_results, 1):
                 days_text = "Recent" if result['days_since_stealth'] <= 2 else f"{result['days_since_stealth']}d" if result['days_since_stealth'] < 999 else "None"
                 f.write(f"{i:<4} {result['ticker']:<6} {result['stealth_score']:<7.1f} "
                        f"{result['recent_stealth_count']:<6} {days_text:<7} {result['price_change_pct']:<+7.1f} "
                        f"{result['total_stealth_signals']:<5} {result['filename']}\n")
+
+            f.write("\n\nRESULTS RANKED BY RECENT STRONG ENTRY SCORE:\n")
+            f.write("-" * 100 + "\n")
+            f.write(f"{'Rank':<4} {'Ticker':<6} {'Entry':<6} {'Strong':<6} {'Conf':<4} {'Vol':<3} {'DaysAgo':<7} {'Momentum':<8} {'File'}\n")
+            f.write("-" * 100 + "\n")
+            
+            for i, result in enumerate(sorted_entry_results, 1):
+                days_text = "Recent" if result['days_since_entry'] <= 2 else f"{result['days_since_entry']}d" if result['days_since_entry'] < 999 else "None"
+                momentum_text = "Up" if result['momentum_direction'] == "up" else "Steady" if result['momentum_direction'] == "steady" else "Down" if result['momentum_direction'] == "down" else "None"
+                f.write(f"{i:<4} {result['ticker']:<6} {result['entry_score']:<6.1f} "
+                       f"{result['recent_strong_buy']:<6} {result['recent_confluence']:<4} {result['recent_volume_breakout']:<3} "
+                       f"{days_text:<7} {momentum_text:<8} {result['filename']}\n")
         
         print(f"\n📄 Summary report saved: {summary_filename}")
         print(f"📁 All files saved to: {os.path.abspath(output_dir)}")
@@ -1267,8 +1391,8 @@ Note: Legacy periods (1y, 2y, 5y, etc.) are automatically converted to month equ
     
     parser.add_argument(
         '-o', '--output-dir',
-        default='results',
-        help='Output directory for batch processing files (default: results)'
+        default='results_volume',
+        help='Output directory for batch processing files (default: results_volume)'
     )
     
     parser.add_argument(
