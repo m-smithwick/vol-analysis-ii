@@ -1147,7 +1147,380 @@ def calculate_recent_entry_score(df: pd.DataFrame) -> Dict[str, float]:
         'total_recent_signals': recent_strong_buy + recent_confluence + recent_volume_breakout
     }
 
-def batch_process_tickers(ticker_file: str, period='12mo', output_dir='results_volume', save_charts=False):
+def generate_html_summary(results: List[Dict], errors: List[Dict], period: str, 
+                         output_dir: str, timestamp: str) -> str:
+    """
+    Generate interactive HTML summary with clickable charts.
+    
+    Args:
+        results (List[Dict]): Processed ticker results
+        errors (List[Dict]): Processing errors  
+        period (str): Analysis period
+        output_dir (str): Output directory path
+        timestamp (str): Timestamp for filename
+        
+    Returns:
+        str: HTML filename
+    """
+    # Sort results for both rankings
+    sorted_stealth_results = sorted(results, key=lambda x: x['stealth_score'], reverse=True)
+    sorted_entry_results = sorted(results, key=lambda x: x['entry_score'], reverse=True)
+    
+    html_content = f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Volume Analysis Batch Summary - {period}</title>
+    <style>
+        body {{
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
+            margin: 20px;
+            background-color: #f8f9fa;
+            color: #333;
+        }}
+        
+        .container {{
+            max-width: 1400px;
+            margin: 0 auto;
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }}
+        
+        .header {{
+            text-align: center;
+            margin-bottom: 40px;
+            padding-bottom: 20px;
+            border-bottom: 3px solid #007acc;
+        }}
+        
+        .header h1 {{
+            color: #007acc;
+            margin: 0;
+            font-size: 2.2em;
+        }}
+        
+        .summary-stats {{
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-bottom: 40px;
+        }}
+        
+        .stat-card {{
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            border-radius: 8px;
+            text-align: center;
+        }}
+        
+        .stat-card h3 {{
+            margin: 0 0 10px 0;
+            font-size: 2em;
+        }}
+        
+        .rankings {{
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 40px;
+            margin-bottom: 40px;
+        }}
+        
+        .ranking-section h2 {{
+            color: #333;
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #eee;
+        }}
+        
+        .ticker-row {{
+            display: grid;
+            grid-template-columns: 40px 80px 1fr;
+            gap: 15px;
+            padding: 12px;
+            margin-bottom: 8px;
+            background: #f8f9fa;
+            border-radius: 6px;
+            border-left: 4px solid #007acc;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }}
+        
+        .ticker-row:hover {{
+            background: #e3f2fd;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }}
+        
+        .rank {{
+            font-weight: bold;
+            color: #007acc;
+            text-align: center;
+        }}
+        
+        .ticker-symbol {{
+            font-weight: bold;
+            font-size: 1.1em;
+            color: #333;
+        }}
+        
+        .ticker-details {{
+            font-size: 0.9em;
+            color: #666;
+        }}
+        
+        .chart-container {{
+            margin-top: 15px;
+            padding: 20px;
+            background: white;
+            border-radius: 8px;
+            border: 1px solid #ddd;
+            display: none;
+        }}
+        
+        .chart-container.active {{
+            display: block;
+            animation: slideDown 0.3s ease;
+        }}
+        
+        @keyframes slideDown {{
+            from {{ opacity: 0; transform: translateY(-20px); }}
+            to {{ opacity: 1; transform: translateY(0); }}
+        }}
+        
+        .chart-image {{
+            max-width: 100%;
+            height: auto;
+            border-radius: 6px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }}
+        
+        .chart-controls {{
+            margin-bottom: 15px;
+            text-align: center;
+        }}
+        
+        .btn {{
+            background: #007acc;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 0 5px;
+            font-size: 0.9em;
+            transition: background 0.2s ease;
+        }}
+        
+        .btn:hover {{
+            background: #005fa3;
+        }}
+        
+        .error-section {{
+            margin-top: 40px;
+            padding: 20px;
+            background: #fff3cd;
+            border-radius: 6px;
+            border-left: 4px solid #f39c12;
+        }}
+        
+        .emoji {{
+            font-size: 1.2em;
+            margin-right: 5px;
+        }}
+        
+        .timestamp {{
+            text-align: center;
+            color: #666;
+            margin-top: 30px;
+            font-size: 0.9em;
+        }}
+        
+        @media (max-width: 768px) {{
+            .rankings {{
+                grid-template-columns: 1fr;
+            }}
+            .summary-stats {{
+                grid-template-columns: 1fr;
+            }}
+        }}
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>📊 Volume Analysis Batch Summary</h1>
+            <p>Interactive Report for {period} Analysis Period</p>
+        </div>
+        
+        <div class="summary-stats">
+            <div class="stat-card">
+                <h3>{len(results)}</h3>
+                <p>Tickers Processed</p>
+            </div>
+            <div class="stat-card">
+                <h3>{len([r for r in results if r['stealth_score'] >= 5])}</h3>
+                <p>Strong Stealth Candidates</p>
+            </div>
+            <div class="stat-card">
+                <h3>{len([r for r in results if r['entry_score'] >= 5])}</h3>
+                <p>Strong Entry Candidates</p>
+            </div>
+            <div class="stat-card">
+                <h3>{len(errors)}</h3>
+                <p>Processing Errors</p>
+            </div>
+        </div>
+        
+        <div class="rankings">
+            <div class="ranking-section">
+                <h2>🎯 Top Stealth Accumulation Candidates</h2>"""
+    
+    # Add stealth candidates
+    for i, result in enumerate(sorted_stealth_results[:15], 1):
+        stealth_score = result['stealth_score']
+        recent_count = result['recent_stealth_count']
+        days_since = result['days_since_stealth']
+        price_change = result['price_change_pct']
+        
+        score_emoji = "🎯" if stealth_score >= 7 else "💎" if stealth_score >= 5 else "👁️" if stealth_score >= 3 else "💤"
+        recency_text = "Recent" if days_since <= 2 else f"{days_since}d ago" if days_since < 999 else "None"
+        
+        # Check if chart exists
+        chart_filename = f"{result['ticker']}_{period}_{result['filename'].split('_')[2]}_{result['filename'].split('_')[3]}_chart.png"
+        chart_exists = os.path.exists(os.path.join(output_dir, chart_filename))
+        
+        html_content += f"""
+                <div class="ticker-row" onclick="toggleChart('stealth_{result['ticker']}')">
+                    <div class="rank">#{i}</div>
+                    <div class="ticker-symbol">{result['ticker']}</div>
+                    <div class="ticker-details">
+                        <div><span class="emoji">{score_emoji}</span>Stealth Score: <strong>{stealth_score:.1f}/10</strong></div>
+                        <div>Last Signal: {recency_text} | Recent Count: {recent_count} | Price Change: {price_change:+.1f}%</div>
+                    </div>
+                </div>"""
+        
+        if chart_exists:
+            html_content += f"""
+                <div id="stealth_{result['ticker']}" class="chart-container">
+                    <div class="chart-controls">
+                        <button class="btn" onclick="openChart('{chart_filename}')">📊 Open Full Size</button>
+                        <button class="btn" onclick="openAnalysis('{result['filename']}')">📋 View Analysis</button>
+                    </div>
+                    <img src="{chart_filename}" alt="{result['ticker']} Chart" class="chart-image">
+                </div>"""
+    
+    html_content += """
+            </div>
+            
+            <div class="ranking-section">
+                <h2>🚀 Top Recent Strong Entry Candidates</h2>"""
+    
+    # Add entry candidates
+    for i, result in enumerate(sorted_entry_results[:15], 1):
+        entry_score = result['entry_score']
+        recent_strong = result['recent_strong_buy']
+        recent_confluence = result['recent_confluence']
+        recent_volume = result['recent_volume_breakout']
+        momentum = result['momentum_direction']
+        
+        score_emoji = "🔥" if entry_score >= 9 else "⚡" if entry_score >= 7 else "💪" if entry_score >= 5 else "👁️"
+        momentum_arrow = "↗️" if momentum == "up" else "→" if momentum == "steady" else "↘️" if momentum == "down" else "💤"
+        
+        # Check if chart exists
+        chart_filename = f"{result['ticker']}_{period}_{result['filename'].split('_')[2]}_{result['filename'].split('_')[3]}_chart.png"
+        chart_exists = os.path.exists(os.path.join(output_dir, chart_filename))
+        
+        html_content += f"""
+                <div class="ticker-row" onclick="toggleChart('entry_{result['ticker']}')">
+                    <div class="rank">#{i}</div>
+                    <div class="ticker-symbol">{result['ticker']}</div>
+                    <div class="ticker-details">
+                        <div><span class="emoji">{score_emoji}</span>Entry Score: <strong>{entry_score:.1f}/10</strong></div>
+                        <div>Strong: {recent_strong} | Confluence: {recent_confluence} | Volume: {recent_volume} | Momentum: {momentum_arrow}</div>
+                    </div>
+                </div>"""
+        
+        if chart_exists:
+            html_content += f"""
+                <div id="entry_{result['ticker']}" class="chart-container">
+                    <div class="chart-controls">
+                        <button class="btn" onclick="openChart('{chart_filename}')">📊 Open Full Size</button>
+                        <button class="btn" onclick="openAnalysis('{result['filename']}')">📋 View Analysis</button>
+                    </div>
+                    <img src="{chart_filename}" alt="{result['ticker']} Chart" class="chart-image">
+                </div>"""
+    
+    html_content += """
+            </div>
+        </div>"""
+    
+    # Add errors section if there are any
+    if errors:
+        html_content += f"""
+        <div class="error-section">
+            <h3>⚠️ Processing Errors ({len(errors)})</h3>
+            <ul>"""
+        for error in errors:
+            html_content += f"<li><strong>{error['ticker']}</strong>: {error['error']}</li>"
+        html_content += """
+            </ul>
+        </div>"""
+    
+    # Add footer and JavaScript
+    html_content += f"""
+        <div class="timestamp">
+            Generated on {datetime.now().strftime('%Y-%m-%d at %H:%M:%S')}
+        </div>
+    </div>
+    
+    <script>
+        function toggleChart(elementId) {{
+            const chart = document.getElementById(elementId);
+            if (chart) {{
+                chart.classList.toggle('active');
+            }}
+        }}
+        
+        function openChart(filename) {{
+            // This will attempt to open the chart image in VS Code
+            const fullPath = window.location.href.replace(/[^/]*$/, '') + filename;
+            window.open(fullPath, '_blank');
+        }}
+        
+        function openAnalysis(filename) {{
+            // This will attempt to open the analysis text file
+            const fullPath = window.location.href.replace(/[^/]*$/, '') + filename;
+            window.open(fullPath, '_blank');
+        }}
+        
+        // Add keyboard shortcuts
+        document.addEventListener('keydown', function(e) {{
+            if (e.key === 'Escape') {{
+                // Close all open charts
+                document.querySelectorAll('.chart-container.active').forEach(chart => {{
+                    chart.classList.remove('active');
+                }});
+            }}
+        }});
+    </script>
+</body>
+</html>"""
+    
+    # Save HTML file
+    html_filename = f"batch_summary_{period}_{timestamp}.html"
+    html_filepath = os.path.join(output_dir, html_filename)
+    
+    with open(html_filepath, 'w', encoding='utf-8') as f:
+        f.write(html_content)
+    
+    return html_filename
+
+def batch_process_tickers(ticker_file: str, period='12mo', output_dir='results_volume', 
+                         save_charts=False, generate_html=True):
     """
     Process multiple tickers from a file and save individual analysis reports.
     
@@ -1156,6 +1529,7 @@ def batch_process_tickers(ticker_file: str, period='12mo', output_dir='results_v
         period (str): Analysis period
         output_dir (str): Directory to save output files
         save_charts (bool): Whether to save chart images
+        generate_html (bool): Whether to generate interactive HTML summary
     """
     # Read tickers from file
     tickers = read_ticker_file(ticker_file)
@@ -1335,6 +1709,32 @@ def batch_process_tickers(ticker_file: str, period='12mo', output_dir='results_v
                 f.write(f"{i:<4} {result['ticker']:<6} {result['entry_score']:<6.1f} "
                        f"{result['recent_strong_buy']:<6} {result['recent_confluence']:<4} {result['recent_volume_breakout']:<3} "
                        f"{days_text:<7} {momentum_text:<8} {result['filename']}\n")
+        
+        # Generate interactive HTML summary if requested and charts exist
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        if generate_html:
+            # Force chart generation if HTML is requested but charts weren't generated
+            if not save_charts:
+                print(f"\n📊 HTML requested - generating charts for interactive summary...")
+                # Re-process with chart generation for HTML
+                for i, ticker in enumerate([r['ticker'] for r in results[:5]], 1):  # Top 5 for charts
+                    print(f"  Generating chart {i}/5: {ticker}...")
+                    try:
+                        analyze_ticker(
+                            ticker=ticker,
+                            period=period,
+                            save_to_file=False,  # Don't overwrite analysis files
+                            output_dir=output_dir,
+                            save_chart=True,  # Force chart generation
+                            force_refresh=False
+                        )
+                    except Exception as e:
+                        print(f"    ⚠️ Chart generation failed for {ticker}: {str(e)}")
+            
+            # Generate HTML summary
+            html_filename = generate_html_summary(results, errors, period, output_dir, timestamp)
+            print(f"\n🌐 Interactive HTML summary generated: {html_filename}")
+            print(f"   📂 Open in VS Code for clickable charts and analysis links")
         
         print(f"\n📄 Summary report saved: {summary_filename}")
         print(f"📁 All files saved to: {os.path.abspath(output_dir)}")
