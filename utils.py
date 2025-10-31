@@ -1,5 +1,5 @@
 """
-General utility functions for the news influence analysis system.
+General utility functions for the stock analysis system.
 """
 
 import os
@@ -159,35 +159,9 @@ def summarize_results(results: List[Dict[str, Any]]) -> Dict[str, Any]:
             'summary': "No results available"
         }
     
-    # Count by classification
-    classifications = {}
-    for result in results:
-        classification = result.get('classification', 'Unknown')
-        if classification not in classifications:
-            classifications[classification] = 0
-        classifications[classification] += 1
-    
-    # Calculate average confidence
-    confidence_scores = [r.get('confidence', 0) for r in results if 'confidence' in r]
-    avg_confidence = sum(confidence_scores) / len(confidence_scores) if confidence_scores else 0
-    
-    # Group by primary factor
-    factors = {}
-    for result in results:
-        factor = result.get('primary_factor', 'Unknown')
-        if factor not in factors:
-            factors[factor] = 0
-        factors[factor] += 1
-    
-    # Find most common factor
-    most_common_factor = max(factors.items(), key=lambda x: x[1])[0] if factors else "Unknown"
-    
     return {
         'count': len(results),
-        'classifications': classifications,
-        'avg_confidence': avg_confidence,
-        'factors': factors,
-        'most_common_factor': most_common_factor
+        'summary': f"Processed {len(results)} items"
     }
 
 def print_progress_bar(iteration: int, total: int, prefix: str = '', suffix: str = '', 
