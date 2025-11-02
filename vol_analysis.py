@@ -8,6 +8,14 @@ import os
 from datetime import datetime, timedelta
 from typing import List, Optional, Dict, Any
 
+# Import backtest module if available
+try:
+    import backtest
+    BACKTEST_AVAILABLE = True
+except ImportError:
+    BACKTEST_AVAILABLE = False
+    print("⚠️  Warning: backtest.py not found - backtest functionality disabled")
+
 def get_cache_directory() -> str:
     """Get or create the data cache directory."""
     cache_dir = os.path.join(os.getcwd(), 'data_cache')
@@ -413,7 +421,7 @@ def generate_analysis_text(ticker: str, df: pd.DataFrame, period: str) -> str:
     
     return "\n".join(output)
 
-def analyze_ticker(ticker: str, period='6mo', save_to_file=False, output_dir='.', save_chart=False, force_refresh=False):
+def analyze_ticker(ticker: str, period='6mo', save_to_file=False, output_dir='.', save_chart=False, force_refresh=False, show_chart=True):
     """
     Retrieve and analyze price-volume data for a given ticker symbol.
     
@@ -424,6 +432,7 @@ def analyze_ticker(ticker: str, period='6mo', save_to_file=False, output_dir='.'
         output_dir (str): Directory to save output files
         save_chart (bool): Whether to save chart as PNG file
         force_refresh (bool): If True, ignore cache and download fresh data
+        show_chart (bool): Whether to display chart interactively (default: True)
         
     Raises:
         ValueError: If no valid data is available for the ticker
@@ -811,8 +820,10 @@ def analyze_ticker(ticker: str, period='6mo', save_to_file=False, output_dir='.'
         plt.savefig(chart_filepath, dpi=150, bbox_inches='tight')
         print(f"📊 Chart saved: {chart_filename}")
         plt.close()  # Close the figure to free memory
-    else:
+    elif show_chart:
         plt.show()
+    else:
+        plt.close()  # Close without displaying
     
     # Handle text output
     if save_to_file:
@@ -1824,6 +1835,12 @@ Note: Legacy periods (1y, 2y, 5y, etc.) are automatically converted to month equ
         help='Display information about cached data'
     )
     
+    parser.add_argument(
+        '--backtest',
+        action='store_true',
+        help='Run backtest analysis on generated signals (validates historical performance)'
+    )
+    
     args = parser.parse_args()
     
     try:
@@ -1860,7 +1877,21 @@ Note: Legacy periods (1y, 2y, 5y, etc.) are automatically converted to month equ
                 results = multi_timeframe_analysis(ticker)
             else:
                 # Run single period analysis with force refresh option
-                df = analyze_ticker(ticker, period=args.period, force_refresh=args.force_refresh)
+                # Don't show chart if backtesting (it will be closed immediately anyway)
+                df = analyze_ticker(
+                    ticker, 
+                    period=args.period, 
+                    force_refresh=args.force_refresh,
+                    show_chart=not args.backtest  # Hide chart when backtesting
+                )
+                
+                # Run backtest if requested
+                if args.backtest and BACKTEST_AVAILABLE:
+                    print(f"\n📊 Running backtest analysis for {ticker}...")
+                    report = backtest.run_backtest(df, ticker, args.period, save_to_file=True)
+                    print(report)
+                elif args.backtest and not BACKTEST_AVAILABLE:
+                    print("\n⚠️  Warning: Backtest module not available. Skipping backtest analysis.")
                 
             print(f"\n✅ Analysis complete for {ticker}!")
             

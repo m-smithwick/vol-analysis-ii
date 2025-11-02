@@ -1,0 +1,102 @@
+======================================================================
+📊 BACKTEST ANALYSIS FOR AMZN (12mo)
+======================================================================
+
+🎯 ENTRY SIGNAL PERFORMANCE:
+
+  🟢 Strong Buy:
+    Total Signals: 2
+    
+    5-Day Forward Returns:
+      Win Rate: 0.0% (0 wins, 2 losses)
+      Avg Return: -3.30%
+      Avg Win: +0.00% | Avg Loss: -3.30%
+      Expectancy: -3.30%
+    
+    20-Day Forward Returns:
+      Win Rate: 0.0% (0 wins, 1 losses)
+      Avg Return: -7.97%
+      Best Signal: 2025-09-19 (-7.97%)
+      Worst Signal: 2025-09-19 (-7.97%)
+      Median Return: -7.97%
+
+  🟡 Moderate Buy:
+    Total Signals: 7
+    
+    5-Day Forward Returns:
+      Win Rate: 71.4% (5 wins, 2 losses)
+      Avg Return: +1.89%
+      Avg Win: +3.01% | Avg Loss: -0.90%
+      Expectancy: +1.89%
+    
+    20-Day Forward Returns:
+      Win Rate: 100.0% (3 wins, 0 losses)
+      Avg Return: +6.52%
+      Best Signal: 2025-10-03 (+11.26%)
+      Worst Signal: 2025-08-12 (+4.00%)
+      Median Return: +4.29%
+
+  💎 Stealth Accumulation:
+    Total Signals: 5
+    
+    5-Day Forward Returns:
+      Win Rate: 80.0% (4 wins, 1 losses)
+      Avg Return: +1.24%
+      Avg Win: +1.96% | Avg Loss: -1.63%
+      Expectancy: +1.24%
+    
+    20-Day Forward Returns:
+      Win Rate: 66.7% (2 wins, 1 losses)
+      Avg Return: +1.20%
+      Best Signal: 2025-08-20 (+3.32%)
+      Worst Signal: 2025-09-03 (-2.37%)
+      Median Return: +2.64%
+
+  ⭐ Multi-Signal Confluence:
+    No signals generated
+
+  🔥 Volume Breakout:
+    No signals generated
+
+🚪 EXIT SIGNAL PERFORMANCE:
+
+  🟠 Profit Taking:
+    Signals: 3
+    Correct Exits: 1/2 (50.0%)
+    Avg Subsequent Return: +1.59% (20-day)
+    ✓ Moderately reliable exit indicator
+
+  💜 Momentum Exhaustion:
+    Signals: 4
+    Correct Exits: 2/4 (50.0%)
+    Avg Subsequent Return: -1.89% (20-day)
+    ✓ Moderately reliable exit indicator
+
+📈 OVERALL SYSTEM STATISTICS:
+
+  Total Entry Signals: 14
+  Valid for Analysis: 7 (have 20-day forward data)
+  System Win Rate: 71.4% (5 wins, 2 losses)
+  Average Return per Signal: +2.17%
+  Risk-Adjusted Return: 0.36
+  Maximum Drawdown: -10.15%
+
+💡 KEY INSIGHTS:
+
+  ✅ Most Reliable Signal: 🟡 Moderate Buy (100.0% win rate)
+  ✅ System shows positive edge (>71% win rate)
+
+  ⚠️  WARNING: Limited sample size (7 signals)
+     Use longer period for more reliable statistics
+
+======================================================================
+
+📝 INTERPRETATION GUIDE:
+  • Win Rate >60% = Strong signal
+  • Expectancy >1.5% = Profitable signal
+  • Sharpe Ratio >1.0 = Good risk-adjusted returns
+  • Exit Accuracy >60% = Reliable exit timing
+
+⚠️  DISCLAIMER:
+  Past performance does not guarantee future results.
+  Use this analysis as one input in your trading decisions.
