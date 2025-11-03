@@ -30,6 +30,9 @@ import indicators
 # Import signal generator module for buy/sell signals
 import signal_generator
 
+# Import chart builder module for visualization
+import chart_builder
+
 def get_cache_directory() -> str:
     """Get or create the data cache directory."""
     cache_dir = os.path.join(os.getcwd(), 'data_cache')
@@ -709,205 +712,25 @@ def analyze_ticker(ticker: str, period='6mo', save_to_file=False, output_dir='.'
     df['Momentum_Exhaustion'] = signal_generator.generate_momentum_exhaustion_signals(df)
     df['Stop_Loss'] = signal_generator.generate_stop_loss_signals(df)
     
-    # --- Enhanced Visualization with Accumulation Signals (Optimized for 16" Mac) ---
-    fig, (ax1, ax2, ax3) = plt.subplots(3, 1, figsize=(12, 9), sharex=True)
-    
-    # Top plot: Price with enhanced signal markers
-    ax1.plot(df.index, df['Close'], label='Close Price', color='black', linewidth=1.5)
-    ax1.plot(df.index, df['VWAP'], label='VWAP', color='purple', alpha=0.7, linestyle='--')
-    ax1.plot(df.index, df['Support_Level'], label='Support Level', color='gray', alpha=0.5, linestyle=':')
-    
-    # --- ENHANCED BUY/SELL SIGNAL MARKERS ---
-    
-    # STRONG BUY SIGNALS (Large Green Dots)
-    strong_buys = df[df['Strong_Buy']]
-    if not strong_buys.empty:
-        ax1.scatter(strong_buys.index, strong_buys['Close'], color='lime', marker='o', 
-                   s=150, label='Strong Buy', zorder=10, edgecolors='darkgreen', linewidth=2)
-    
-    # MODERATE BUY SIGNALS (Medium Yellow Dots)  
-    moderate_buys = df[df['Moderate_Buy']]
-    if not moderate_buys.empty:
-        ax1.scatter(moderate_buys.index, moderate_buys['Close'], color='gold', marker='o', 
-                   s=100, label='Moderate Buy', zorder=9, edgecolors='orange', linewidth=1.5)
-    
-    # === EXIT SIGNALS ===
-    
-    # PROFIT TAKING (Orange Dots)
-    profit_takes = df[df['Profit_Taking']]
-    if not profit_takes.empty:
-        ax1.scatter(profit_takes.index, profit_takes['Close'], color='orange', marker='o', 
-                   s=120, label='Profit Taking', zorder=10, edgecolors='darkorange', linewidth=2)
-    
-    # DISTRIBUTION WARNING (Gold Squares)
-    dist_warnings = df[df['Distribution_Warning']]
-    if not dist_warnings.empty:
-        ax1.scatter(dist_warnings.index, dist_warnings['Close'], color='gold', marker='s', 
-                   s=100, label='Distribution Warning', zorder=9, edgecolors='darkgoldenrod', linewidth=2)
-    
-    # SELL SIGNALS (Red Dots)
-    sells = df[df['Sell_Signal']]
-    if not sells.empty:
-        ax1.scatter(sells.index, sells['Close'], color='red', marker='o', 
-                   s=120, label='Sell Signal', zorder=10, edgecolors='darkred', linewidth=2)
-    
-    # MOMENTUM EXHAUSTION (Purple X's)
-    momentum_exhausts = df[df['Momentum_Exhaustion']]
-    if not momentum_exhausts.empty:
-        ax1.scatter(momentum_exhausts.index, momentum_exhausts['Close'], color='purple', marker='x', 
-                   s=120, label='Momentum Exhaustion', zorder=9, linewidth=3)
-    
-    # STOP LOSS TRIGGERS (Dark Red Triangles Down)
-    stop_losses = df[df['Stop_Loss']]
-    if not stop_losses.empty:
-        ax1.scatter(stop_losses.index, stop_losses['Close'], color='darkred', marker='v', 
-                   s=130, label='Stop Loss Trigger', zorder=11, edgecolors='black', linewidth=2)
-    
-    # STEALTH ACCUMULATION (Diamond Symbols)
-    stealth = df[df['Stealth_Accumulation']]
-    if not stealth.empty:
-        ax1.scatter(stealth.index, stealth['Close'], color='cyan', marker='D', 
-                   s=80, label='Stealth Accumulation', zorder=8, alpha=0.8)
-    
-    # CONFLUENCE SIGNALS (Star Symbols)
-    confluence = df[df['Confluence_Signal']]
-    if not confluence.empty:
-        ax1.scatter(confluence.index, confluence['Close'], color='magenta', marker='*', 
-                   s=200, label='Multi-Signal Confluence', zorder=11)
-    
-    # VOLUME BREAKOUT (Triangle Symbols)
-    breakouts = df[df['Volume_Breakout']]
-    if not breakouts.empty:
-        ax1.scatter(breakouts.index, breakouts['Close'], color='orangered', marker='^', 
-                   s=120, label='Volume Breakout', zorder=9, edgecolors='darkred')
-    
-    ax1.set_ylabel('Price ($)')
-    ax1.legend(loc='upper left')
-    ax1.set_title(f'{ticker} — Accumulation/Distribution Analysis ({period})')
-    ax1.grid(True, alpha=0.3)
-    
-    # Middle plot: Volume indicators with divergence markers
-    ax2.plot(df.index, df['OBV'], label='OBV', color='blue', alpha=0.8)
-    ax2.plot(df.index, df['AD_Line'], label='A/D Line', color='orange', alpha=0.8)
-    ax2.plot(df.index, df['OBV_MA'], label='OBV MA', color='lightblue', linestyle='--', alpha=0.6)
-    ax2.plot(df.index, df['AD_MA'], label='A/D MA', color='moccasin', linestyle='--', alpha=0.6)
-    
-    # Add divergence markers to volume indicators panel
-    if not stealth.empty:
-        # Mark stealth accumulation on A/D Line
-        ax2.scatter(stealth.index, stealth.index.map(lambda x: df.loc[x, 'AD_Line']), 
-                   color='cyan', marker='D', s=60, alpha=0.8, zorder=8)
-    
-    if not strong_buys.empty:
-        # Mark strong buys on OBV
-        ax2.scatter(strong_buys.index, strong_buys.index.map(lambda x: df.loc[x, 'OBV']), 
-                   color='lime', marker='o', s=80, zorder=9, edgecolors='darkgreen')
-    
-    ax2.set_ylabel('Volume Indicators')
-    ax2.legend(loc='upper left')
-    ax2.grid(True, alpha=0.3)
-    
-    # Bottom plot: Volume and Accumulation Score with threshold markers
-    ax3_twin = ax3.twinx()
-    
-    # Volume bars with color coding
-    volume_colors = ['red' if phase == 'Distribution' 
-                     else 'darkgreen' if phase == 'Strong_Accumulation'
-                     else 'lightgreen' if phase == 'Moderate_Accumulation'
-                     else 'yellow' if phase == 'Support_Accumulation'
-                     else 'lightgray' for phase in df['Phase']]
-    
-    ax3.bar(df.index, df['Volume'], color=volume_colors, alpha=0.6, width=1)
-    ax3.plot(df.index, df['Volume_MA'], label='Volume MA', color='black', linestyle='-', alpha=0.8)
-    
-    # Add volume breakout markers
-    if not breakouts.empty:
-        ax3.scatter(breakouts.index, breakouts.index.map(lambda x: df.loc[x, 'Volume']), 
-                   color='orangered', marker='^', s=100, zorder=9, edgecolors='darkred')
-    
-    # Add exit signal markers to volume panel
-    if not profit_takes.empty:
-        ax3.scatter(profit_takes.index, profit_takes.index.map(lambda x: df.loc[x, 'Volume']), 
-                   color='orange', marker='o', s=80, zorder=9, edgecolors='darkorange')
-    
-    if not stop_losses.empty:
-        ax3.scatter(stop_losses.index, stop_losses.index.map(lambda x: df.loc[x, 'Volume']), 
-                   color='darkred', marker='v', s=100, zorder=10, edgecolors='black')
-    
-    ax3.set_ylabel('Volume')
-    ax3.legend(loc='upper left')
-    
-    # Dual scoring system: Accumulation and Exit scores
-    ax3_twin.plot(df.index, df['Accumulation_Score'], label='Accumulation Score', 
-                  color='green', linewidth=2, alpha=0.8)
-    ax3_twin.plot(df.index, df['Exit_Score'], label='Exit Score', 
-                  color='red', linewidth=2, alpha=0.8)
-    
-    # Add horizontal threshold lines for both entry and exit scores
-    ax3_twin.axhline(y=8, color='darkred', linestyle=':', alpha=0.8, label='Urgent Exit (8)')
-    ax3_twin.axhline(y=7, color='lime', linestyle=':', alpha=0.7, label='Strong Entry (7)')
-    ax3_twin.axhline(y=6, color='orange', linestyle=':', alpha=0.7, label='High Exit Risk (6)')
-    ax3_twin.axhline(y=4, color='gold', linestyle=':', alpha=0.6, label='Moderate Risk (4)')
-    ax3_twin.axhline(y=2, color='lightcoral', linestyle=':', alpha=0.5, label='Low Risk (2)')
-    
-    # Mark actual Strong Buy signal occurrences (not just score thresholds)
-    actual_strong_buys = df[df['Strong_Buy'] == True]
-    if not actual_strong_buys.empty:
-        ax3_twin.scatter(actual_strong_buys.index, actual_strong_buys['Accumulation_Score'], 
-                        color='lime', marker='o', s=50, zorder=10, alpha=0.8, 
-                        label='Strong Buy Signals')
-    
-    high_exit_points = df[df['Exit_Score'] >= 6]
-    if not high_exit_points.empty:
-        ax3_twin.scatter(high_exit_points.index, high_exit_points['Exit_Score'], 
-                        color='red', marker='s', s=40, zorder=10, alpha=0.8)
-    
-    urgent_exit_points = df[df['Exit_Score'] >= 8]
-    if not urgent_exit_points.empty:
-        ax3_twin.scatter(urgent_exit_points.index, urgent_exit_points['Exit_Score'], 
-                        color='darkred', marker='X', s=60, zorder=11, alpha=0.9)
-    
-    ax3_twin.set_ylabel('Entry/Exit Scores (0-10)')
-    ax3_twin.legend(loc='upper left')
-    ax3_twin.set_ylim(0, 10)
-    
-    ax3.grid(True, alpha=0.3)
-    plt.xlabel('Date')
-    plt.tight_layout()
-    
-    # Handle chart display/saving with error handling
-    if save_chart:
-        with ErrorContext("saving chart to file", ticker=ticker, period=period):
-            try:
-                # Validate output directory is writable
-                validate_file_path(output_dir, check_exists=True, check_writable=True)
-                
-                # Create filename with date range
-                start_date = df.index[0].strftime('%Y%m%d')
-                end_date = df.index[-1].strftime('%Y%m%d')
-                chart_filename = f"{ticker}_{period}_{start_date}_{end_date}_chart.png"
-                chart_filepath = os.path.join(output_dir, chart_filename)
-                
-                # Save chart with error handling
-                try:
-                    plt.savefig(chart_filepath, dpi=150, bbox_inches='tight')
-                    logger.info(f"Chart saved: {chart_filename}")
-                    print(f"📊 Chart saved: {chart_filename}")
-                except Exception as e:
-                    raise FileOperationError(f"Failed to save chart for {ticker}: {str(e)}")
-                finally:
-                    plt.close()  # Always close the figure to free memory
-                    
-            except Exception as e:
-                plt.close()  # Ensure cleanup on error
-                if isinstance(e, (FileOperationError, DataValidationError)):
-                    raise e
-                else:
-                    raise FileOperationError(f"Failed to save chart for {ticker}: {str(e)}")
-    elif show_chart:
-        plt.show()
-    else:
-        plt.close()  # Close without displaying
+    # --- Generate Chart using Chart Builder Module ---
+    if save_chart or show_chart:
+        # Create chart filename with date range for save operations
+        chart_path = None
+        if save_chart:
+            start_date = df.index[0].strftime('%Y%m%d')
+            end_date = df.index[-1].strftime('%Y%m%d')
+            chart_filename = f"{ticker}_{period}_{start_date}_{end_date}_chart.png"
+            chart_path = os.path.join(output_dir, chart_filename)
+            print(f"📊 Chart saved: {chart_filename}")
+        
+        # Use chart_builder module for all visualization
+        chart_builder.generate_analysis_chart(
+            df=df,
+            ticker=ticker,
+            period=period,
+            save_path=chart_path,
+            show=show_chart
+        )
     
     # Handle text output with error handling
     if save_to_file:
