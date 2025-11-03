@@ -2,6 +2,7 @@
 results/
 results_news/
 results_volume/
+backtest_results/
 
 # Data cache (local storage, should not be committed)
 data_cache/
