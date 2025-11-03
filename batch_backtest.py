@@ -52,7 +52,7 @@ def run_batch_backtest(ticker_file: str, period: str = '12mo',
         def _create_output_dir():
             os.makedirs(output_dir, exist_ok=True)
             
-        safe_operation(_create_output_dir, f"creating output directory {output_dir}")
+        safe_operation(f"creating output directory {output_dir}", _create_output_dir)
         
         logger.info(f"Starting batch backtesting: {len(tickers)} tickers, period: {period}")
         logger.info(f"Output directory: {output_dir}")
@@ -147,7 +147,7 @@ def run_batch_backtest(ticker_file: str, period: str = '12mo',
                             f.write("="*70 + "\n\n")
                             f.write(strategy_report)
                     
-                    safe_operation(_save_report, f"saving backtest report for {ticker}")
+                    safe_operation(f"saving backtest report for {ticker}", _save_report)
                     
                     aggregated_results['tickers_processed'].append(ticker)
                     logger.info(f"Completed {ticker}: {len(paired_trades)} trades generated")
@@ -269,8 +269,8 @@ def generate_aggregate_report(results: Dict, period: str, output_dir: str) -> st
             report_lines.append(f"   Average Return: {metrics['avg_return']:+.2f}%")
             report_lines.append(f"   Median Return: {metrics['median_return']:+.2f}%")
             report_lines.append(f"   Avg Win: {metrics['avg_win']:+.2f}% | Avg Loss: {metrics['avg_loss']:+.2f}%")
-            report_lines.append(f"   Best Trade: {metrics['best_trade_date']} ({metrics['best_return']:+.2f}%)")
-            report_lines.append(f"   Worst Trade: {metrics['worst_trade_date']} ({metrics['worst_return']:+.2f}%)")
+            report_lines.append(f"   Best Trade: {metrics['best_trade_ticker']} on {metrics['best_trade_date']} ({metrics['best_return']:+.2f}%)")
+            report_lines.append(f"   Worst Trade: {metrics['worst_trade_ticker']} on {metrics['worst_trade_date']} ({metrics['worst_return']:+.2f}%)")
             report_lines.append(f"   Avg Holding: {metrics['avg_holding_days']:.1f} days")
             report_lines.append(f"   Profit Factor: {metrics['profit_factor']:.2f}")
             report_lines.append(f"   Expectancy: {metrics['expectancy']:+.2f}%")

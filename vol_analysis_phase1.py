@@ -27,9 +27,6 @@ except ImportError:
 # Import indicators module for technical calculations
 import indicators
 
-# Import signal generator module for buy/sell signals
-import signal_generator
-
 def get_cache_directory() -> str:
     """Get or create the data cache directory."""
     cache_dir = os.path.join(os.getcwd(), 'data_cache')
@@ -689,25 +686,140 @@ def analyze_ticker(ticker: str, period='6mo', save_to_file=False, output_dir='.'
     accumulation_choices = ['Strong_Accumulation', 'Moderate_Accumulation', 'Support_Accumulation', 'Distribution']
     df['Phase'] = pd.Series(pd.Categorical(np.select(accumulation_conditions, accumulation_choices, default='Neutral')))
     
-    # --- Use Signal Generator for Scoring ---
-    df['Accumulation_Score'] = signal_generator.calculate_accumulation_score(df)
-    df['Exit_Score'] = signal_generator.calculate_exit_score(df)
+    # --- Confidence Scoring ---
+    df['Accumulation_Score'] = 0
+    df.loc[df['AD_Rising'] & ~df['Price_Rising'], 'Accumulation_Score'] += 2  # A/D divergence
+    df.loc[df['OBV_Trend'] & ~df['Price_Trend'], 'Accumulation_Score'] += 2  # OBV divergence
+    df.loc[df['Volume_Spike'], 'Accumulation_Score'] += 1  # Volume spike
+    df.loc[df['Above_VWAP'], 'Accumulation_Score'] += 1  # Above VWAP
+    df.loc[df['Near_Support'], 'Accumulation_Score'] += 1  # Near support
     
-    # --- Use Signal Generator for All Signal Detection ---
+    # Normalize score to 0-10 scale
+    df['Accumulation_Score'] = np.clip(df['Accumulation_Score'] * 10 / 7, 0, 10)
     
-    # ENTRY SIGNALS - Generate all buy signals using signal_generator module
-    df['Strong_Buy'] = signal_generator.generate_strong_buy_signals(df)
-    df['Moderate_Buy'] = signal_generator.generate_moderate_buy_signals(df)
-    df['Stealth_Accumulation'] = signal_generator.generate_stealth_accumulation_signals(df)
-    df['Confluence_Signal'] = signal_generator.generate_confluence_signals(df)
-    df['Volume_Breakout'] = signal_generator.generate_volume_breakout_signals(df)
+    # --- ENHANCED EXIT SCORING SYSTEM (1-10 scale) ---
+    df['Exit_Score'] = 0.0  # Initialize as float to avoid dtype warnings
     
-    # EXIT SIGNALS - Generate all exit signals using signal_generator module
-    df['Profit_Taking'] = signal_generator.generate_profit_taking_signals(df)
-    df['Distribution_Warning'] = signal_generator.generate_distribution_warning_signals(df)
-    df['Sell_Signal'] = signal_generator.generate_sell_signals(df)
-    df['Momentum_Exhaustion'] = signal_generator.generate_momentum_exhaustion_signals(df)
-    df['Stop_Loss'] = signal_generator.generate_stop_loss_signals(df)
+    # Distribution and trend factors (0-4 points)
+    df.loc[df['Phase'] == 'Distribution', 'Exit_Score'] += 2  # Distribution phase
+    df.loc[~df['Above_VWAP'], 'Exit_Score'] += 1.5  # Below VWAP
+    df.loc[df['Close'] < df['Support_Level'], 'Exit_Score'] += 2  # Below support
+    df.loc[df['Close'] < df['Close'].rolling(10).mean(), 'Exit_Score'] += 0.5  # Below 10-day MA
+    
+    # Volume and momentum factors (0-3 points)
+    df.loc[df['Relative_Volume'] > 2.5, 'Exit_Score'] += 1.5  # Very high volume
+    df.loc[df['Relative_Volume'] > 1.8, 'Exit_Score'] += 1  # High volume
+    df.loc[df['Volume'] < df['Volume'].shift(3), 'Exit_Score'] += 0.5  # Declining volume trend
+    
+    # Technical indicator factors (0-3 points)
+    df.loc[df['AD_Line'] < df['AD_MA'], 'Exit_Score'] += 1  # A/D line declining
+    df.loc[df['OBV'] < df['OBV_MA'], 'Exit_Score'] += 1  # OBV declining
+    df.loc[df['Accumulation_Score'] < 2, 'Exit_Score'] += 1  # Very low accumulation
+    
+    # Normalize exit score to 1-10 scale (minimum 1 for any position)
+    df['Exit_Score'] = np.clip(df['Exit_Score'] * 10 / 10, 1, 10)
+    
+    # --- Enhanced Signal Generation for Visual Markers ---
+    
+    # BUY SIGNALS (Green Dots)
+    strong_buy_conditions = (
+        (df['Accumulation_Score'] >= 7) & 
+        df['Near_Support'] & 
+        df['Above_VWAP'] & 
+        (df['Relative_Volume'] >= 1.2) &
+        (df['Relative_Volume'] <= 3.0)  # Not excessive volume
+    )
+    
+    moderate_buy_conditions = (
+        (df['Accumulation_Score'] >= 5) & 
+        (df['Accumulation_Score'] < 7) &
+        (df['AD_Rising'] | df['OBV_Trend']) &
+        df['Above_VWAP']
+    )
+    
+    # === ENHANCED EXIT SIGNALS ===
+    
+    # 1. PROFIT TAKING SIGNALS (Orange Dots) - Take profits on strength
+    profit_taking_conditions = (
+        (df['Close'] > df['Close'].rolling(20).max().shift(1)) &  # New highs
+        (df['Relative_Volume'] > 1.8) &  # High volume
+        df['Above_VWAP'] &  # Still above VWAP
+        (df['Accumulation_Score'] < 4) &  # But accumulation waning
+        (df['Close'] > df['Close'].shift(1))  # Price up on the day
+    )
+    
+    # 2. DISTRIBUTION WARNING (Gold Squares) - Early warning signs
+    distribution_warning_conditions = (
+        (df['Phase'] == 'Distribution') &
+        (df['Close'] < df['VWAP']) &  # Below VWAP
+        (df['Relative_Volume'] > 1.3) &  # Above average volume
+        (df['Close'] < df['Close'].shift(3)) &  # Price declining over 3 days
+        (df['AD_Line'] < df['AD_MA'])  # A/D line declining
+    )
+    
+    # 3. ENHANCED SELL SIGNALS (Red Dots) - Strong exit signals
+    sell_conditions = (
+        (df['Phase'] == 'Distribution') &
+        ~df['Above_VWAP'] &
+        (df['Relative_Volume'] > 1.5) &
+        (df['Close'] < df['Support_Level'] * 1.02) &  # Breaking support
+        (df['AD_Line'] < df['AD_MA']) &  # A/D line declining
+        (df['OBV'] < df['OBV_MA'])  # OBV also declining
+    )
+    
+    # 4. MOMENTUM EXHAUSTION (Purple X's) - Volume/price divergence
+    momentum_exhaustion_conditions = (
+        (df['Close'] > df['Close'].shift(5)) &  # Price still rising
+        (df['Relative_Volume'] < 0.8) &  # But volume declining
+        (df['Accumulation_Score'] < 3) &  # Low accumulation
+        (df['Close'] > df['Close'].rolling(10).mean() * 1.03) &  # Extended above MA
+        (df['Volume'] < df['Volume'].shift(3))  # Volume declining trend
+    )
+    
+    # 5. STOP LOSS TRIGGERS (Dark Red Triangles) - Urgent exit signals
+    stop_loss_conditions = (
+        (df['Close'] < df['Support_Level']) &  # Below support
+        (df['Relative_Volume'] > 1.8) &  # High volume breakdown
+        ~df['Above_VWAP'] &  # Below VWAP
+        (df['Close'] < df['Close'].rolling(5).mean() * 0.97) &  # 3% below 5-day MA
+        (df['Close'] < df['Close'].shift(1))  # Price declining
+    )
+    
+    # SPECIAL SIGNALS
+    stealth_accumulation = (
+        (df['Accumulation_Score'] >= 6) &
+        (df['Relative_Volume'] < 1.3) &  # Low/normal volume
+        (df['AD_Rising'] & ~df['Price_Rising'])  # A/D divergence
+    )
+    
+    confluence_signals = (
+        (df['Accumulation_Score'] >= 6) &
+        df['Near_Support'] &
+        df['Volume_Spike'] &
+        df['Above_VWAP'] &
+        (df['AD_Rising'] & df['OBV_Trend'])  # Multiple indicators aligned
+    )
+    
+    volume_breakout = (
+        (df['Accumulation_Score'] >= 5) &
+        (df['Relative_Volume'] > 2.5) &
+        (df['Close'] > df['Close'].shift(1)) &
+        df['Above_VWAP']
+    )
+    
+    # Create signal flags
+    df['Strong_Buy'] = strong_buy_conditions
+    df['Moderate_Buy'] = moderate_buy_conditions & ~strong_buy_conditions
+    df['Sell_Signal'] = sell_conditions
+    df['Stealth_Accumulation'] = stealth_accumulation & ~strong_buy_conditions & ~moderate_buy_conditions
+    df['Confluence_Signal'] = confluence_signals
+    df['Volume_Breakout'] = volume_breakout & ~strong_buy_conditions
+    
+    # EXIT SIGNAL FLAGS
+    df['Profit_Taking'] = profit_taking_conditions
+    df['Distribution_Warning'] = distribution_warning_conditions & ~sell_conditions
+    df['Momentum_Exhaustion'] = momentum_exhaustion_conditions
+    df['Stop_Loss'] = stop_loss_conditions
     
     # --- Enhanced Visualization with Accumulation Signals (Optimized for 16" Mac) ---
     fig, (ax1, ax2, ax3) = plt.subplots(3, 1, figsize=(12, 9), sharex=True)

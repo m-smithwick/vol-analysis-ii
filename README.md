@@ -47,7 +47,7 @@ A sophisticated Python tool for analyzing stock accumulation and distribution pa
 - **Chart Export**: Optional PNG chart generation for batch processing
 - **Summary Reports**: Consolidated rankings with stealth activity scores
 
-## 📦 Installation
+##  Installation
 
 ### Requirements
 ```bash
@@ -135,6 +135,21 @@ python vol_analysis.py TSLA -p 6mo --backtest
 python vol_analysis.py NVDA --backtest  # Creates NVDA_12mo_backtest_report.txt
 ```
 
+### Batch Backtesting - Strategy Optimization (NEW)
+```bash
+# Run backtests across multiple tickers from a file
+python batch_backtest.py stocks.txt
+
+# Batch backtest with custom period
+python batch_backtest.py watchlist.txt -p 6mo
+
+# Custom output directory
+python batch_backtest.py stocks.txt -p 12mo -o optimization_results
+
+# Full example with all options
+python batch_backtest.py watchlist.txt --period 12mo --output-dir backtest_analysis
+```
+
 ### Advanced Options
 ```bash
 # Multi-timeframe analysis (single ticker)
@@ -144,9 +159,11 @@ python vol_analysis.py GOOGL --multi
 python vol_analysis.py --help
 ```
 
-## 📊 Backtesting System
+## 📊 Backtesting Systems
 
-The backtesting feature validates signal performance by analyzing actual entry-to-exit trade pairs using historical data.
+### Single-Ticker Backtesting
+
+The single-ticker backtesting feature validates signal performance by analyzing actual entry-to-exit trade pairs using historical data.
 
 ### **Entry-to-Exit Paired Analysis**
 
@@ -209,6 +226,234 @@ Matches each entry signal with its corresponding exit signal to simulate real tr
 - Focus on consistency across different periods
 - Pay attention to win rate AND expectancy together
 - Re-run backtests periodically as new data becomes available
+
+### Batch Backtesting - Multi-Ticker Strategy Optimization
+
+The `batch_backtest.py` module performs comprehensive strategy optimization by analyzing signal performance across multiple stocks simultaneously. This provides statistically robust insights into which entry and exit signals work best across different market conditions and stocks.
+
+#### **What It Does**
+
+- **Processes Multiple Tickers**: Runs backtests on all stocks in a ticker file
+- **Aggregates Results**: Combines data across all tickers for comprehensive analysis
+- **Ranks Strategies**: Identifies the most profitable entry and exit signal combinations
+- **Statistical Validation**: Provides confidence levels based on sample size
+- **Individual Reports**: Generates detailed reports for each ticker
+- **Aggregate Optimization Report**: Creates a master report with strategy recommendations
+
+#### **Command-Line Usage**
+
+```bash
+# Basic usage - analyze all tickers in file
+python batch_backtest.py stocks.txt
+
+# Specify analysis period
+python batch_backtest.py watchlist.txt -p 6mo
+
+# Custom output directory
+python batch_backtest.py stocks.txt --output-dir optimization_results
+
+# Full example
+python batch_backtest.py watchlist.txt --period 12mo --output-dir backtest_analysis
+```
+
+**Arguments:**
+- `ticker_file`: Path to file with ticker symbols (one per line, comments with # supported)
+- `-p, --period`: Analysis period (default: 12mo)
+- `-o, --output-dir`: Directory for output reports (default: backtest_results)
+
+#### **Output Files Generated**
+
+The batch backtesting process creates multiple output files:
+
+**Individual Ticker Reports:**
+- `{TICKER}_{PERIOD}_backtest_{TIMESTAMP}.txt` - One per ticker analyzed
+- Contains complete backtest analysis for that specific stock
+- Example: `AAPL_12mo_backtest_20241103_121500.txt`
+
+**Aggregate Optimization Report:**
+- `AGGREGATE_optimization_{PERIOD}_{TIMESTAMP}.txt`
+- Master report combining all ticker data
+- Example: `AGGREGATE_optimization_12mo_20241103_121530.txt`
+
+All files are saved to the specified output directory (default: `backtest_results/`)
+
+#### **Sample Aggregate Report Output**
+
+```
+═══════════════════════════════════════════════════════════════════
+🎯 COLLECTIVE STRATEGY OPTIMIZATION REPORT
+═══════════════════════════════════════════════════════════════════
+
+📊 BATCH PROCESSING SUMMARY:
+  Tickers Analyzed: 15
+  Tickers Failed: 0
+  Total Trades Generated: 245
+  Closed Trades: 203
+  Open Positions: 42
+
+✅ Successfully Analyzed:
+  AAPL, MSFT, GOOGL, AMZN, TSLA, NVDA, META, NFLX, AMD, INTC, ...
+
+═══════════════════════════════════════════════════════════════════
+🚀 COLLECTIVE ENTRY STRATEGY ANALYSIS
+═══════════════════════════════════════════════════════════════════
+
+Ranked by Expected Value per Trade:
+
+1. ⭐ Multi-Signal Confluence
+   ──────────────────────────────────────────────────────────────
+   Total Trades: 48 (42 closed, 6 open)
+   Win Rate: 76.2% (32 wins, 10 losses)
+   Average Return: +5.83%
+   Median Return: +4.95%
+   Avg Win: +8.12% | Avg Loss: -2.45%
+   Best Trade: 2024-08-15 (+18.34%)
+   Worst Trade: 2024-09-22 (-6.78%)
+   Avg Holding: 16.8 days
+   Profit Factor: 3.31
+   Expectancy: +4.21%
+   Rating: ⭐⭐⭐ EXCELLENT - Top tier strategy
+
+2. 💎 Stealth Accumulation
+   ──────────────────────────────────────────────────────────────
+   Total Trades: 62 (55 closed, 7 open)
+   Win Rate: 69.1% (38 wins, 17 losses)
+   Average Return: +4.12%
+   Median Return: +3.67%
+   Avg Win: +7.45% | Avg Loss: -2.89%
+   Best Trade: 2024-07-12 (+15.23%)
+   Worst Trade: 2024-10-05 (-7.12%)
+   Avg Holding: 19.3 days
+   Profit Factor: 2.58
+   Expectancy: +2.85%
+   Rating: ⭐⭐ GOOD - Strong positive edge
+
+═══════════════════════════════════════════════════════════════════
+💡 OPTIMAL STRATEGY RECOMMENDATION
+═══════════════════════════════════════════════════════════════════
+
+🎯 RECOMMENDED ENTRY SIGNAL:
+   ⭐ Multi-Signal Confluence
+   • Win Rate: 76.2%
+   • Expectancy: +4.21% per trade
+   • Average Return: +5.83%
+   • Profit Factor: 3.31
+   • Based on 42 closed trades
+
+🎯 RECOMMENDED EXIT SIGNAL:
+   🟠 Profit Taking
+   • Win Rate: 82.5%
+   • Average Return: +6.45%
+   • Profit Factor: 3.89
+   • Based on 67 closed trades
+
+📊 COMBINED STRATEGY PERFORMANCE:
+   Trades: 28 closed
+   Win Rate: 85.7%
+   Average Return: +7.12%
+   Expectancy: +6.18%
+   Profit Factor: 4.23
+   Avg Holding: 14.5 days
+   ⭐⭐⭐ EXCEPTIONAL combined performance!
+
+═══════════════════════════════════════════════════════════════════
+📈 STATISTICAL SIGNIFICANCE
+═══════════════════════════════════════════════════════════════════
+
+  Total Sample Size: 203 closed trades
+  ✅ Large sample - results are statistically robust
+```
+
+#### **Key Metrics Explained**
+
+**Entry Strategy Metrics:**
+- **Expectancy**: Expected profit per trade (most important metric)
+- **Win Rate**: Percentage of profitable trades
+- **Profit Factor**: Ratio of gross profit to gross loss (>2.0 is excellent)
+- **Average Return**: Mean profit/loss per trade
+- **Holding Period**: Average days from entry to exit
+
+**Strategy Rankings:**
+- Entries are ranked by **Expectancy** (expected value per trade)
+- Exits are ranked by **Win Rate** (reliability)
+- ⭐⭐⭐ EXCELLENT: Expectancy ≥2.0% AND Win Rate ≥65%
+- ⭐⭐ GOOD: Expectancy ≥1.0% AND Win Rate ≥55%
+- ⭐ FAIR: Expectancy ≥0.5% AND Win Rate ≥50%
+
+**Statistical Significance:**
+- ✅ Large sample (≥100 trades): Results are statistically robust
+- ✓ Moderate sample (50-99 trades): Results reasonably reliable
+- ⚠️ Small sample (20-49 trades): Use caution, may not be representative
+- ❌ Very small sample (<20 trades): Results may not be reliable
+
+#### **Interpretation Guide**
+
+**Understanding the Aggregate Report:**
+
+1. **Entry Strategy Rankings**: Shows which buy signals are most profitable across all stocks
+   - Focus on signals with positive expectancy and high win rates
+   - "Expectancy" tells you how much profit to expect per trade on average
+   - Higher profit factors (>2.0) indicate stronger strategies
+
+2. **Exit Strategy Rankings**: Shows which exit signals preserve profits best
+   - Win rate is crucial for exits - you want to exit while ahead
+   - Profit factors >2.0 indicate the signal helps lock in gains
+
+3. **Combined Strategy**: Tests the optimal entry+exit combination
+   - This shows real-world performance when using both signals together
+   - Exceptional (⭐⭐⭐) combined performance validates the strategy
+
+4. **Per-Ticker Breakdown**: Shows how strategies perform on individual stocks
+   - Reveals if certain stocks favor specific signals
+   - Helps identify stock-specific strategy adaptations
+
+**Using the Results:**
+
+- **For Trading**: Use the recommended entry and exit signals
+- **Position Sizing**: Increase size on high-expectancy signals
+- **Risk Management**: Pay attention to average loss figures for stop-loss placement
+- **Validation**: Larger sample sizes provide more reliable results
+
+#### **Best Practices for Batch Backtesting**
+
+1. **Sample Size**: Use longer periods (12mo) or larger ticker lists for robust results
+2. **Diversification**: Include stocks from different sectors and market caps
+3. **Periodic Re-analysis**: Re-run quarterly as new data becomes available
+4. **Combined Analysis**: Use both single-ticker and batch results together
+5. **Market Conditions**: Consider analyzing different periods (bull vs bear markets)
+
+#### **Ticker File Format**
+
+Same format as batch processing:
+```
+AAPL
+MSFT
+GOOGL
+# Technology sector
+TSLA
+NVDA
+
+# Finance sector
+JPM
+GS
+```
+
+#### **Troubleshooting**
+
+**"No closed trades available"**
+- Try a longer analysis period (12mo or more)
+- Ensure tickers have sufficient trading history
+- Some tickers may have limited signals in shorter periods
+
+**"Failed to process [TICKER]"**
+- Invalid or delisted ticker symbol
+- Insufficient data available from Yahoo Finance
+- Failed tickers are listed in the report with error messages
+
+**Low statistical significance warning**
+- Use longer time periods to generate more trades
+- Add more tickers to the analysis
+- Results with <20 trades should be used cautiously
 
 ### Ticker File Format
 Create a text file with one ticker symbol per line:

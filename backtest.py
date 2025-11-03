@@ -543,6 +543,8 @@ def analyze_strategy_performance(paired_trades: List[Dict],
         'worst_return': worst_trade['return_pct'],
         'best_trade_date': best_trade['entry_date'].strftime('%Y-%m-%d'),
         'worst_trade_date': worst_trade['entry_date'].strftime('%Y-%m-%d'),
+        'best_trade_ticker': best_trade.get('ticker', 'N/A'),
+        'worst_trade_ticker': worst_trade.get('ticker', 'N/A'),
         'avg_holding_days': avg_holding_days,
         'profit_factor': profit_factor,
         'expectancy': expectancy
