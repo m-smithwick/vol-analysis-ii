@@ -1,6 +1,6 @@
 # Volume Analysis Project - Code Map
 
-**Last Updated**: 2025-11-03 (Phase 2 Refactoring)
+**Last Updated**: 2025-11-03 (Phase 4 Refactoring Complete)
 
 This document provides a comprehensive overview of the project's file structure, module purposes, and their relationships. It should be updated after each refactoring phase to reflect architectural changes.
 
@@ -10,11 +10,12 @@ This document provides a comprehensive overview of the project's file structure,
 
 ### Core Modules
 
-**`vol_analysis.py`** - Main analysis script with caching, batch processing, and visualization
+**`vol_analysis.py`** - Main analysis script and orchestrator (Phase 4 refactor complete)
 - Entry point for all analysis operations
 - Command-line interface and argument parsing
 - Orchestrates data fetching, signal generation, and output creation
 - Integrates all other modules
+- Reduced from ~1,558 lines to ~912 lines after Phase 4 refactoring
 
 **`signal_generator.py`** - ✨ Signal generation module for all buy/sell signals (Phase 2 refactor)
 - Centralized signal detection logic
@@ -30,6 +31,13 @@ This document provides a comprehensive overview of the project's file structure,
 - Support Level detection
 - Price-Volume correlation
 - ~350 lines of technical calculations
+
+**`batch_processor.py`** - ✨ Batch processing module for multi-ticker analysis (Phase 4 refactor)
+- Multi-ticker processing from file input
+- HTML summary generation with interactive charts
+- Stealth accumulation and entry signal scoring algorithms
+- Batch reporting and ranking functionality
+- ~800+ lines of batch processing logic
 
 **`backtest.py`** - Backtesting framework for validating signal performance
 - Entry-to-exit trade pairing
@@ -186,12 +194,15 @@ This document provides a comprehensive overview of the project's file structure,
 - Reduced `vol_analysis.py` by ~250 lines
 - All chart functionality preserved and working correctly
 
-### Pending Phases
+**✅ Phase 4: Extract Batch Processing Logic (2025-11-03)**
+- Created `batch_processor.py` (~800+ lines)
+- Extracted all multi-ticker processing functionality
+- Includes stealth/entry scoring algorithms and HTML summary generation
+- Reduced `vol_analysis.py` by ~646+ lines (from ~1,558 to ~912 lines)
+- All batch processing functionality working correctly
+- Interactive HTML summaries with clickable charts preserved
 
-**⏸️ Phase 4: Extract Batch Processing Logic**
-- Target: Create `batch_processor.py` (~250 lines)
-- Separate multi-ticker processing
-- Isolate HTML summary generation
+### Pending Phases
 
 **⏸️ Phase 5: Extract Report Generation (Optional)**
 - Target: Create `report_generator.py` (~200 lines)
@@ -207,13 +218,23 @@ vol_analysis.py (main orchestrator)
 ├── data_manager.py (data fetching & caching)
 ├── indicators.py (technical calculations)
 ├── signal_generator.py (signal detection)
+├── chart_builder.py (visualization)
+├── batch_processor.py (multi-ticker processing)
 ├── backtest.py (performance validation)
 ├── error_handler.py (error handling)
 └── schema_manager.py (cache management)
 
+batch_processor.py
+├── vol_analysis.py (imports analyze_ticker function)
+└── error_handler.py (error handling)
+
 backtest.py
 ├── schema_manager.py (database schema)
 └── error_handler.py (error handling)
+
+chart_builder.py
+├── signal_generator.py (signal detection)
+└── indicators.py (technical indicators - indirect via DataFrame)
 
 signal_generator.py
 └── indicators.py (technical indicators - indirect via DataFrame)
@@ -233,4 +254,11 @@ data_manager.py
 
 ---
 
-**Current Status**: Phase 3 complete, ready for Phase 4 (Batch Processing extraction)
+**Current Status**: Phase 4 complete! Major refactoring achievement:
+- **Before**: Single monolithic file (~1,558 lines)
+- **After**: Modular architecture with 4 specialized modules
+- **Reduction**: ~646 lines removed from main file (58% size reduction)
+- **Benefits**: Improved maintainability, reduced context window usage, better separation of concerns
+- **Status**: All functionality preserved and working correctly
+
+**Optional Phase 5**: Text report generation extraction (~200 lines) - low priority
