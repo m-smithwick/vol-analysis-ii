@@ -8,14 +8,32 @@ import numpy as np
 import os
 import yfinance as yf
 from datetime import datetime, timedelta
+from pathlib import Path
 
-def get_cache_directory() -> str:
+# Import error handling framework
+from error_handler import (
+    ErrorContext, VolumeAnalysisError, DataValidationError, CacheError, FileOperationError,
+    validate_ticker, validate_file_path, validate_dataframe, safe_operation, 
+    setup_logging, logger
+)
+
+# Import schema management
+from schema_manager import schema_manager
+
+# Configure logging for this module
+setup_logging()
+
+def get_cache_directory() -> Path:
     """Get or create the data cache directory."""
-    cache_dir = os.path.join(os.getcwd(), 'data_cache')
-    if not os.path.exists(cache_dir):
-        os.makedirs(cache_dir)
-        print(f"📁 Created cache directory: {cache_dir}")
-    return cache_dir
+    with ErrorContext("creating cache directory"):
+        cache_dir = Path.cwd() / 'data_cache'
+        if not cache_dir.exists():
+            try:
+                cache_dir.mkdir(parents=True, exist_ok=True)
+                logger.info(f"Created cache directory: {cache_dir}")
+            except OSError as e:
+                raise FileOperationError(f"Failed to create cache directory {cache_dir}: {e}")
+        return cache_dir
 
 def get_cache_filepath(ticker: str, interval: str = "1d") -> str:
     """
@@ -28,12 +46,14 @@ def get_cache_filepath(ticker: str, interval: str = "1d") -> str:
     Returns:
         str: Path to the cache file
     """
-    cache_dir = get_cache_directory()
-    return os.path.join(cache_dir, f"{ticker}_{interval}_data.csv")
+    with ErrorContext("generating cache filepath", ticker=ticker, interval=interval):
+        validate_ticker(ticker)
+        cache_dir = get_cache_directory()
+        return os.path.join(cache_dir, f"{ticker}_{interval}_data.csv")
 
 def load_cached_data(ticker: str, interval: str = "1d") -> Optional[pd.DataFrame]:
     """
-    Load cached data for a ticker if it exists and is valid.
+    Load cached data for a ticker if it exists and is valid with schema validation.
     
     Args:
         ticker (str): Stock symbol
@@ -42,68 +62,155 @@ def load_cached_data(ticker: str, interval: str = "1d") -> Optional[pd.DataFrame
     Returns:
         Optional[pd.DataFrame]: DataFrame with cached data, or None if cache not valid
     """
-    cache_file = get_cache_filepath(ticker, interval)
-    
-    if not os.path.exists(cache_file):
-        return None
-    
-    try:
-        df = pd.read_csv(cache_file, index_col=0, parse_dates=True)
+    with ErrorContext("loading cached data", ticker=ticker, interval=interval):
+        validate_ticker(ticker)
+        cache_file = get_cache_filepath(ticker, interval)
         
-        # Validate cached data
-        if df.empty:
-            print(f"⚠️  Empty cache file for {ticker} ({interval}) - will redownload")
-            os.remove(cache_file)  # Remove invalid cache
+        if not os.path.exists(cache_file):
             return None
         
-        # Ensure index is timezone-naive for consistent handling
-        if df.index.tzinfo is not None:
-            df.index = df.index.tz_localize(None)
-            
-        print(f"📊 Loaded cached data for {ticker} ({interval}): {len(df)} periods ({df.index[0]} to {df.index[-1]})")
-        return df
-    except Exception as e:
-        print(f"⚠️  Error loading cache for {ticker} ({interval}): {e}")
-        # Remove corrupted cache file
-        try:
-            os.remove(cache_file)
-            print(f"🗑️  Removed corrupted cache file for {ticker}")
-        except:
-            pass
-        return None
+        def _load_cache():
+            try:
+                # Check for schema metadata first
+                metadata = schema_manager.read_metadata_from_csv(cache_file)
+                
+                # Read the actual data (skip comment lines with metadata)
+                df = pd.read_csv(cache_file, index_col=0, parse_dates=True, comment='#')
+                
+                # Validate cached data
+                if df.empty:
+                    logger.warning(f"Empty cache file for {ticker} ({interval}) - will redownload")
+                    safe_operation("removing empty cache file", lambda: os.remove(cache_file))
+                    return None
+                
+                # Check if file has invalid schema version that cannot be migrated
+                if metadata and not schema_manager.is_valid_schema_version(metadata.get("schema_version")):
+                    logger.warning(f"Invalid schema version in {ticker} ({interval}) cache - will redownload")
+                    safe_operation("removing invalid cache file", lambda: os.remove(cache_file))
+                    return None
+                
+                # Check if migration is needed
+                if schema_manager.needs_migration(metadata):
+                    logger.info(f"Cache file for {ticker} ({interval}) needs schema migration")
+                    
+                    # Attempt migration
+                    if schema_manager.migrate_legacy_file(cache_file, ticker, interval):
+                        # Reload after successful migration
+                        metadata = schema_manager.read_metadata_from_csv(cache_file)
+                        df = pd.read_csv(cache_file, index_col=0, parse_dates=True, comment='#')
+                        logger.info(f"Successfully migrated and reloaded {ticker} ({interval}) cache")
+                    else:
+                        logger.warning(f"Migration failed for {ticker} ({interval}) - will redownload")
+                        safe_operation("removing unmigrated cache file", lambda: os.remove(cache_file))
+                        return None
+                
+                # Validate schema if metadata exists
+                if metadata and not schema_manager.validate_schema(df, metadata):
+                    logger.warning(f"Schema validation failed for {ticker} ({interval}) - will redownload")
+                    safe_operation("removing invalid cache file", lambda: os.remove(cache_file))
+                    return None
+                
+                validate_dataframe(df, schema_manager.schema_definitions[schema_manager.current_version]["required_columns"])
+                
+                # Ensure index is timezone-naive for consistent handling
+                if df.index.tzinfo is not None:
+                    df.index = df.index.tz_localize(None)
+                
+                # Log schema version if available
+                schema_version = metadata.get('schema_version', 'legacy') if metadata else 'legacy'
+                logger.info(f"Loaded cached data for {ticker} ({interval}): {len(df)} periods, schema v{schema_version}")
+                return df
+                
+            except Exception as e:
+                logger.warning(f"Error loading cache for {ticker} ({interval}): {e}")
+                # Remove corrupted cache file
+                safe_operation(f"removing corrupted cache file for {ticker}", lambda: os.remove(cache_file))
+                return None
+        
+        return _load_cache()
 
-def save_to_cache(ticker: str, df: pd.DataFrame, interval: str = "1d") -> None:
+def save_to_cache(ticker: str, df: pd.DataFrame, interval: str = "1d", auto_adjust: bool = True) -> None:
     """
-    Save DataFrame to cache with interval support.
+    Save DataFrame to cache with schema versioning and metadata headers.
     
     Args:
         ticker (str): Stock symbol
         df (pd.DataFrame): Data to cache
         interval (str): Data interval ('1d', '1h', '30m', etc.)
+        auto_adjust (bool): Whether auto-adjust was used in the download
     """
-    cache_file = get_cache_filepath(ticker, interval)
-    try:
-        df.to_csv(cache_file)
-        print(f"💾 Cached data for {ticker} ({interval}): {len(df)} periods saved to cache")
-    except Exception as e:
-        print(f"⚠️  Error saving cache for {ticker} ({interval}): {e}")
+    with ErrorContext("saving data to cache", ticker=ticker, interval=interval):
+        validate_ticker(ticker)
+        validate_dataframe(df, schema_manager.schema_definitions[schema_manager.current_version]["required_columns"])
+        cache_file = get_cache_filepath(ticker, interval)
+        
+        def _save_cache():
+            # Standardize DataFrame before saving
+            standardized_df = schema_manager._standardize_dataframe(df.copy(), ticker)
+            
+            # Create metadata header
+            metadata = schema_manager.create_metadata_header(
+                ticker=ticker,
+                df=standardized_df,
+                interval=interval,
+                auto_adjust=auto_adjust,
+                data_source="yfinance"
+            )
+            
+            # Write file with metadata header
+            with open(cache_file, 'w', newline='') as f:
+                # Write metadata as comments
+                f.write("# Volume Analysis System - Cache File\n")
+                f.write(f"# Generated: {datetime.now().isoformat()}\n")
+                f.write("# Metadata (JSON format):\n")
+                
+                import json
+                metadata_json = json.dumps(metadata, indent=2)
+                for line in metadata_json.split('\n'):
+                    f.write(f"# {line}\n")
+                f.write("#\n")
+                
+                # Write CSV data
+                standardized_df.to_csv(f, index=True)
+            
+            logger.info(f"Cached data for {ticker} ({interval}): {len(standardized_df)} periods saved with schema v{metadata['schema_version']}")
+        
+        safe_operation(f"saving cache for {ticker} ({interval})", _save_cache)
 
 def append_to_cache(ticker: str, new_data: pd.DataFrame, interval: str = "1d") -> None:
     """
-    Append new data to existing cache file.
+    Append new data to existing cache file with schema validation.
     
     Args:
         ticker (str): Stock symbol
         new_data (pd.DataFrame): New data to append
         interval (str): Data interval ('1d', '1h', '30m', etc.)
     """
-    cache_file = get_cache_filepath(ticker, interval)
-    try:
-        # Append new data to the CSV file
-        new_data.to_csv(cache_file, mode='a', header=False)
-        print(f"📈 Appended {len(new_data)} new periods to {ticker} ({interval}) cache")
-    except Exception as e:
-        print(f"⚠️  Error appending to cache for {ticker} ({interval}): {e}")
+    with ErrorContext("appending data to cache", ticker=ticker, interval=interval):
+        validate_ticker(ticker)
+        validate_dataframe(new_data, schema_manager.schema_definitions[schema_manager.current_version]["required_columns"])
+        cache_file = get_cache_filepath(ticker, interval)
+        
+        def _append_cache():
+            # For schema-versioned files, we need to read existing data, combine, and rewrite
+            # This ensures metadata integrity and proper data formatting
+            existing_df = load_cached_data(ticker, interval)
+            
+            if existing_df is not None:
+                # Combine existing and new data
+                combined_df = pd.concat([existing_df, new_data])
+                combined_df = combined_df[~combined_df.index.duplicated(keep='last')]
+                combined_df.sort_index(inplace=True)
+                
+                # Save the combined data with updated metadata
+                save_to_cache(ticker, combined_df, interval)
+                logger.info(f"Appended {len(new_data)} new periods to {ticker} ({interval}) cache with schema update")
+            else:
+                # No existing cache, just save new data
+                save_to_cache(ticker, new_data, interval)
+                logger.info(f"Created new cache file for {ticker} ({interval}) with {len(new_data)} periods")
+        
+        safe_operation(f"appending to cache for {ticker} ({interval})", _append_cache)
 
 def normalize_period(period: str) -> str:
     """
@@ -116,22 +223,26 @@ def normalize_period(period: str) -> str:
     Returns:
         str: Normalized period compatible with yfinance
     """
-    # Period mapping for common user inputs
-    period_mapping = {
-        '1yr': '12mo',
-        '2yr': '24mo', 
-        '3yr': '36mo',
-        '5yr': '60mo',
-        '10yr': '120mo',
-        '1y': '12mo',
-        '2y': '24mo',
-        '5y': '60mo',
-        '10y': '120mo'
-    }
-    
-    normalized = period_mapping.get(period.lower(), period)
-    print(f"📅 Period normalized: {period} → {normalized}")
-    return normalized
+    with ErrorContext("normalizing period", period=period):
+        if not isinstance(period, str) or not period.strip():
+            raise DataValidationError("Period must be a non-empty string")
+            
+        # Period mapping for common user inputs
+        period_mapping = {
+            '1yr': '12mo',
+            '2yr': '24mo', 
+            '3yr': '36mo',
+            '5yr': '60mo',
+            '10yr': '120mo',
+            '1y': '12mo',
+            '2y': '24mo',
+            '5y': '60mo',
+            '10y': '120mo'
+        }
+        
+        normalized = period_mapping.get(period.lower(), period)
+        logger.debug(f"Period normalized: {period} → {normalized}")
+        return normalized
 
 def get_smart_data(ticker: str, period: str, interval: str = "1d", force_refresh: bool = False) -> pd.DataFrame:
     """
@@ -147,8 +258,10 @@ def get_smart_data(ticker: str, period: str, interval: str = "1d", force_refresh
         pd.DataFrame: Stock data with OHLCV columns
         
     Raises:
-        ValueError: If no valid data is available for the ticker
+        DataValidationError: If no valid data is available for the ticker
     """
+    with ErrorContext("smart data retrieval", ticker=ticker, period=period, interval=interval):
+        validate_ticker(ticker)
     # Normalize the period first
     period = normalize_period(period)
     
@@ -186,7 +299,7 @@ def get_smart_data(ticker: str, period: str, interval: str = "1d", force_refresh
     cutoff_date = datetime.now() - timedelta(days=requested_days)
     
     if force_refresh:
-        print(f"🔄 Force refresh enabled - downloading fresh data for {ticker} ({interval})")
+        logger.info(f"Force refresh enabled - downloading fresh data for {ticker} ({interval})")
         df = yf.download(ticker, period=period, interval=interval, auto_adjust=True)
         if isinstance(df.columns, pd.MultiIndex):
             df.columns = df.columns.droplevel(1)
@@ -194,7 +307,7 @@ def get_smart_data(ticker: str, period: str, interval: str = "1d", force_refresh
         
         # Validate downloaded data
         if df.empty:
-            raise ValueError(f"No data available for {ticker} (possibly delisted or invalid symbol)")
+            raise DataValidationError(f"No data available for {ticker} (possibly delisted or invalid symbol)")
         
         save_to_cache(ticker, df, interval)
         return df
@@ -204,7 +317,7 @@ def get_smart_data(ticker: str, period: str, interval: str = "1d", force_refresh
     
     if cached_df is None:
         # No cache exists - download full period
-        print(f"📥 No cache found for {ticker} ({interval}) - downloading {period} data from Yahoo Finance")
+        logger.info(f"No cache found for {ticker} ({interval}) - downloading {period} data from Yahoo Finance")
         df = yf.download(ticker, period=period, interval=interval, auto_adjust=True)
         if isinstance(df.columns, pd.MultiIndex):
             df.columns = df.columns.droplevel(1)
@@ -212,7 +325,7 @@ def get_smart_data(ticker: str, period: str, interval: str = "1d", force_refresh
         
         # Validate downloaded data
         if df.empty:
-            raise ValueError(f"No data available for {ticker} (possibly delisted or invalid symbol)")
+            raise DataValidationError(f"No data available for {ticker} (possibly delisted or invalid symbol)")
         
         save_to_cache(ticker, df, interval)
         return df
@@ -231,7 +344,7 @@ def get_smart_data(ticker: str, period: str, interval: str = "1d", force_refresh
         
         if days_behind > 1:
             # For intraday data more than a day old, simply refresh entirely
-            print(f"🔄 Intraday cache outdated ({days_behind}d old) - downloading fresh data for {ticker} ({interval})")
+            logger.info(f"Intraday cache outdated ({days_behind}d old) - downloading fresh data for {ticker} ({interval})")
             df = yf.download(ticker, period=period, interval=interval, auto_adjust=True)
             if isinstance(df.columns, pd.MultiIndex):
                 df.columns = df.columns.droplevel(1)
@@ -242,7 +355,7 @@ def get_smart_data(ticker: str, period: str, interval: str = "1d", force_refresh
                 return df
             else:
                 # If download fails, use cached data as fallback
-                print(f"⚠️  Failed to download fresh data - using cached data as fallback")
+                logger.warning(f"Failed to download fresh data - using cached data as fallback")
                 return cached_df
     
     # For daily data or current intraday data, handle incremental updates
@@ -257,32 +370,32 @@ def get_smart_data(ticker: str, period: str, interval: str = "1d", force_refresh
     
     if not update_needed:
         # Cache is up to date
-        print(f"✅ Cache is current for {ticker} ({interval}) - using cached data")
+        logger.info(f"Cache is current for {ticker} ({interval}) - using cached data")
         # Filter cached data to requested period if needed
         filtered_df = cached_df[cached_df.index >= cutoff_date] if cutoff_date > cache_start_date else cached_df
         return filtered_df
     
     # Need to download recent data
-    print(f"📥 Cache is {days_behind} days behind - downloading recent data for {ticker} ({interval})")
+    logger.info(f"Cache is {days_behind} days behind - downloading recent data for {ticker} ({interval})")
     
     try:
         # Try using period parameter instead of start/end dates to avoid timezone conflicts
         days_to_download = days_behind + 1  # +1 to include today
         period_param = f"{min(days_to_download, 60)}d"  # Cap at 60d for safety with intraday data
-        print(f"Using period parameter: {period_param} instead of explicit dates to avoid timezone issues")
+        logger.debug(f"Using period parameter: {period_param} instead of explicit dates to avoid timezone issues")
         
         new_data = yf.download(ticker, period=period_param, interval=interval, auto_adjust=True)
         
         # If nothing was returned or the download failed, try the old way as fallback
         if new_data.empty:
-            print(f"Period-based download returned no data, trying date-based download as fallback")
+            logger.debug(f"Period-based download returned no data, trying date-based download as fallback")
             # Download from day after last cached date to today
             # Ensure we're using timezone-naive dates for Yahoo Finance API
             start_date = (cache_end_date + timedelta(days=1)).replace(tzinfo=None).strftime('%Y-%m-%d')
             new_data = yf.download(ticker, start=start_date, interval=interval, auto_adjust=True)
     except Exception as e:
-        print(f"⚠️ Error downloading recent data: {str(e)}")
-        print(f"Falling back to cached data")
+        logger.warning(f"Error downloading recent data: {str(e)}")
+        logger.info(f"Falling back to cached data")
         filtered_df = cached_df[cached_df.index >= cutoff_date] if cutoff_date > cache_start_date else cached_df
         return filtered_df
     
@@ -312,7 +425,7 @@ def get_smart_data(ticker: str, period: str, interval: str = "1d", force_refresh
         filtered_df = combined_df[combined_df.index >= cutoff_date] if cutoff_date > combined_df.index[0] else combined_df
         return filtered_df
     else:
-        print(f"ℹ️  No new data available for {ticker}")
+        logger.info(f"No new data available for {ticker}")
         filtered_df = cached_df[cached_df.index >= cutoff_date] if cutoff_date > cache_start_date else cached_df
         return filtered_df
 
@@ -368,39 +481,45 @@ def clear_cache(ticker: str = None, interval: str = None) -> None:
         ticker (str, optional): Specific ticker to clear cache for. If None, clears for all tickers.
         interval (str, optional): Specific interval to clear cache for. If None, clears for all intervals.
     """
-    cache_dir = get_cache_directory()
-    
-    if ticker and interval:
-        # Clear specific ticker and interval cache
-        cache_file = get_cache_filepath(ticker, interval)
-        if os.path.exists(cache_file):
-            os.remove(cache_file)
-            print(f"🗑️  Cleared cache for {ticker} ({interval})")
-        else:
-            print(f"ℹ️  No cache found for {ticker} ({interval})")
-    
-    elif ticker:
-        # Clear all intervals for specific ticker
-        files_removed = 0
-        for file in os.listdir(cache_dir):
-            if file.startswith(f"{ticker}_") and file.endswith("_data.csv"):
-                os.remove(os.path.join(cache_dir, file))
-                files_removed += 1
+    with ErrorContext("clearing cache", ticker=ticker, interval=interval):
+        cache_dir = get_cache_directory()
         
-        if files_removed > 0:
-            print(f"🗑️  Cleared {files_removed} cache files for {ticker}")
+        if ticker and interval:
+            # Clear specific ticker and interval cache
+            validate_ticker(ticker)
+            cache_file = get_cache_filepath(ticker, interval)
+            if os.path.exists(cache_file):
+                safe_operation(f"removing cache file {cache_file}", lambda: os.remove(cache_file))
+                logger.info(f"Cleared cache for {ticker} ({interval})")
+            else:
+                logger.info(f"No cache found for {ticker} ({interval})")
+        
+        elif ticker:
+            # Clear all intervals for specific ticker
+            validate_ticker(ticker)
+            files_removed = 0
+            for file in os.listdir(cache_dir):
+                if file.startswith(f"{ticker}_") and file.endswith("_data.csv"):
+                    safe_operation(f"removing cache file {file}", lambda: os.remove(os.path.join(cache_dir, file)))
+                    files_removed += 1
+            
+            if files_removed > 0:
+                logger.info(f"Cleared {files_removed} cache files for {ticker}")
+            else:
+                logger.info(f"No cache files found for {ticker}")
+        
         else:
-            print(f"ℹ️  No cache files found for {ticker}")
-    
-    else:
-        # Clear entire cache directory
-        if os.path.exists(cache_dir):
-            import shutil
-            shutil.rmtree(cache_dir)
-            os.makedirs(cache_dir)
-            print(f"🗑️  Cleared entire cache directory")
-        else:
-            print(f"ℹ️  No cache directory found")
+            # Clear entire cache directory
+            if os.path.exists(cache_dir):
+                def _clear_cache_dir():
+                    import shutil
+                    shutil.rmtree(cache_dir)
+                    os.makedirs(cache_dir)
+                
+                safe_operation("clearing entire cache directory", _clear_cache_dir)
+                logger.info(f"Cleared entire cache directory")
+            else:
+                logger.info(f"No cache directory found")
 
 def list_cache_info() -> None:
     """Display information about cached data."""
@@ -486,17 +605,22 @@ def read_ticker_file(filepath: str) -> List[str]:
     Returns:
         List[str]: List of ticker symbols
     """
-    tickers = []
-    try:
-        with open(filepath, 'r') as f:
-            for line in f:
-                ticker = line.strip().upper()
-                if ticker and not ticker.startswith('#'):  # Skip empty lines and comments
-                    tickers.append(ticker)
-        return tickers
-    except FileNotFoundError:
-        print(f"❌ Error: File '{filepath}' not found.")
-        raise
-    except Exception as e:
-        print(f"❌ Error reading file '{filepath}': {str(e)}")
-        raise
+    with ErrorContext("reading ticker file", filepath=filepath):
+        validate_file_path(filepath, check_exists=True, check_readable=True)
+        tickers = []
+        
+        try:
+            with open(filepath, 'r') as f:
+                for line in f:
+                    ticker = line.strip().upper()
+                    if ticker and not ticker.startswith('#'):  # Skip empty lines and comments
+                        validate_ticker(ticker)
+                        tickers.append(ticker)
+            
+            logger.info(f"Read {len(tickers)} tickers from {filepath}")
+            return tickers
+            
+        except FileNotFoundError:
+            raise FileOperationError(f"File '{filepath}' not found")
+        except Exception as e:
+            raise FileOperationError(f"Error reading file '{filepath}': {str(e)}")

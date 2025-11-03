@@ -22,13 +22,19 @@ A sophisticated Python tool for analyzing stock accumulation and distribution pa
 - **Multi-timeframe Analysis**: Cross-reference signals across different time horizons
 - **Screen Optimized**: Charts sized perfectly for 16-inch Mac displays
 
-### **Smart Data Caching System**
+### **Smart Data Caching System with Schema Versioning (NEW)**
 - **Local Cache**: Stores Yahoo Finance data locally to avoid redundant downloads
 - **Incremental Updates**: Only downloads new data since last cache update
 - **Automatic Management**: Creates and maintains cache automatically
 - **Cache Information**: View cached tickers and their status
 - **Selective Clearing**: Clear cache for specific tickers or entire cache
 - **Force Refresh**: Override cache when fresh data is needed
+- **Schema Versioning**: Advanced cache data integrity and compatibility system
+  - **Metadata Headers**: Each cache file contains JSON metadata with schema version, checksums, and data provenance
+  - **Data Integrity**: SHA-256 checksums ensure cached data hasn't been corrupted
+  - **Automatic Migration**: Legacy cache files are automatically upgraded to current schema format
+  - **Backward Compatibility**: Handles existing cache files seamlessly during system updates
+  - **Version Validation**: Invalid or incompatible cache files are automatically detected and refreshed
 - **Timezone Handling**: Robust timezone management for consistent data processing
   - Automatically normalizes timezone-aware and timezone-naive datetime objects
   - Uses period-based API calls instead of explicit dates to avoid timezone conflicts
@@ -84,7 +90,7 @@ python vol_analysis.py -f stocks.txt --save-charts
 python vol_analysis.py -f watchlist.txt -p 6mo -o analysis_output --save-charts
 ```
 
-### Data Caching Options (NEW)
+### Data Caching Options
 ```bash
 # View cache information
 python vol_analysis.py --cache-info
@@ -100,6 +106,21 @@ python vol_analysis.py AAPL --force-refresh
 
 # Force refresh in batch processing
 python vol_analysis.py -f stocks.txt --force-refresh
+```
+
+### Schema Management & Migration (NEW)
+```bash
+# Check which cache files need migration
+python migrate_cache.py --dry-run
+
+# Migrate all legacy cache files to current schema
+python migrate_cache.py
+
+# Validate migrated files have correct schema
+python migrate_cache.py --validate
+
+# View migration status and file information
+python migrate_cache.py --dry-run
 ```
 
 ### Backtesting & Validation (NEW)
@@ -416,6 +437,66 @@ python vol_analysis.py AAPL --multi
 
 **Analysis**: This shows a stock in accumulation phase with multiple entry signals, minimal exit pressure, and one profit-taking opportunity. Low exit score indicates position is stable for continued holding.
 
+## 🔧 Cache Schema Management
+
+The system now includes advanced cache data versioning and integrity validation to ensure reliable data storage and compatibility across system updates.
+
+### **Schema Features**
+
+#### **Metadata Headers**
+Each cache file now includes comprehensive metadata:
+```
+# Volume Analysis System - Cache File
+# Generated: 2025-11-03T11:01:50.123456
+# Metadata (JSON format):
+# {
+#   "schema_version": "1.0.0",
+#   "creation_timestamp": "2025-11-03T11:01:50.123456",
+#   "ticker_symbol": "AAPL",
+#   "data_source": "yfinance",
+#   "interval": "1h",
+#   "auto_adjust": true,
+#   "data_checksum": "a1b2c3d4e5f67890",
+#   "record_count": 154,
+#   "start_date": "2024-10-16T09:30:00",
+#   "end_date": "2024-10-16T16:00:00"
+# }
+```
+
+#### **Data Integrity Validation**
+- **Checksum Verification**: SHA-256 checksums detect data corruption
+- **Column Validation**: Ensures required columns (Open, High, Low, Close, Volume) are present
+- **Type Validation**: Verifies correct data types for all columns
+- **Index Validation**: Confirms datetime index format and timezone consistency
+
+#### **Automatic Migration**
+- **Legacy Detection**: Automatically identifies files without schema metadata
+- **Safe Backup**: Creates `.backup` files before migration
+- **Batch Processing**: Migrates multiple files efficiently
+- **Validation**: Verifies successful migration with integrity checks
+
+### **Migration Utility Output**
+```
+🔄 CACHE MIGRATION UTILITY
+📁 Found 19 cache files
+📋 Current schema version: 1.0.0
+
+📊 MIGRATION SUMMARY:
+   🟢 Already current: 0 files
+   🟡 Needs migration: 19 files
+   🔴 Errors found: 0 files
+
+🚀 STARTING MIGRATION of 19 files...
+[ 1/19] Migrating AAPL (1h)...
+   ✅ Successfully migrated AAPL (1h)
+
+📈 MIGRATION RESULTS:
+   ✅ Successful: 19 files
+   ❌ Failed: 0 files
+
+🎉 Migration completed! 19 files upgraded to schema v1.0.0
+```
+
 ## 🛠️ Troubleshooting
 
 ### **Common Issues**
@@ -440,6 +521,22 @@ pip install yfinance
 - Verify ticker symbol is correct and actively traded
 - Use proper exchange format (e.g., `BRK-A` not `BRKA`)
 
+#### **Cache Migration Issues**
+```
+❌ Migration failed for TICKER: Missing required columns
+```
+- Some legacy files may be corrupted or incomplete
+- Failed files will be automatically redownloaded when accessed
+- Run `python migrate_cache.py --validate` to check file integrity
+
+#### **Schema Validation Errors**
+```
+⚠️ Schema validation failed for TICKER - will redownload
+```
+- Indicates data corruption or format incompatibility
+- Files are automatically removed and fresh data will be downloaded
+- No user action required - system handles this automatically
+
 ### **Performance Tips**
 - Use shorter periods (`3mo`, `6mo`) for faster analysis
 - Daily intervals only - simplified for closing price analysis
@@ -458,7 +555,7 @@ pip install yfinance
 - **Signal Transitions**: Watch for Entry→Hold→Exit phase changes
 
 ### **Exit Score Interpretation**
-- **8-10**: 🚨 URGENT - Consider immediate exit
+- **8-10**: � URGENT - Consider immediate exit
 - **6-8**: ⚠️ HIGH RISK - Reduce position size significantly
 - **4-6**: 💡 MODERATE RISK - Monitor closely
 - **2-4**: ✅ LOW RISK - Normal monitoring

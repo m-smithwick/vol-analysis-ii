@@ -14,6 +14,16 @@ from typing import Dict, List, Tuple
 import vol_analysis
 import backtest
 
+# Import error handling framework
+from error_handler import (
+    ErrorContext, VolumeAnalysisError, DataValidationError, FileOperationError,
+    validate_ticker, validate_file_path, safe_operation, 
+    setup_logging, logger
+)
+
+# Configure logging for this module
+setup_logging()
+
 
 def run_batch_backtest(ticker_file: str, period: str = '12mo', 
                       output_dir: str = 'backtest_results') -> Dict:
@@ -28,150 +38,159 @@ def run_batch_backtest(ticker_file: str, period: str = '12mo',
     Returns:
         Dict: Aggregated backtest results across all tickers
     """
-    # Read tickers from file
-    tickers = vol_analysis.read_ticker_file(ticker_file)
-    
-    if not tickers:
-        print("❌ No valid tickers found in file.")
-        return {}
-    
-    # Create output directory
-    os.makedirs(output_dir, exist_ok=True)
-    
-    print(f"\n🚀 BATCH BACKTESTING: {len(tickers)} TICKERS")
-    print("="*70)
-    print(f"📁 Output directory: {output_dir}")
-    print(f"📅 Period: {period}")
-    print("="*70)
-    
-    # Aggregate results storage
-    aggregated_results = {
-        'tickers_processed': [],
-        'tickers_failed': [],
-        'entry_signal_stats': {},
-        'exit_signal_stats': {},
-        'all_paired_trades': [],
-        'ticker_specific_results': {}
-    }
-    
-    # Signal definitions
-    entry_signals = {
-        'Strong_Buy': '🟢 Strong Buy',
-        'Moderate_Buy': '🟡 Moderate Buy',
-        'Stealth_Accumulation': '💎 Stealth Accumulation',
-        'Confluence_Signal': '⭐ Multi-Signal Confluence',
-        'Volume_Breakout': '🔥 Volume Breakout'
-    }
-    
-    exit_signals = {
-        'Profit_Taking': '🟠 Profit Taking',
-        'Distribution_Warning': '⚠️ Distribution Warning',
-        'Sell_Signal': '🔴 Sell Signal',
-        'Momentum_Exhaustion': '💜 Momentum Exhaustion',
-        'Stop_Loss': '🛑 Stop Loss'
-    }
-    
-    # Process each ticker
-    for i, ticker in enumerate(tickers, 1):
-        print(f"\n[{i}/{len(tickers)}] Processing {ticker}...")
+    with ErrorContext("batch backtesting", ticker_file=ticker_file, period=period, output_dir=output_dir):
+        # Validate inputs
+        validate_file_path(ticker_file, check_exists=True, check_readable=True)
         
-        try:
-            # Run analysis without chart display
-            df = vol_analysis.analyze_ticker(
-                ticker=ticker,
-                period=period,
-                save_to_file=False,
-                save_chart=False,
-                force_refresh=False,
-                show_chart=False,
-                show_summary=False
-            )
-            
-            # Generate paired trades for this ticker
-            paired_trades = backtest.pair_entry_exit_signals(
-                df, 
-                list(entry_signals.keys()), 
-                list(exit_signals.keys())
-            )
-            
-            # Add ticker identifier to each trade
-            for trade in paired_trades:
-                trade['ticker'] = ticker
-            
-            # Aggregate all trades
-            aggregated_results['all_paired_trades'].extend(paired_trades)
-            
-            # Analyze this ticker's performance
-            entry_comparison = backtest.compare_entry_strategies(paired_trades, entry_signals)
-            exit_comparison = backtest.compare_exit_strategies(paired_trades, exit_signals)
-            
-            # Store ticker-specific results
-            aggregated_results['ticker_specific_results'][ticker] = {
-                'total_trades': len(paired_trades),
-                'closed_trades': len([t for t in paired_trades if not t.get('is_open', False)]),
-                'entry_performance': entry_comparison,
-                'exit_performance': exit_comparison
-            }
-            
-            # Generate and save individual backtest report
-            strategy_report = backtest.generate_strategy_comparison_report(
-                paired_trades, 
-                entry_signals, 
-                exit_signals
-            )
-            
-            # Save individual report
-            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-            filename = f"{ticker}_{period}_backtest_{timestamp}.txt"
-            filepath = os.path.join(output_dir, filename)
-            
-            with open(filepath, 'w') as f:
-                f.write(f"📊 BACKTEST REPORT: {ticker} ({period})\n")
-                f.write("="*70 + "\n\n")
-                f.write(strategy_report)
-            
-            aggregated_results['tickers_processed'].append(ticker)
-            print(f"✅ {ticker}: Backtest complete ({len(paired_trades)} trades generated)")
-            
-        except Exception as e:
-            print(f"❌ {ticker}: Error - {str(e)}")
-            aggregated_results['tickers_failed'].append({
-                'ticker': ticker,
-                'error': str(e)
-            })
-            continue
-    
-    # Aggregate statistics across all tickers
-    if aggregated_results['all_paired_trades']:
-        print(f"\n📊 Aggregating results across {len(aggregated_results['tickers_processed'])} tickers...")
+        # Read tickers from file
+        tickers = vol_analysis.read_ticker_file(ticker_file)
         
-        # Aggregate entry signal performance
-        for signal_col, signal_name in entry_signals.items():
-            metrics = backtest.analyze_strategy_performance(
-                aggregated_results['all_paired_trades'],
-                entry_filter=signal_col
-            )
-            
-            if metrics['closed_trades'] > 0:
-                aggregated_results['entry_signal_stats'][signal_col] = {
-                    'name': signal_name,
-                    **metrics
-                }
+        if not tickers:
+            raise DataValidationError("No valid tickers found in file")
         
-        # Aggregate exit signal performance
-        for signal_col, signal_name in exit_signals.items():
-            metrics = backtest.analyze_strategy_performance(
-                aggregated_results['all_paired_trades'],
-                exit_filter=signal_col
-            )
+        # Create output directory safely
+        def _create_output_dir():
+            os.makedirs(output_dir, exist_ok=True)
             
-            if metrics['closed_trades'] > 0:
-                aggregated_results['exit_signal_stats'][signal_col] = {
-                    'name': signal_name,
-                    **metrics
-                }
+        safe_operation(_create_output_dir, f"creating output directory {output_dir}")
+        
+        logger.info(f"Starting batch backtesting: {len(tickers)} tickers, period: {period}")
+        logger.info(f"Output directory: {output_dir}")
+        
+        # Aggregate results storage
+        aggregated_results = {
+            'tickers_processed': [],
+            'tickers_failed': [],
+            'entry_signal_stats': {},
+            'exit_signal_stats': {},
+            'all_paired_trades': [],
+            'ticker_specific_results': {}
+        }
+        
+        # Signal definitions
+        entry_signals = {
+            'Strong_Buy': '🟢 Strong Buy',
+            'Moderate_Buy': '🟡 Moderate Buy',
+            'Stealth_Accumulation': '💎 Stealth Accumulation',
+            'Confluence_Signal': '⭐ Multi-Signal Confluence',
+            'Volume_Breakout': '🔥 Volume Breakout'
+        }
+        
+        exit_signals = {
+            'Profit_Taking': '🟠 Profit Taking',
+            'Distribution_Warning': '⚠️ Distribution Warning',
+            'Sell_Signal': '🔴 Sell Signal',
+            'Momentum_Exhaustion': '💜 Momentum Exhaustion',
+            'Stop_Loss': '🛑 Stop Loss'
+        }
+        
+        # Process each ticker
+        for i, ticker in enumerate(tickers, 1):
+            logger.info(f"Processing {ticker} ({i}/{len(tickers)})")
+            
+            with ErrorContext("processing ticker", ticker=ticker):
+                try:
+                    validate_ticker(ticker)
+                    
+                    # Run analysis without chart display
+                    df = vol_analysis.analyze_ticker(
+                        ticker=ticker,
+                        period=period,
+                        save_to_file=False,
+                        save_chart=False,
+                        force_refresh=False,
+                        show_chart=False,
+                        show_summary=False
+                    )
+                    
+                    # Generate paired trades for this ticker
+                    paired_trades = backtest.pair_entry_exit_signals(
+                        df, 
+                        list(entry_signals.keys()), 
+                        list(exit_signals.keys())
+                    )
+                    
+                    # Add ticker identifier to each trade
+                    for trade in paired_trades:
+                        trade['ticker'] = ticker
+                    
+                    # Aggregate all trades
+                    aggregated_results['all_paired_trades'].extend(paired_trades)
+                    
+                    # Analyze this ticker's performance
+                    entry_comparison = backtest.compare_entry_strategies(paired_trades, entry_signals)
+                    exit_comparison = backtest.compare_exit_strategies(paired_trades, exit_signals)
+                    
+                    # Store ticker-specific results
+                    aggregated_results['ticker_specific_results'][ticker] = {
+                        'total_trades': len(paired_trades),
+                        'closed_trades': len([t for t in paired_trades if not t.get('is_open', False)]),
+                        'entry_performance': entry_comparison,
+                        'exit_performance': exit_comparison
+                    }
+                    
+                    # Generate and save individual backtest report
+                    strategy_report = backtest.generate_strategy_comparison_report(
+                        paired_trades, 
+                        entry_signals, 
+                        exit_signals
+                    )
+                    
+                    # Save individual report
+                    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+                    filename = f"{ticker}_{period}_backtest_{timestamp}.txt"
+                    filepath = os.path.join(output_dir, filename)
+                    
+                    def _save_report():
+                        with open(filepath, 'w') as f:
+                            f.write(f"📊 BACKTEST REPORT: {ticker} ({period})\n")
+                            f.write("="*70 + "\n\n")
+                            f.write(strategy_report)
+                    
+                    safe_operation(_save_report, f"saving backtest report for {ticker}")
+                    
+                    aggregated_results['tickers_processed'].append(ticker)
+                    logger.info(f"Completed {ticker}: {len(paired_trades)} trades generated")
+                    
+                except Exception as e:
+                    logger.error(f"Failed to process {ticker}: {str(e)}")
+                    aggregated_results['tickers_failed'].append({
+                        'ticker': ticker,
+                        'error': str(e)
+                    })
+                    continue
     
-    return aggregated_results
+        # Aggregate statistics across all tickers
+        if aggregated_results['all_paired_trades']:
+            logger.info(f"Aggregating results across {len(aggregated_results['tickers_processed'])} tickers")
+            
+            # Aggregate entry signal performance
+            for signal_col, signal_name in entry_signals.items():
+                metrics = backtest.analyze_strategy_performance(
+                    aggregated_results['all_paired_trades'],
+                    entry_filter=signal_col
+                )
+                
+                if metrics['closed_trades'] > 0:
+                    aggregated_results['entry_signal_stats'][signal_col] = {
+                        'name': signal_name,
+                        **metrics
+                    }
+            
+            # Aggregate exit signal performance
+            for signal_col, signal_name in exit_signals.items():
+                metrics = backtest.analyze_strategy_performance(
+                    aggregated_results['all_paired_trades'],
+                    exit_filter=signal_col
+                )
+                
+                if metrics['closed_trades'] > 0:
+                    aggregated_results['exit_signal_stats'][signal_col] = {
+                        'name': signal_name,
+                        **metrics
+                    }
+        
+        return aggregated_results
 
 
 def generate_aggregate_report(results: Dict, period: str, output_dir: str) -> str:

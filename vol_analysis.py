@@ -8,13 +8,21 @@ import os
 from datetime import datetime, timedelta
 from typing import List, Optional, Dict, Any
 
+# Import error handling framework
+from error_handler import (
+    ErrorContext, DataValidationError, CacheError, DataDownloadError,
+    FileOperationError, validate_ticker, validate_period, validate_dataframe,
+    validate_file_path, safe_operation, get_logger, setup_logging
+)
+
 # Import backtest module if available
 try:
     import backtest
     BACKTEST_AVAILABLE = True
 except ImportError:
     BACKTEST_AVAILABLE = False
-    print("⚠️  Warning: backtest.py not found - backtest functionality disabled")
+    logger = get_logger()
+    logger.warning("backtest.py not found - backtest functionality disabled")
 
 def get_cache_directory() -> str:
     """Get or create the data cache directory."""
@@ -30,51 +38,122 @@ def get_cache_filepath(ticker: str) -> str:
     return os.path.join(cache_dir, f"{ticker}_data.csv")
 
 def load_cached_data(ticker: str) -> Optional[pd.DataFrame]:
-    """Load cached data for a ticker if it exists and is valid."""
-    cache_file = get_cache_filepath(ticker)
+    """
+    Load cached data for a ticker if it exists and is valid.
     
-    if not os.path.exists(cache_file):
-        return None
-    
-    try:
-        df = pd.read_csv(cache_file, index_col=0, parse_dates=True)
+    Args:
+        ticker (str): Stock symbol
         
-        # Validate cached data
-        if df.empty:
-            print(f"⚠️  Empty cache file for {ticker} - will redownload")
-            os.remove(cache_file)  # Remove invalid cache
+    Returns:
+        Optional[pd.DataFrame]: Cached data if valid, None otherwise
+        
+    Raises:
+        CacheError: If cache corruption is detected and cannot be recovered
+    """
+    with ErrorContext("loading cached data", ticker=ticker):
+        # Validate ticker first
+        validate_ticker(ticker)
+        
+        cache_file = get_cache_filepath(ticker)
+        logger = get_logger()
+        
+        if not os.path.exists(cache_file):
+            return None
+        
+        # Validate file path and permissions
+        validate_file_path(cache_file, check_exists=True, check_readable=True)
+        
+        try:
+            df = pd.read_csv(cache_file, index_col=0, parse_dates=True)
+            
+            # Validate cached data structure
+            validate_dataframe(df, required_columns=['Open', 'High', 'Low', 'Close', 'Volume'])
+            
+            logger.info(f"Loaded cached data for {ticker}: {len(df)} days ({df.index[0].date()} to {df.index[-1].date()})")
+            return df
+            
+        except (pd.errors.EmptyDataError, pd.errors.ParserError) as e:
+            # Handle pandas-specific errors
+            logger.warning(f"Corrupted cache file for {ticker}: {str(e)}")
+            
+            # Attempt to recover by removing corrupted cache
+            recovery_result = safe_operation(
+                lambda: os.remove(cache_file),
+                f"removing corrupted cache file for {ticker}"
+            )
+            
+            if recovery_result['success']:
+                logger.info(f"Removed corrupted cache file for {ticker}")
+            else:
+                raise CacheError(f"Cache corruption detected for {ticker} and could not be cleaned up: {recovery_result['error']}")
+            
             return None
             
-        print(f"📊 Loaded cached data for {ticker}: {len(df)} days ({df.index[0].date()} to {df.index[-1].date()})")
-        return df
-    except Exception as e:
-        print(f"⚠️  Error loading cache for {ticker}: {e}")
-        # Remove corrupted cache file
-        try:
-            os.remove(cache_file)
-            print(f"🗑️  Removed corrupted cache file for {ticker}")
-        except:
-            pass
-        return None
+        except Exception as e:
+            # Handle other file system or data validation errors
+            raise CacheError(f"Failed to load cached data for {ticker}: {str(e)}")
 
 def save_to_cache(ticker: str, df: pd.DataFrame) -> None:
-    """Save DataFrame to cache."""
-    cache_file = get_cache_filepath(ticker)
-    try:
-        df.to_csv(cache_file)
-        print(f"💾 Cached data for {ticker}: {len(df)} days saved to cache")
-    except Exception as e:
-        print(f"⚠️  Error saving cache for {ticker}: {e}")
+    """
+    Save DataFrame to cache.
+    
+    Args:
+        ticker (str): Stock symbol
+        df (pd.DataFrame): Data to cache
+        
+    Raises:
+        CacheError: If data cannot be saved to cache
+        DataValidationError: If DataFrame is invalid
+    """
+    with ErrorContext("saving data to cache", ticker=ticker):
+        # Validate inputs
+        validate_ticker(ticker)
+        validate_dataframe(df, required_columns=['Open', 'High', 'Low', 'Close', 'Volume'])
+        
+        cache_file = get_cache_filepath(ticker)
+        logger = get_logger()
+        
+        # Validate cache directory exists and is writable
+        cache_dir = os.path.dirname(cache_file)
+        validate_file_path(cache_dir, check_exists=True, check_writable=True)
+        
+        try:
+            df.to_csv(cache_file)
+            logger.info(f"Cached data for {ticker}: {len(df)} days saved to cache")
+            
+        except Exception as e:
+            raise CacheError(f"Failed to save cache for {ticker}: {str(e)}")
 
 def append_to_cache(ticker: str, new_data: pd.DataFrame) -> None:
-    """Append new data to existing cache file."""
-    cache_file = get_cache_filepath(ticker)
-    try:
-        # Append new data to the CSV file
-        new_data.to_csv(cache_file, mode='a', header=False)
-        print(f"📈 Appended {len(new_data)} new days to {ticker} cache")
-    except Exception as e:
-        print(f"⚠️  Error appending to cache for {ticker}: {e}")
+    """
+    Append new data to existing cache file.
+    
+    Args:
+        ticker (str): Stock symbol
+        new_data (pd.DataFrame): New data to append
+        
+    Raises:
+        CacheError: If data cannot be appended to cache
+        DataValidationError: If DataFrame is invalid
+    """
+    with ErrorContext("appending data to cache", ticker=ticker):
+        # Validate inputs
+        validate_ticker(ticker)
+        validate_dataframe(new_data, required_columns=['Open', 'High', 'Low', 'Close', 'Volume'])
+        
+        cache_file = get_cache_filepath(ticker)
+        logger = get_logger()
+        
+        # Validate cache file exists and is writable
+        validate_file_path(cache_file, check_exists=True, check_writable=True)
+        
+        try:
+            # Append new data to the CSV file
+            new_data.to_csv(cache_file, mode='a', header=False)
+            logger.info(f"Appended {len(new_data)} new days to {ticker} cache")
+            
+        except Exception as e:
+            raise CacheError(f"Failed to append to cache for {ticker}: {str(e)}")
 
 def normalize_period(period: str) -> str:
     """
@@ -117,117 +196,170 @@ def get_smart_data(ticker: str, period: str, force_refresh: bool = False) -> pd.
         pd.DataFrame: Stock data with OHLCV columns
         
     Raises:
-        ValueError: If no valid data is available for the ticker
+        DataValidationError: If ticker or period is invalid
+        DataDownloadError: If data cannot be downloaded from Yahoo Finance
+        CacheError: If cache operations fail
     """
-    # Normalize the period first
-    period = normalize_period(period)
-    
-    # Convert period to days for calculations
-    period_days = {
-        '1d': 1, '5d': 5, '1mo': 30, '3mo': 90, '6mo': 180, 
-        '12mo': 365, '24mo': 730, '36mo': 1095, '60mo': 1825, '120mo': 3650, 
-        'ytd': 365, 'max': 7300
-    }
-    
-    requested_days = period_days.get(period, 365)
-    cutoff_date = datetime.now() - timedelta(days=requested_days)
-    
-    if force_refresh:
-        print(f"🔄 Force refresh enabled - downloading fresh data for {ticker}")
-        df = yf.download(ticker, period=period, interval='1d', auto_adjust=True)
-        if isinstance(df.columns, pd.MultiIndex):
-            df.columns = df.columns.droplevel(1)
-        df.dropna(inplace=True)
+    with ErrorContext("smart data fetching", ticker=ticker, period=period, force_refresh=force_refresh):
+        # Validate inputs
+        validate_ticker(ticker)
+        validate_period(period)
         
-        # Validate downloaded data
-        if df.empty:
-            raise ValueError(f"No data available for {ticker} (possibly delisted or invalid symbol)")
+        logger = get_logger()
         
-        save_to_cache(ticker, df)
-        return df
-    
-    # Try to load cached data
-    cached_df = load_cached_data(ticker)
-    
-    if cached_df is None:
-        # No cache exists - download full period
-        print(f"📥 No cache found for {ticker} - downloading {period} data from Yahoo Finance")
-        df = yf.download(ticker, period=period, interval='1d', auto_adjust=True)
-        if isinstance(df.columns, pd.MultiIndex):
-            df.columns = df.columns.droplevel(1)
-        df.dropna(inplace=True)
+        # Normalize the period first
+        period = normalize_period(period)
         
-        # Validate downloaded data
-        if df.empty:
-            raise ValueError(f"No data available for {ticker} (possibly delisted or invalid symbol)")
+        # Convert period to days for calculations
+        period_days = {
+            '1d': 1, '5d': 5, '1mo': 30, '3mo': 90, '6mo': 180, 
+            '12mo': 365, '24mo': 730, '36mo': 1095, '60mo': 1825, '120mo': 3650, 
+            'ytd': 365, 'max': 7300
+        }
         
-        save_to_cache(ticker, df)
-        return df
-    
-    # Check if cached data covers the requested period
-    cache_start_date = cached_df.index[0]
-    cache_end_date = cached_df.index[-1]
-    
-    # Check if we need to download more recent data
-    today = datetime.now().date()
-    last_cached_date = cache_end_date.date()
-    days_behind = (today - last_cached_date).days
-    
-    # Check if cache goes back far enough to cover requested period
-    if cache_start_date > cutoff_date:
-        print(f"⚠️  Cache only goes back to {cache_start_date.date()}, but need data from {cutoff_date.date()}")
-        print(f"📥 Downloading full {period} period for {ticker}...")
-        # Download full period
-        df = yf.download(ticker, period=period, interval='1d', auto_adjust=True)
-        if isinstance(df.columns, pd.MultiIndex):
-            df.columns = df.columns.droplevel(1)
-        df.dropna(inplace=True)
+        requested_days = period_days.get(period, 365)
+        cutoff_date = datetime.now() - timedelta(days=requested_days)
         
-        # Validate downloaded data
-        if df.empty:
-            raise ValueError(f"No data available for {ticker} (possibly delisted or invalid symbol)")
+        def download_and_validate_data(download_period=None, start_date=None):
+            """Helper function to download and validate data from Yahoo Finance."""
+            try:
+                if start_date:
+                    logger.info(f"Downloading data for {ticker} from {start_date}")
+                    df = yf.download(ticker, start=start_date, interval='1d', auto_adjust=True)
+                else:
+                    logger.info(f"Downloading {download_period or period} data for {ticker}")
+                    df = yf.download(ticker, period=download_period or period, interval='1d', auto_adjust=True)
+                
+                # Handle MultiIndex columns from yfinance
+                if isinstance(df.columns, pd.MultiIndex):
+                    df.columns = df.columns.droplevel(1)
+                
+                # Clean the data
+                df.dropna(inplace=True)
+                
+                # Validate downloaded data
+                if df.empty:
+                    raise DataDownloadError(f"No data available for {ticker} (possibly delisted or invalid symbol)")
+                
+                # Validate required columns are present
+                validate_dataframe(df, required_columns=['Open', 'High', 'Low', 'Close', 'Volume'])
+                
+                logger.info(f"Successfully downloaded {len(df)} days of data for {ticker}")
+                return df
+                
+            except Exception as e:
+                if "No data available" in str(e) or "possibly delisted" in str(e):
+                    raise DataDownloadError(f"No data available for {ticker}: {str(e)}")
+                else:
+                    raise DataDownloadError(f"Failed to download data for {ticker}: {str(e)}")
         
-        # Update cache with full period data
-        save_to_cache(ticker, df)
-        return df
-    
-    if days_behind <= 1:
-        # Cache is up to date (within 1 day) and covers the full period
-        print(f"✅ Cache is current for {ticker} - using cached data")
-        # Filter cached data to requested period if needed
-        filtered_df = cached_df[cached_df.index >= cutoff_date] if cutoff_date > cache_start_date else cached_df
-        return filtered_df
-    
-    # Need to download recent data
-    print(f"📥 Cache is {days_behind} days behind - downloading recent data for {ticker}")
-    
-    # Download from day after last cached date to today
-    start_date = (cache_end_date + timedelta(days=1)).strftime('%Y-%m-%d')
-    new_data = yf.download(ticker, start=start_date, interval='1d', auto_adjust=True)
-    
-    if isinstance(new_data.columns, pd.MultiIndex):
-        new_data.columns = new_data.columns.droplevel(1)
-    new_data.dropna(inplace=True)
-    
-    if not new_data.empty:
-        # Append new data to cache
-        append_to_cache(ticker, new_data)
+        if force_refresh:
+            logger.info(f"Force refresh enabled - downloading fresh data for {ticker}")
+            df = download_and_validate_data()
+            
+            # Cache the downloaded data
+            try:
+                save_to_cache(ticker, df)
+            except CacheError as e:
+                # Log cache error but don't fail the operation
+                logger.warning(f"Failed to cache data for {ticker}: {e}")
+            
+            return df
         
-        # Combine cached and new data
-        combined_df = pd.concat([cached_df, new_data])
-        combined_df = combined_df[~combined_df.index.duplicated(keep='last')]  # Remove any duplicates
-        combined_df.sort_index(inplace=True)
+        # Try to load cached data
+        try:
+            cached_df = load_cached_data(ticker)
+        except CacheError as e:
+            # If cache is corrupted, proceed with fresh download
+            logger.warning(f"Cache error for {ticker}: {e}. Proceeding with fresh download.")
+            cached_df = None
         
-        # Update the cache with the complete dataset
-        save_to_cache(ticker, combined_df)
+        if cached_df is None:
+            # No cache exists - download full period
+            logger.info(f"No cache found for {ticker} - downloading {period} data from Yahoo Finance")
+            df = download_and_validate_data()
+            
+            # Cache the downloaded data
+            try:
+                save_to_cache(ticker, df)
+            except CacheError as e:
+                # Log cache error but don't fail the operation
+                logger.warning(f"Failed to cache data for {ticker}: {e}")
+            
+            return df
         
-        # Filter to requested period
-        filtered_df = combined_df[combined_df.index >= cutoff_date] if cutoff_date > combined_df.index[0] else combined_df
-        return filtered_df
-    else:
-        print(f"ℹ️  No new data available for {ticker}")
-        filtered_df = cached_df[cached_df.index >= cutoff_date] if cutoff_date > cache_start_date else cached_df
-        return filtered_df
+        # Check if cached data covers the requested period
+        cache_start_date = cached_df.index[0]
+        cache_end_date = cached_df.index[-1]
+        
+        # Check if we need to download more recent data
+        today = datetime.now().date()
+        last_cached_date = cache_end_date.date()
+        days_behind = (today - last_cached_date).days
+        
+        # Check if cache goes back far enough to cover requested period
+        if cache_start_date > cutoff_date:
+            logger.warning(f"Cache only goes back to {cache_start_date.date()}, but need data from {cutoff_date.date()}")
+            logger.info(f"Downloading full {period} period for {ticker}...")
+            
+            # Download full period
+            df = download_and_validate_data()
+            
+            # Update cache with full period data
+            try:
+                save_to_cache(ticker, df)
+            except CacheError as e:
+                # Log cache error but don't fail the operation
+                logger.warning(f"Failed to update cache for {ticker}: {e}")
+            
+            return df
+        
+        if days_behind <= 1:
+            # Cache is up to date (within 1 day) and covers the full period
+            logger.info(f"Cache is current for {ticker} - using cached data")
+            # Filter cached data to requested period if needed
+            filtered_df = cached_df[cached_df.index >= cutoff_date] if cutoff_date > cache_start_date else cached_df
+            return filtered_df
+        
+        # Need to download recent data
+        logger.info(f"Cache is {days_behind} days behind - downloading recent data for {ticker}")
+        
+        # Download from day after last cached date to today
+        start_date = (cache_end_date + timedelta(days=1)).strftime('%Y-%m-%d')
+        
+        try:
+            new_data = download_and_validate_data(start_date=start_date)
+            
+            # Append new data to cache
+            try:
+                append_to_cache(ticker, new_data)
+                
+                # Combine cached and new data
+                combined_df = pd.concat([cached_df, new_data])
+                combined_df = combined_df[~combined_df.index.duplicated(keep='last')]  # Remove any duplicates
+                combined_df.sort_index(inplace=True)
+                
+                # Update the cache with the complete dataset
+                save_to_cache(ticker, combined_df)
+                
+                # Filter to requested period
+                filtered_df = combined_df[combined_df.index >= cutoff_date] if cutoff_date > combined_df.index[0] else combined_df
+                return filtered_df
+                
+            except CacheError as e:
+                # If cache operations fail, return combined data without caching
+                logger.warning(f"Failed to update cache for {ticker}: {e}")
+                combined_df = pd.concat([cached_df, new_data])
+                combined_df = combined_df[~combined_df.index.duplicated(keep='last')]
+                combined_df.sort_index(inplace=True)
+                filtered_df = combined_df[combined_df.index >= cutoff_date] if cutoff_date > combined_df.index[0] else combined_df
+                return filtered_df
+                
+        except DataDownloadError as e:
+            logger.warning(f"No new data available for {ticker}: {e}")
+            # Return existing cached data
+            filtered_df = cached_df[cached_df.index >= cutoff_date] if cutoff_date > cache_start_date else cached_df
+            return filtered_df
 
 def clear_cache(ticker: str = None) -> None:
     """
@@ -313,21 +445,39 @@ def read_ticker_file(filepath: str) -> List[str]:
         
     Returns:
         List[str]: List of ticker symbols
+        
+    Raises:
+        FileOperationError: If file cannot be read
+        DataValidationError: If no valid tickers found
     """
-    tickers = []
-    try:
-        with open(filepath, 'r') as f:
-            for line in f:
-                ticker = line.strip().upper()
-                if ticker and not ticker.startswith('#'):  # Skip empty lines and comments
-                    tickers.append(ticker)
+    with ErrorContext("reading ticker file", filepath=filepath):
+        # Validate file path and permissions
+        validate_file_path(filepath, check_exists=True, check_readable=True)
+        
+        tickers = []
+        try:
+            with open(filepath, 'r') as f:
+                for line_num, line in enumerate(f, 1):
+                    ticker = line.strip().upper()
+                    if ticker and not ticker.startswith('#'):  # Skip empty lines and comments
+                        try:
+                            validated_ticker = validate_ticker(ticker)
+                            tickers.append(validated_ticker)
+                        except DataValidationError as e:
+                            logger = get_logger()
+                            logger.warning(f"Invalid ticker on line {line_num}: {ticker} - {e}")
+                            continue
+        
+        except Exception as e:
+            raise FileOperationError(f"Error reading file '{filepath}': {str(e)}")
+        
+        if not tickers:
+            raise DataValidationError(f"No valid tickers found in file '{filepath}'")
+        
+        logger = get_logger()
+        logger.info(f"Successfully loaded {len(tickers)} ticker symbols from {filepath}")
+        
         return tickers
-    except FileNotFoundError:
-        print(f"❌ Error: File '{filepath}' not found.")
-        sys.exit(1)
-    except Exception as e:
-        print(f"❌ Error reading file '{filepath}': {str(e)}")
-        sys.exit(1)
 
 def generate_analysis_text(ticker: str, df: pd.DataFrame, period: str) -> str:
     """
@@ -454,14 +604,31 @@ def analyze_ticker(ticker: str, period='6mo', save_to_file=False, output_dir='.'
         show_summary (bool): Whether to print detailed summary output (default: True)
         
     Raises:
-        ValueError: If no valid data is available for the ticker
+        DataValidationError: If ticker or period is invalid
+        DataDownloadError: If data cannot be retrieved
+        FileOperationError: If file operations fail during save
     """
-    # --- Retrieve Data with Smart Caching ---
-    try:
-        df = get_smart_data(ticker, period, force_refresh=force_refresh)
-    except ValueError as e:
-        # Re-raise with more context
-        raise ValueError(f"Failed to get data for {ticker}: {str(e)}")
+    with ErrorContext("analyzing ticker", ticker=ticker, period=period):
+        # Validate inputs
+        validate_ticker(ticker)
+        validate_period(period)
+        
+        # Validate output directory if saving files
+        if save_to_file or save_chart:
+            validate_file_path(output_dir, check_exists=True, check_writable=True)
+        
+        logger = get_logger()
+        
+        # --- Retrieve Data with Smart Caching ---
+        try:
+            df = get_smart_data(ticker, period, force_refresh=force_refresh)
+            logger.info(f"Retrieved {len(df)} days of data for {ticker} ({period})")
+        except (DataValidationError, DataDownloadError, CacheError) as e:
+            # Re-raise specific error handling exceptions
+            raise e
+        except Exception as e:
+            # Catch any other unexpected errors
+            raise DataDownloadError(f"Failed to get data for {ticker}: {str(e)}")
     
     # --- OBV (On-Balance Volume) ---
     df['OBV'] = ( (df['Close'] > df['Close'].shift(1)) * df['Volume']
@@ -829,37 +996,73 @@ def analyze_ticker(ticker: str, period='6mo', save_to_file=False, output_dir='.'
     plt.xlabel('Date')
     plt.tight_layout()
     
-    # Handle chart display/saving
+    # Handle chart display/saving with error handling
     if save_chart:
-        # Create filename with date range
-        start_date = df.index[0].strftime('%Y%m%d')
-        end_date = df.index[-1].strftime('%Y%m%d')
-        chart_filename = f"{ticker}_{period}_{start_date}_{end_date}_chart.png"
-        chart_filepath = os.path.join(output_dir, chart_filename)
-        plt.savefig(chart_filepath, dpi=150, bbox_inches='tight')
-        print(f"📊 Chart saved: {chart_filename}")
-        plt.close()  # Close the figure to free memory
+        with ErrorContext("saving chart to file", ticker=ticker, period=period):
+            try:
+                # Validate output directory is writable
+                validate_file_path(output_dir, check_exists=True, check_writable=True)
+                
+                # Create filename with date range
+                start_date = df.index[0].strftime('%Y%m%d')
+                end_date = df.index[-1].strftime('%Y%m%d')
+                chart_filename = f"{ticker}_{period}_{start_date}_{end_date}_chart.png"
+                chart_filepath = os.path.join(output_dir, chart_filename)
+                
+                # Save chart with error handling
+                try:
+                    plt.savefig(chart_filepath, dpi=150, bbox_inches='tight')
+                    logger.info(f"Chart saved: {chart_filename}")
+                    print(f"📊 Chart saved: {chart_filename}")
+                except Exception as e:
+                    raise FileOperationError(f"Failed to save chart for {ticker}: {str(e)}")
+                finally:
+                    plt.close()  # Always close the figure to free memory
+                    
+            except Exception as e:
+                plt.close()  # Ensure cleanup on error
+                if isinstance(e, (FileOperationError, DataValidationError)):
+                    raise e
+                else:
+                    raise FileOperationError(f"Failed to save chart for {ticker}: {str(e)}")
     elif show_chart:
         plt.show()
     else:
         plt.close()  # Close without displaying
     
-    # Handle text output
+    # Handle text output with error handling
     if save_to_file:
-        # Generate filename with date range
-        start_date = df.index[0].strftime('%Y%m%d')
-        end_date = df.index[-1].strftime('%Y%m%d')
-        filename = f"{ticker}_{period}_{start_date}_{end_date}_analysis.txt"
-        filepath = os.path.join(output_dir, filename)
-        
-        # Generate analysis text
-        analysis_text = generate_analysis_text(ticker, df, period)
-        
-        # Write to file
-        with open(filepath, 'w') as f:
-            f.write(analysis_text)
-        
-        return df, filepath
+        with ErrorContext("saving analysis to file", ticker=ticker, period=period):
+            try:
+                # Generate filename with date range
+                start_date = df.index[0].strftime('%Y%m%d')
+                end_date = df.index[-1].strftime('%Y%m%d')
+                filename = f"{ticker}_{period}_{start_date}_{end_date}_analysis.txt"
+                filepath = os.path.join(output_dir, filename)
+                
+                # Validate output directory is writable
+                validate_file_path(output_dir, check_exists=True, check_writable=True)
+                
+                # Generate analysis text
+                analysis_text = generate_analysis_text(ticker, df, period)
+                
+                # Write to file with error handling
+                try:
+                    with open(filepath, 'w') as f:
+                        f.write(analysis_text)
+                    
+                    logger.info(f"Analysis saved to {filename}")
+                    return df, filepath
+                    
+                except Exception as e:
+                    raise FileOperationError(f"Failed to write analysis file for {ticker}: {str(e)}")
+                    
+            except Exception as e:
+                # Re-raise our custom exceptions, wrap others
+                if isinstance(e, (FileOperationError, DataValidationError)):
+                    raise e
+                else:
+                    raise FileOperationError(f"Failed to save analysis for {ticker}: {str(e)}")
     else:
         # Only print detailed summary if show_summary is True
         if show_summary:
@@ -1562,18 +1765,43 @@ def batch_process_tickers(ticker_file: str, period='12mo', output_dir='results_v
         output_dir (str): Directory to save output files
         save_charts (bool): Whether to save chart images
         generate_html (bool): Whether to generate interactive HTML summary
+        
+    Raises:
+        DataValidationError: If input parameters are invalid
+        FileOperationError: If file operations fail
     """
-    # Read tickers from file
-    tickers = read_ticker_file(ticker_file)
-    
-    if not tickers:
-        print("❌ No valid tickers found in file.")
-        return
-    
-    # Create output directory if it doesn't exist
-    if not os.path.exists(output_dir):
-        os.makedirs(output_dir)
-        print(f"📁 Created output directory: {output_dir}")
+    with ErrorContext("batch processing tickers", ticker_file=ticker_file, period=period):
+        # Validate inputs
+        validate_file_path(ticker_file, check_exists=True, check_readable=True)
+        validate_period(period)
+        
+        logger = get_logger()
+        logger.info(f"Starting batch processing: {ticker_file} for period {period}")
+        
+        # Read tickers from file
+        try:
+            tickers = read_ticker_file(ticker_file)
+        except (FileOperationError, DataValidationError) as e:
+            # Re-raise our custom exceptions
+            raise e
+        except Exception as e:
+            raise FileOperationError(f"Failed to read ticker file: {str(e)}")
+        
+        if not tickers:
+            raise DataValidationError("No valid tickers found in file")
+        
+        # Create output directory if it doesn't exist
+        try:
+            if not os.path.exists(output_dir):
+                os.makedirs(output_dir)
+                logger.info(f"Created output directory: {output_dir}")
+                print(f"📁 Created output directory: {output_dir}")
+            
+            # Validate output directory is writable
+            validate_file_path(output_dir, check_exists=True, check_writable=True)
+            
+        except Exception as e:
+            raise FileOperationError(f"Failed to create or access output directory '{output_dir}': {str(e)}")
     
     print(f"\n🚀 BATCH PROCESSING {len(tickers)} TICKERS")
     print("="*50)
@@ -1590,63 +1818,78 @@ def batch_process_tickers(ticker_file: str, period='12mo', output_dir='results_v
         print(f"\n[{i}/{len(tickers)}] Processing {ticker}...")
         
         try:
-            # Analyze ticker with file output (no interactive chart display in batch mode)
-            result = analyze_ticker(
-                ticker=ticker,
-                period=period,
-                save_to_file=True,
-                output_dir=output_dir,
-                save_chart=True,  # Always save charts in batch mode (can't display interactively)
-                show_chart=False,  # Don't display charts interactively in batch mode
-                show_summary=False  # Don't print verbose summaries in batch mode
-            )
-            
-            if isinstance(result, tuple):
-                df, filepath = result
-                filename = os.path.basename(filepath)
-                print(f"✅ {ticker}: Analysis saved to {filename}")
+            # Use error context for individual ticker processing
+            with ErrorContext("processing ticker", ticker=ticker, index=f"{i}/{len(tickers)}"):
+                # Analyze ticker with file output (no interactive chart display in batch mode)
+                result = analyze_ticker(
+                    ticker=ticker,
+                    period=period,
+                    save_to_file=True,
+                    output_dir=output_dir,
+                    save_chart=True,  # Always save charts in batch mode (can't display interactively)
+                    show_chart=False,  # Don't display charts interactively in batch mode
+                    show_summary=False  # Don't print verbose summaries in batch mode
+                )
                 
-                # Collect summary data using both stealth and entry scoring
-                phase_counts = df['Phase'].value_counts()
-                stealth_metrics = calculate_recent_stealth_score(df)
-                entry_metrics = calculate_recent_entry_score(df)
-                
-                results.append({
-                    'ticker': ticker,
-                    'filename': filename,
-                    'stealth_score': stealth_metrics['stealth_score'],
-                    'recent_stealth_count': stealth_metrics['recent_stealth_count'],
-                    'days_since_stealth': stealth_metrics['days_since_stealth'],
-                    'price_change_pct': stealth_metrics['price_change_pct'],
-                    'entry_score': entry_metrics['entry_score'],
-                    'recent_strong_buy': entry_metrics['recent_strong_buy'],
-                    'recent_confluence': entry_metrics['recent_confluence'],
-                    'recent_volume_breakout': entry_metrics['recent_volume_breakout'],
-                    'days_since_entry': entry_metrics['days_since_entry'],
-                    'momentum_direction': entry_metrics['momentum_direction'],
-                    'total_recent_entry_signals': entry_metrics['total_recent_signals'],
-                    'total_days': len(df),
-                    'strong_signals': df['Strong_Buy'].sum(),
-                    'moderate_signals': df['Moderate_Buy'].sum(),
-                    'total_stealth_signals': df['Stealth_Accumulation'].sum(),
-                    'latest_phase': df['Phase'].iloc[-1],
-                    'exit_score': df['Exit_Score'].iloc[-1],
-                    'profit_taking_signals': df['Profit_Taking'].sum(),
-                    'sell_signals': df['Sell_Signal'].sum(),
-                    'stop_loss_signals': df['Stop_Loss'].sum()
-                })
-            
-        except ValueError as e:
+                if isinstance(result, tuple):
+                    df, filepath = result
+                    filename = os.path.basename(filepath)
+                    logger.info(f"Successfully processed {ticker}: {filename}")
+                    print(f"✅ {ticker}: Analysis saved to {filename}")
+                    
+                    # Collect summary data using both stealth and entry scoring
+                    phase_counts = df['Phase'].value_counts()
+                    stealth_metrics = calculate_recent_stealth_score(df)
+                    entry_metrics = calculate_recent_entry_score(df)
+                    
+                    results.append({
+                        'ticker': ticker,
+                        'filename': filename,
+                        'stealth_score': stealth_metrics['stealth_score'],
+                        'recent_stealth_count': stealth_metrics['recent_stealth_count'],
+                        'days_since_stealth': stealth_metrics['days_since_stealth'],
+                        'price_change_pct': stealth_metrics['price_change_pct'],
+                        'entry_score': entry_metrics['entry_score'],
+                        'recent_strong_buy': entry_metrics['recent_strong_buy'],
+                        'recent_confluence': entry_metrics['recent_confluence'],
+                        'recent_volume_breakout': entry_metrics['recent_volume_breakout'],
+                        'days_since_entry': entry_metrics['days_since_entry'],
+                        'momentum_direction': entry_metrics['momentum_direction'],
+                        'total_recent_entry_signals': entry_metrics['total_recent_signals'],
+                        'total_days': len(df),
+                        'strong_signals': df['Strong_Buy'].sum(),
+                        'moderate_signals': df['Moderate_Buy'].sum(),
+                        'total_stealth_signals': df['Stealth_Accumulation'].sum(),
+                        'latest_phase': df['Phase'].iloc[-1],
+                        'exit_score': df['Exit_Score'].iloc[-1],
+                        'profit_taking_signals': df['Profit_Taking'].sum(),
+                        'sell_signals': df['Sell_Signal'].sum(),
+                        'stop_loss_signals': df['Stop_Loss'].sum()
+                    })
+                    
+        except DataDownloadError as e:
             # Handle data availability errors more gracefully
             if "No data available" in str(e) or "possibly delisted" in str(e):
+                logger.warning(f"No data available for {ticker}: possibly delisted or invalid symbol")
                 print(f"⚠️  {ticker}: No data available (possibly delisted or invalid symbol)")
                 errors.append({'ticker': ticker, 'error': 'No data available (possibly delisted)'})
             else:
+                logger.error(f"Data download failed for {ticker}: {str(e)}")
                 print(f"❌ {ticker}: {str(e)}")
                 errors.append({'ticker': ticker, 'error': str(e)})
             continue
+            
+        except (DataValidationError, CacheError, FileOperationError) as e:
+            # Handle our custom exceptions
+            logger.error(f"Processing failed for {ticker}: {str(e)}")
+            print(f"❌ {ticker}: {str(e)}")
+            errors.append({'ticker': ticker, 'error': str(e)})
+            continue
+            
         except Exception as e:
-            error_msg = f"Error processing {ticker}: {str(e)}"
+            # Handle any unexpected errors
+            error_msg = f"Unexpected error processing {ticker}: {str(e)}"
+            logger.error(error_msg)
             print(f"❌ {error_msg}")
             errors.append({'ticker': ticker, 'error': str(e)})
             continue
@@ -1702,47 +1945,54 @@ def batch_process_tickers(ticker_file: str, period='12mo', output_dir='results_v
             print(f"  {i:2d}. {result['ticker']:5s} - Entry: {entry_score:5.1f}/10 {score_emoji} "
                   f"(Last: {recency_text:7s}, Strong: {recent_strong}, Conf: {recent_confluence}, Vol: {recent_volume}, Momentum: {momentum_arrow})")
         
-        # Generate consolidated summary file
+        # Generate consolidated summary file with error handling
         summary_filename = f"batch_summary_{period}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt"
         summary_filepath = os.path.join(output_dir, summary_filename)
         
-        with open(summary_filepath, 'w') as f:
-            f.write("BATCH PROCESSING SUMMARY\n")
-            f.write("="*60 + "\n\n")
-            f.write(f"Processing Date: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
-            f.write(f"Period: {period}\n")
-            f.write(f"Total Tickers: {len(tickers)}\n")
-            f.write(f"Successfully Processed: {len(results)}\n")
-            f.write(f"Errors: {len(errors)}\n\n")
-            
-            if errors:
-                f.write("ERRORS:\n")
-                for error in errors:
-                    f.write(f"  • {error['ticker']}: {error['error']}\n")
-                f.write("\n")
-            
-            f.write("RESULTS RANKED BY STEALTH ACCUMULATION SCORE:\n")
-            f.write("-" * 90 + "\n")
-            f.write(f"{'Rank':<4} {'Ticker':<6} {'Stealth':<7} {'Recent':<6} {'DaysAgo':<7} {'Price%':<7} {'Total':<5} {'File'}\n")
-            f.write("-" * 90 + "\n")
-            
-            for i, result in enumerate(sorted_stealth_results, 1):
-                days_text = "Recent" if result['days_since_stealth'] <= 2 else f"{result['days_since_stealth']}d" if result['days_since_stealth'] < 999 else "None"
-                f.write(f"{i:<4} {result['ticker']:<6} {result['stealth_score']:<7.1f} "
-                       f"{result['recent_stealth_count']:<6} {days_text:<7} {result['price_change_pct']:<+7.1f} "
-                       f"{result['total_stealth_signals']:<5} {result['filename']}\n")
+        try:
+            with open(summary_filepath, 'w') as f:
+                f.write("BATCH PROCESSING SUMMARY\n")
+                f.write("="*60 + "\n\n")
+                f.write(f"Processing Date: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
+                f.write(f"Period: {period}\n")
+                f.write(f"Total Tickers: {len(tickers)}\n")
+                f.write(f"Successfully Processed: {len(results)}\n")
+                f.write(f"Errors: {len(errors)}\n\n")
+                
+                if errors:
+                    f.write("ERRORS:\n")
+                    for error in errors:
+                        f.write(f"  • {error['ticker']}: {error['error']}\n")
+                    f.write("\n")
+                
+                f.write("RESULTS RANKED BY STEALTH ACCUMULATION SCORE:\n")
+                f.write("-" * 90 + "\n")
+                f.write(f"{'Rank':<4} {'Ticker':<6} {'Stealth':<7} {'Recent':<6} {'DaysAgo':<7} {'Price%':<7} {'Total':<5} {'File'}\n")
+                f.write("-" * 90 + "\n")
+                
+                for i, result in enumerate(sorted_stealth_results, 1):
+                    days_text = "Recent" if result['days_since_stealth'] <= 2 else f"{result['days_since_stealth']}d" if result['days_since_stealth'] < 999 else "None"
+                    f.write(f"{i:<4} {result['ticker']:<6} {result['stealth_score']:<7.1f} "
+                           f"{result['recent_stealth_count']:<6} {days_text:<7} {result['price_change_pct']:<+7.1f} "
+                           f"{result['total_stealth_signals']:<5} {result['filename']}\n")
 
-            f.write("\n\nRESULTS RANKED BY RECENT STRONG ENTRY SCORE:\n")
-            f.write("-" * 100 + "\n")
-            f.write(f"{'Rank':<4} {'Ticker':<6} {'Entry':<6} {'Strong':<6} {'Conf':<4} {'Vol':<3} {'DaysAgo':<7} {'Momentum':<8} {'File'}\n")
-            f.write("-" * 100 + "\n")
-            
-            for i, result in enumerate(sorted_entry_results, 1):
-                days_text = "Recent" if result['days_since_entry'] <= 2 else f"{result['days_since_entry']}d" if result['days_since_entry'] < 999 else "None"
-                momentum_text = "Up" if result['momentum_direction'] == "up" else "Steady" if result['momentum_direction'] == "steady" else "Down" if result['momentum_direction'] == "down" else "None"
-                f.write(f"{i:<4} {result['ticker']:<6} {result['entry_score']:<6.1f} "
-                       f"{result['recent_strong_buy']:<6} {result['recent_confluence']:<4} {result['recent_volume_breakout']:<3} "
-                       f"{days_text:<7} {momentum_text:<8} {result['filename']}\n")
+                f.write("\n\nRESULTS RANKED BY RECENT STRONG ENTRY SCORE:\n")
+                f.write("-" * 100 + "\n")
+                f.write(f"{'Rank':<4} {'Ticker':<6} {'Entry':<6} {'Strong':<6} {'Conf':<4} {'Vol':<3} {'DaysAgo':<7} {'Momentum':<8} {'File'}\n")
+                f.write("-" * 100 + "\n")
+                
+                for i, result in enumerate(sorted_entry_results, 1):
+                    days_text = "Recent" if result['days_since_entry'] <= 2 else f"{result['days_since_entry']}d" if result['days_since_entry'] < 999 else "None"
+                    momentum_text = "Up" if result['momentum_direction'] == "up" else "Steady" if result['momentum_direction'] == "steady" else "Down" if result['momentum_direction'] == "down" else "None"
+                    f.write(f"{i:<4} {result['ticker']:<6} {result['entry_score']:<6.1f} "
+                           f"{result['recent_strong_buy']:<6} {result['recent_confluence']:<4} {result['recent_volume_breakout']:<3} "
+                           f"{days_text:<7} {momentum_text:<8} {result['filename']}\n")
+                    
+                logger.info(f"Batch summary saved to {summary_filename}")
+                
+        except Exception as e:
+            logger.error(f"Failed to write batch summary file: {str(e)}")
+            print(f"⚠️ Warning: Could not save summary file: {str(e)}")
         
         # Generate interactive HTML summary if requested and charts exist
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
