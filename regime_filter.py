@@ -203,6 +203,26 @@ def check_sector_regime(ticker: str, date: Optional[pd.Timestamp] = None) -> Dic
     }
 
 
+def _safe_format(value, fmt='.2f', default='N/A'):
+    """
+    Safely format numeric values, handling None gracefully.
+    
+    Args:
+        value: Value to format (can be None)
+        fmt: Format string (default: '.2f')
+        default: Default string for None values (default: 'N/A')
+        
+    Returns:
+        Formatted string
+    """
+    if value is None:
+        return default
+    try:
+        return f"{value:{fmt}}"
+    except (ValueError, TypeError):
+        return default
+
+
 def get_regime_status(ticker: str, date: Optional[pd.Timestamp] = None) -> Dict:
     """
     Get complete regime status for a ticker.
@@ -241,9 +261,13 @@ def get_regime_status(ticker: str, date: Optional[pd.Timestamp] = None) -> Dict:
     if not overall_ok:
         reasons = []
         if not market['market_regime_ok']:
-            reasons.append(f"SPY below 200DMA ({market.get('spy_close', 'N/A'):.2f} < {market.get('spy_200ma', 'N/A'):.2f})")
+            spy_close_str = _safe_format(market.get('spy_close'))
+            spy_200ma_str = _safe_format(market.get('spy_200ma'))
+            reasons.append(f"SPY below 200DMA ({spy_close_str} < {spy_200ma_str})")
         if not sector['sector_regime_ok']:
-            reasons.append(f"{sector.get('sector_etf')} below 50DMA ({sector.get('sector_close', 'N/A'):.2f} < {sector.get('sector_50ma', 'N/A'):.2f})")
+            sector_close_str = _safe_format(sector.get('sector_close'))
+            sector_50ma_str = _safe_format(sector.get('sector_50ma'))
+            reasons.append(f"{sector.get('sector_etf')} below 50DMA ({sector_close_str} < {sector_50ma_str})")
         result['failure_reasons'] = reasons
     
     return result
@@ -272,12 +296,22 @@ def apply_regime_filter(df: pd.DataFrame, ticker: str, verbose: bool = False) ->
         print(f"REGIME FILTER - {ticker}")
         print(f"{'='*60}")
         print(f"Market (SPY): {'✅ PASS' if regime['market_regime_ok'] else '❌ FAIL'}")
-        if regime.get('spy_close') and regime.get('spy_200ma'):
-            print(f"  SPY: ${regime['spy_close']:.2f} vs 200DMA: ${regime['spy_200ma']:.2f} ({regime.get('spy_pct_above', 0):+.2f}%)")
+        if regime.get('spy_close') is not None and regime.get('spy_200ma') is not None:
+            spy_close_str = _safe_format(regime['spy_close'])
+            spy_200ma_str = _safe_format(regime['spy_200ma'])
+            spy_pct_str = _safe_format(regime.get('spy_pct_above', 0), '+.2f', 'N/A')
+            print(f"  SPY: ${spy_close_str} vs 200DMA: ${spy_200ma_str} ({spy_pct_str}%)")
+        else:
+            print(f"  SPY: Data unavailable (network connectivity issue)")
         
-        print(f"\nSector ({regime['sector_etf']}): {'✅ PASS' if regime['sector_regime_ok'] else '❌ FAIL'}")
-        if regime.get('sector_close') and regime.get('sector_50ma'):
-            print(f"  {regime['sector_etf']}: ${regime['sector_close']:.2f} vs 50DMA: ${regime['sector_50ma']:.2f} ({regime.get('sector_pct_above', 0):+.2f}%)")
+        print(f"\nSector ({regime.get('sector_etf', 'N/A')}): {'✅ PASS' if regime['sector_regime_ok'] else '❌ FAIL'}")
+        if regime.get('sector_close') is not None and regime.get('sector_50ma') is not None:
+            sector_close_str = _safe_format(regime['sector_close'])
+            sector_50ma_str = _safe_format(regime['sector_50ma'])
+            sector_pct_str = _safe_format(regime.get('sector_pct_above', 0), '+.2f', 'N/A')
+            print(f"  {regime.get('sector_etf', 'N/A')}: ${sector_close_str} vs 50DMA: ${sector_50ma_str} ({sector_pct_str}%)")
+        else:
+            print(f"  {regime.get('sector_etf', 'N/A')}: Data unavailable (network connectivity issue)")
         
         print(f"\nOVERALL: {'✅ SIGNALS ALLOWED' if regime['overall_regime_ok'] else '❌ SIGNALS BLOCKED'}")
         
@@ -329,13 +363,23 @@ def create_regime_summary(ticker: str) -> str:
     summary.append(f"Regime Filter Status for {ticker}:")
     summary.append(f"  Overall: {'✅ PASS' if regime['overall_regime_ok'] else '❌ FAIL'}")
     
-    if regime.get('spy_close') and regime.get('spy_200ma'):
+    if regime.get('spy_close') is not None and regime.get('spy_200ma') is not None:
         spy_status = '✅' if regime['market_regime_ok'] else '❌'
-        summary.append(f"  Market (SPY): {spy_status} ${regime['spy_close']:.2f} vs 200DMA ${regime['spy_200ma']:.2f}")
+        spy_close_str = _safe_format(regime['spy_close'])
+        spy_200ma_str = _safe_format(regime['spy_200ma'])
+        summary.append(f"  Market (SPY): {spy_status} ${spy_close_str} vs 200DMA ${spy_200ma_str}")
+    else:
+        spy_status = '✅' if regime['market_regime_ok'] else '❌'
+        summary.append(f"  Market (SPY): {spy_status} Data unavailable")
     
-    if regime.get('sector_close') and regime.get('sector_50ma'):
+    if regime.get('sector_close') is not None and regime.get('sector_50ma') is not None:
         sector_status = '✅' if regime['sector_regime_ok'] else '❌'
-        summary.append(f"  Sector ({regime['sector_etf']}): {sector_status} ${regime['sector_close']:.2f} vs 50DMA ${regime['sector_50ma']:.2f}")
+        sector_close_str = _safe_format(regime['sector_close'])
+        sector_50ma_str = _safe_format(regime['sector_50ma'])
+        summary.append(f"  Sector ({regime.get('sector_etf', 'N/A')}): {sector_status} ${sector_close_str} vs 50DMA ${sector_50ma_str}")
+    else:
+        sector_status = '✅' if regime['sector_regime_ok'] else '❌'
+        summary.append(f"  Sector ({regime.get('sector_etf', 'N/A')}): {sector_status} Data unavailable")
     
     if not regime['overall_regime_ok'] and 'failure_reasons' in regime:
         summary.append("  Failure Reasons:")

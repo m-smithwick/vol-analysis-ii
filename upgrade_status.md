@@ -41,6 +41,7 @@ Quick reference for all upgrade items and their implementation status.
 **Item #6: Market/Sector Regime Filter**
 - Require SPY > 200DMA AND sector ETF > 50DMA before allowing entry signals
 - **Status:** ✅ COMPLETED (2025-11-05)
+- **Bug Fix:** Network failure handling added (2025-11-05) - Prevents NoneType formatting errors
 
 ---
 

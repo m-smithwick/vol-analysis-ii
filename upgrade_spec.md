@@ -61,7 +61,7 @@ The intent is to move from "decent scanner with heuristics" to "swing process th
   - Status: Items #10, #11, #12 implemented; Item #13 pending
 
 - ⏸️ **Item #5: P&L-Aware Exit Logic** - NOT STARTED (Enhanced with tweaks.txt)
-- ⏸️ **Item #6: Market / Sector Regime Filter** - NOT STARTED (Enhanced with tweaks.txt)
+- ✅ **Item #6: Market / Sector Regime Filter** - COMPLETED 2025-11-05
 - ⏸️ **Item #7: Refactor / Integration Plan** - PARTIAL (Item #1 complete)
 
 ---
@@ -491,7 +491,17 @@ def calculate_cmf(df, period=20):
 
 ## 6. Market / Sector Regime Filter
 
-**STATUS: ⏸️ NOT STARTED - ENHANCED with Specific Thresholds from tweaks.txt**
+**STATUS: ✅ COMPLETED (2025-11-05)**
+
+**Implementation Notes:**
+- Created `regime_filter.py` with comprehensive market/sector regime validation
+- Implemented SPY > 200DMA and Sector ETF > 50DMA checks as specified in tweaks.txt
+- Integrated into `vol_analysis.py` signal pipeline after signal generation
+- Added `SECTOR_ETFS` mapping covering 60+ stocks across all major sectors
+- Preserves raw signals in `*_raw` columns for analysis while filtering displayed signals
+- Bug fix: Added `_safe_format()` helper function to handle network failures gracefully
+- Network resilience: System gracefully degrades to "regime not OK" when data unavailable
+- Validation: Successfully tested with multiple tickers, properly filters signals during poor market/sector conditions
 
 ### Goal
 Right now, each ticker is judged in isolation. In broad risk-off tape, lots of pretty-looking support bounces fail. We want to avoid new longs when the overall market or sector is in distribution.
