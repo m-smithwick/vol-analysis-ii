@@ -57,6 +57,12 @@
 **`schema_manager.py`** - Cache schema management
 **`error_handler.py`** - Error handling framework
 **`utils.py`** - Utility functions
+**`risk_manager.py`** - Comprehensive risk management framework (NEW - Item #13 ✅)
+- RiskManager class for unified trade lifecycle management
+- Position sizing (0.5-1% risk per trade)
+- Stop placement: min(swing_low - 0.5*ATR, VWAP - 1*ATR)
+- Time stops, momentum failures, profit scaling at +2R
+- Trade analysis and performance reporting
 
 ---
 
@@ -67,40 +73,34 @@
 - ✅ Item #2: Swing Support/Resistance (indicators.py, chart_builder.py)
 - ✅ Item #3: Event Spike Filter (indicators.py, signal_generator.py)
 - ✅ Item #4: Next-Day Execution (indicators.py, backtest.py, chart_builder.py)
+- ✅ Item #6: Market/Sector Regime Filter (regime_filter.py, vol_analysis.py)
+  - Implemented: 2025-11-05
+  - SPY > 200DMA AND Sector ETF > 50DMA pre-filter
+  - Comprehensive sector mapping for all major stocks
 - ✅ Item #8: Threshold Optimization (threshold_config.py, signal_generator.py)
 - ✅ Item #10: CMF Replacement (indicators.py, signal_generator.py, vol_analysis.py, chart_builder.py)
   - Implemented: 2025-11-05
   - Added calculate_cmf() and calculate_cmf_zscore() functions
   - Replaced A/D + OBV with single CMF indicator
   - Fixed FutureWarnings in chart_builder.py
+- ✅ Item #11: Pre-Trade Quality Filters (indicators.py, signal_generator.py, vol_analysis.py)
+  - Implemented: 2025-11-05
+  - Three-layer filtering: liquidity ($5M), price ($3), earnings (T-3 to T+3)
+- ✅ Item #12: Z-Score Normalization (indicators.py, signal_generator.py, vol_analysis.py)
+  - Implemented: 2025-11-05
+  - Standardized feature weighting across different stocks
+- ✅ Item #13: RiskManager Framework (risk_manager.py, test_risk_manager.py)
+  - Implemented: 2025-11-05
+  - Complete trade lifecycle management from sizing to exit
+  - Risk-based position sizing, stop placement, exit conditions
+  - Profit scaling at +2R with trailing stops
+  - All tests passed ✓
 
 ### Ready to Implement (Specs Complete)
 - ⏸️ Item #5: P&L-Aware Exits
   - Files: signal_generator.py, backtest.py
-  - New: RiskManager integration
-  
-- ✅ Item #6: Market/Sector Regime Filter (regime_filter.py, vol_analysis.py)
-  - Implemented: 2025-11-05
-  - SPY > 200DMA AND Sector ETF > 50DMA pre-filter
-  - Comprehensive sector mapping for all major stocks
-  - Integrates seamlessly with signal generation pipeline
-  
-- ✅ Item #11: Pre-Trade Quality Filters (indicators.py, signal_generator.py, vol_analysis.py)
-  - Implemented: 2025-11-05
-  - Added check_liquidity(), check_price(), check_earnings_window() functions
-  - Integrated with signal generation via apply_prefilters parameter
-  - Three-layer filtering: liquidity ($5M), price ($3), earnings (T-3 to T+3)
-  
-- ✅ Item #12: Z-Score Normalization (indicators.py, signal_generator.py, vol_analysis.py)
-  - Implemented: 2025-11-05
-  - Added calculate_zscore() and standardize_features() functions
-  - Updated accumulation scoring to use Volume_Z and TR_Z
-  - Enables consistent feature weighting across different stocks
-  
-- ⏸️ Item #13: RiskManager Framework
-  - New: risk_manager.py
-  - Integration: backtest.py, signal_generator.py
-  - Features: Position sizing, stop placement, profit scaling
+  - Integration: Use RiskManager for unified exit logic
+  - Status: Can now be implemented using completed RiskManager (Item #13)
 
 ### Planned
 - ⏸️ Item #9: Validation Framework (prevent overfitting)
@@ -119,9 +119,8 @@ batch_processor.py → Item #11 (pre-filters)
 
 NEW FILES CREATED:
 - regime_filter.py → Item #6 ✅ (market/sector regime checks)
-
-NEW FILES NEEDED:
-- risk_manager.py  → Item #13 (comprehensive risk framework)
+- risk_manager.py → Item #13 ✅ (comprehensive risk framework)
+- test_risk_manager.py → Item #13 ✅ (risk manager test suite)
 ```
 
 ---
@@ -154,8 +153,8 @@ Based on upgrade spec pragmatic sequence:
 2. ✅ **Item #12** (Z-scores) - Standardization enables optimization - COMPLETED
 3. ✅ **Item #11** (Pre-filters) - Quality gate before signals - COMPLETED
 4. ✅ **Item #6** (Regime) - Market context validation - COMPLETED
-5. **Item #13** (RiskManager) - Unified risk management - NEXT
-6. **Item #5** (P&L Exits) - Integrates with RiskManager
+5. ✅ **Item #13** (RiskManager) - Unified risk management - COMPLETED
+6. **Item #5** (P&L Exits) - Integrates with RiskManager - NEXT
 7. **Item #9** (Validation) - Prevent overfitting
 
 ---

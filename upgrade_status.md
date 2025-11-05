@@ -43,6 +43,13 @@ Quick reference for all upgrade items and their implementation status.
 - **Status:** ✅ COMPLETED (2025-11-05)
 - **Bug Fix:** Network failure handling added (2025-11-05) - Prevents NoneType formatting errors
 
+**Item #13: Comprehensive Risk Framework** 🆕
+- Unified RiskManager class handling position sizing, stops, time exits, and profit scaling
+- **Status:** ✅ COMPLETED (2025-11-05)
+- **Implementation:** Created risk_manager.py with complete test suite (test_risk_manager.py)
+- **Features:** Risk-based sizing (0.5-1% per trade), stop placement (min(swing-0.5*ATR, VWAP-1*ATR)), time stops (12 bars if <+1R), momentum failures (CMF<0 OR price<VWAP), profit scaling (50% at +2R with trailing stop)
+- **Validation:** All 6 test cases passed ✓
+
 ---
 
 ## Pending Implementation ⏸️
@@ -60,9 +67,6 @@ Quick reference for all upgrade items and their implementation status.
 - Walk-forward analysis and out-of-sample validation to prevent curve-fitting
 - **Status:** ⏸️ PLANNED (depends on Item #8)
 
-**Item #13: Comprehensive Risk Framework** 🆕
-- Unified RiskManager class handling position sizing, stops, time exits, and profit scaling
-- **Status:** ⏸️ NOT STARTED - New item from tweaks.txt
 
 ---
 
@@ -90,14 +94,16 @@ Quick reference for all upgrade items and their implementation status.
 - Items #2-6 enhanced with concrete tweaks.txt specifications
 - Items #10-13 added as new upgrade items
 
-**Files Modified (Items #1-4, #6, #8, #10-12):**
-- `indicators.py` - Swing detection, anchored VWAP, ATR calculations
-- `vol_analysis.py` - Signal display timing, event filtering
-- `signal_generator.py` - Scoring functions, threshold application
+**Files Modified (Items #1-4, #6, #8, #10-13):**
+- `indicators.py` - Swing detection, anchored VWAP, ATR calculations, CMF, z-scores
+- `vol_analysis.py` - Signal display timing, event filtering, pre-filters
+- `signal_generator.py` - Scoring functions, threshold application, CMF integration
 - `backtest.py` - Realistic pricing, threshold testing
 - `chart_builder.py` - Visual markers, event indicators
 - `threshold_config.py` - Empirical threshold storage
 - `regime_filter.py` - Market/sector regime checks (NEW - Item #6)
+- `risk_manager.py` - Comprehensive risk framework (NEW - Item #13)
+- `test_risk_manager.py` - Risk manager test suite (NEW - Item #13)
 
 **Key Metrics (Current Implementation):**
 - Moderate Buy (≥6.5): 64.3% win rate, +2.15% expectancy, 28 trades
@@ -119,12 +125,13 @@ Quick reference for all upgrade items and their implementation status.
 | Pre-Trade Filters | ✅ | ✅ | ✅ |
 | Z-Score Normalization | ✅ | ✅ | ✅ |
 | Regime Filter | ✅ | ✅ | ✅ |
-| Risk Framework | ❌ | ✅ | ✅ |
+| Risk Framework | ✅ | ✅ | ✅ |
 | P&L-Aware Exits | ❌ | ✅ | ✅ |
 | Threshold Validation | ❌ | ✅ | ✅ |
 
 ---
 
 **Last Updated:** 2025-11-05
-**Total Items:** 13 (9 completed, 4 pending)
+**Total Items:** 13 (10 completed, 3 pending)
 **Integration:** tweaks.txt fully incorporated into specifications
+**Latest:** Item #13 (RiskManager Framework) completed with full test coverage
