@@ -105,20 +105,25 @@ def generate_strong_buy_signals(df: pd.DataFrame) -> pd.Series:
     - Near support level
     - Above VWAP
     - Healthy volume (1.2x-3.0x average)
+    - Not an event day (ATR spike filter)
     
     Args:
         df: DataFrame with required columns: Accumulation_Score, Near_Support,
-            Above_VWAP, Relative_Volume
+            Above_VWAP, Relative_Volume, Event_Day
             
     Returns:
         Boolean Series indicating strong buy signals
     """
+    # Check if Event_Day column exists for filtering
+    event_day_filter = ~df['Event_Day'] if 'Event_Day' in df.columns else True
+    
     return (
         (df['Accumulation_Score'] >= 7) & 
         df['Near_Support'] & 
         df['Above_VWAP'] & 
         (df['Relative_Volume'] >= 1.2) &
-        (df['Relative_Volume'] <= 3.0)
+        (df['Relative_Volume'] <= 3.0) &
+        event_day_filter
     )
 
 
@@ -131,19 +136,24 @@ def generate_moderate_buy_signals(df: pd.DataFrame) -> pd.Series:
     - A/D rising OR OBV trending up
     - Above VWAP
     - Not already a strong buy signal
+    - Not an event day (ATR spike filter)
     
     Args:
         df: DataFrame with required columns: Accumulation_Score, AD_Rising,
-            OBV_Trend, Above_VWAP, Strong_Buy
+            OBV_Trend, Above_VWAP, Strong_Buy, Event_Day
             
     Returns:
         Boolean Series indicating moderate buy signals
     """
+    # Check if Event_Day column exists for filtering
+    event_day_filter = ~df['Event_Day'] if 'Event_Day' in df.columns else True
+    
     moderate_conditions = (
         (df['Accumulation_Score'] >= 5) & 
         (df['Accumulation_Score'] < 7) &
         (df['AD_Rising'] | df['OBV_Trend']) &
-        df['Above_VWAP']
+        df['Above_VWAP'] &
+        event_day_filter
     )
     
     # Exclude strong buy signals
@@ -162,18 +172,23 @@ def generate_stealth_accumulation_signals(df: pd.DataFrame) -> pd.Series:
     - Low/normal volume (<1.3x average)
     - A/D rising while price not rising (divergence)
     - Not already a strong or moderate buy signal
+    - Not an event day (ATR spike filter)
     
     Args:
         df: DataFrame with required columns: Accumulation_Score, Relative_Volume,
-            AD_Rising, Price_Rising, Strong_Buy, Moderate_Buy
+            AD_Rising, Price_Rising, Strong_Buy, Moderate_Buy, Event_Day
             
     Returns:
         Boolean Series indicating stealth accumulation signals
     """
+    # Check if Event_Day column exists for filtering
+    event_day_filter = ~df['Event_Day'] if 'Event_Day' in df.columns else True
+    
     stealth_conditions = (
         (df['Accumulation_Score'] >= 6) &
         (df['Relative_Volume'] < 1.3) &
-        (df['AD_Rising'] & ~df['Price_Rising'])
+        (df['AD_Rising'] & ~df['Price_Rising']) &
+        event_day_filter
     )
     
     # Exclude other buy signals
@@ -196,20 +211,25 @@ def generate_confluence_signals(df: pd.DataFrame) -> pd.Series:
     - Volume spike
     - Above VWAP
     - Both A/D and OBV trending up
+    - Not an event day (ATR spike filter)
     
     Args:
         df: DataFrame with required columns: Accumulation_Score, Near_Support,
-            Volume_Spike, Above_VWAP, AD_Rising, OBV_Trend
+            Volume_Spike, Above_VWAP, AD_Rising, OBV_Trend, Event_Day
             
     Returns:
         Boolean Series indicating confluence signals
     """
+    # Check if Event_Day column exists for filtering
+    event_day_filter = ~df['Event_Day'] if 'Event_Day' in df.columns else True
+    
     return (
         (df['Accumulation_Score'] >= 6) &
         df['Near_Support'] &
         df['Volume_Spike'] &
         df['Above_VWAP'] &
-        (df['AD_Rising'] & df['OBV_Trend'])
+        (df['AD_Rising'] & df['OBV_Trend']) &
+        event_day_filter
     )
 
 
@@ -223,19 +243,24 @@ def generate_volume_breakout_signals(df: pd.DataFrame) -> pd.Series:
     - Price up on the day
     - Above VWAP
     - Not already a strong buy signal
+    - Not an event day (ATR spike filter)
     
     Args:
         df: DataFrame with required columns: Accumulation_Score, Relative_Volume,
-            Close, Above_VWAP, Strong_Buy
+            Close, Above_VWAP, Strong_Buy, Event_Day
             
     Returns:
         Boolean Series indicating volume breakout signals
     """
+    # Check if Event_Day column exists for filtering
+    event_day_filter = ~df['Event_Day'] if 'Event_Day' in df.columns else True
+    
     breakout_conditions = (
         (df['Accumulation_Score'] >= 5) &
         (df['Relative_Volume'] > 2.5) &
         (df['Close'] > df['Close'].shift(1)) &
-        df['Above_VWAP']
+        df['Above_VWAP'] &
+        event_day_filter
     )
     
     # Exclude strong buy signals
@@ -293,7 +318,7 @@ def generate_distribution_warning_signals(df: pd.DataFrame) -> pd.Series:
     """
     warning_conditions = (
         (df['Phase'] == 'Distribution') &
-        (df['Close'] < df['VWAP']) &
+        ~df['Above_VWAP'] &
         (df['Relative_Volume'] > 1.3) &
         (df['Close'] < df['Close'].shift(3)) &
         (df['AD_Line'] < df['AD_MA'])
@@ -453,6 +478,146 @@ def generate_all_exit_signals(df: pd.DataFrame) -> pd.DataFrame:
     df['Stop_Loss'] = generate_stop_loss_signals(df)
     
     return df
+
+
+def calculate_moderate_buy_score(df: pd.DataFrame) -> pd.Series:
+    """
+    Calculate Moderate Buy signal score (0-10 scale) for threshold optimization.
+    
+    Uses same logic as generate_moderate_buy_signals() but returns graduated scores
+    instead of boolean flags. This enables empirical threshold optimization.
+    
+    Scoring Components:
+    - Base accumulation score (0-7 points, normalized from calculate_accumulation_score)
+    - A/D rising bonus (0-1.5 points)
+    - OBV trending bonus (0-1.5 points) 
+    - VWAP position bonus (0-1 point)
+    
+    Args:
+        df: DataFrame with required columns: Accumulation_Score, AD_Rising,
+            OBV_Trend, Above_VWAP, Event_Day
+            
+    Returns:
+        Series with moderate buy scores (0-10 scale)
+    """
+    score = pd.Series(0.0, index=df.index)
+    
+    # Base: Use existing accumulation score as foundation (0-7 points)
+    # Normalize from 0-10 scale to 0-7 to leave room for bonuses
+    base_score = df['Accumulation_Score'] * 0.7  # Convert 10-scale to 7-scale
+    score = score + base_score
+    
+    # A/D rising bonus (0-1.5 points)
+    score = score + df['AD_Rising'].astype(float) * 1.5
+    
+    # OBV trending bonus (0-1.5 points)
+    score = score + df['OBV_Trend'].astype(float) * 1.5
+    
+    # VWAP position bonus (0-1 point)
+    score = score + df['Above_VWAP'].astype(float) * 1.0
+    
+    # Event day penalty (-2 points for ATR spikes)
+    if 'Event_Day' in df.columns:
+        score = score - df['Event_Day'].astype(float) * 2.0
+    
+    # Normalize to 0-10 scale and clip
+    score = np.clip(score, 0, 10)
+    
+    return score
+
+
+def calculate_profit_taking_score(df: pd.DataFrame) -> pd.Series:
+    """
+    Calculate Profit Taking signal score (0-10 scale) for threshold optimization.
+    
+    Uses same logic as generate_profit_taking_signals() but returns graduated scores
+    instead of boolean flags.
+    
+    Scoring Components:
+    - New highs bonus (0-3 points based on how new the high is)
+    - High volume bonus (0-2.5 points based on volume ratio)
+    - VWAP position bonus (0-1.5 points)
+    - Waning accumulation bonus (0-2 points based on low accumulation)
+    - Price momentum bonus (0-1 point)
+    
+    Args:
+        df: DataFrame with required columns: Close, Relative_Volume, Above_VWAP,
+            Accumulation_Score
+            
+    Returns:
+        Series with profit taking scores (0-10 scale)
+    """
+    score = pd.Series(0.0, index=df.index)
+    
+    # New highs bonus (0-3 points based on how significant the breakout is)
+    rolling_max_20 = df['Close'].rolling(20).max().shift(1)
+    breakout_pct = ((df['Close'] - rolling_max_20) / rolling_max_20) * 100
+    breakout_bonus = np.clip(breakout_pct * 0.3, 0, 3)  # Up to 3 points for 10%+ breakout
+    score = score + breakout_bonus
+    
+    # High volume bonus (0-2.5 points based on volume ratio)
+    volume_bonus = np.clip((df['Relative_Volume'] - 1.0) * 1.25, 0, 2.5)  # Max at 3x volume
+    score = score + volume_bonus
+    
+    # VWAP position bonus (0-1.5 points)
+    score = score + df['Above_VWAP'].astype(float) * 1.5
+    
+    # Waning accumulation bonus (0-2 points - higher score when accumulation is LOW)
+    waning_bonus = np.clip((4 - df['Accumulation_Score']) * 0.5, 0, 2)
+    score = score + waning_bonus
+    
+    # Price momentum bonus (0-1 point for up days)
+    price_up = (df['Close'] > df['Close'].shift(1)).astype(float) * 1.0
+    score = score + price_up
+    
+    # Normalize to 0-10 scale and clip
+    score = np.clip(score, 0, 10)
+    
+    return score
+
+
+def calculate_stealth_accumulation_score(df: pd.DataFrame) -> pd.Series:
+    """
+    Calculate Stealth Accumulation signal score (0-7 scale) for threshold optimization.
+    
+    Uses same logic as generate_stealth_accumulation_signals() but returns graduated scores.
+    Note: Max score is 7 (not 10) to reflect this is a secondary strategy.
+    
+    Scoring Components:
+    - High accumulation foundation (0-4 points from accumulation score ≥6)
+    - Low volume bonus (0-1.5 points for volume <1.3x)
+    - A/D divergence bonus (0-1.5 points for A/D up while price not up)
+    
+    Args:
+        df: DataFrame with required columns: Accumulation_Score, Relative_Volume,
+            AD_Rising, Price_Rising, Event_Day
+            
+    Returns:
+        Series with stealth accumulation scores (0-7 scale)
+    """
+    score = pd.Series(0.0, index=df.index)
+    
+    # High accumulation foundation (0-4 points for scores ≥6)
+    high_accumulation = (df['Accumulation_Score'] >= 6).astype(float)
+    accumulation_strength = np.clip((df['Accumulation_Score'] - 6) * 0.8, 0, 4)
+    score = score + high_accumulation * accumulation_strength
+    
+    # Low volume stealth bonus (0-1.5 points - higher score for lower volume)
+    low_volume_bonus = np.clip((1.3 - df['Relative_Volume']) * 1.5, 0, 1.5)
+    score = score + low_volume_bonus
+    
+    # A/D divergence bonus (0-1.5 points)
+    divergence_bonus = (df['AD_Rising'] & ~df['Price_Rising']).astype(float) * 1.5
+    score = score + divergence_bonus
+    
+    # Event day penalty (-1 point for ATR spikes)
+    if 'Event_Day' in df.columns:
+        score = score - df['Event_Day'].astype(float) * 1.0
+    
+    # Normalize to 0-7 scale (secondary strategy) and clip
+    score = np.clip(score, 0, 7)
+    
+    return score
 
 
 def generate_all_signals(df: pd.DataFrame) -> pd.DataFrame:

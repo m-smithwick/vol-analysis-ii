@@ -36,6 +36,57 @@ import chart_builder
 # Import batch processor module for multi-ticker processing
 import batch_processor
 
+# Import empirically validated signal thresholds
+import threshold_config
+
+def read_ticker_file(ticker_file: str) -> List[str]:
+    """
+    Read ticker symbols from a file (one per line).
+    
+    Args:
+        ticker_file (str): Path to file containing ticker symbols
+        
+    Returns:
+        List[str]: List of ticker symbols
+        
+    Raises:
+        FileOperationError: If file cannot be read
+        DataValidationError: If no valid tickers found
+    """
+    with ErrorContext("reading ticker file", ticker_file=ticker_file):
+        # Validate file path
+        validate_file_path(ticker_file, check_exists=True, check_readable=True)
+        
+        logger = get_logger()
+        tickers = []
+        
+        try:
+            with open(ticker_file, 'r') as f:
+                for line_num, line in enumerate(f, 1):
+                    ticker = line.strip().upper()
+                    
+                    # Skip empty lines and comments
+                    if not ticker or ticker.startswith('#'):
+                        continue
+                    
+                    # Basic ticker validation (alphanumeric, 1-5 chars)
+                    if ticker.isalpha() and 1 <= len(ticker) <= 5:
+                        tickers.append(ticker)
+                    else:
+                        logger.warning(f"Skipping invalid ticker on line {line_num}: '{ticker}'")
+            
+            if not tickers:
+                raise DataValidationError(f"No valid ticker symbols found in {ticker_file}")
+            
+            logger.info(f"Read {len(tickers)} ticker symbols from {ticker_file}")
+            return tickers
+            
+        except Exception as e:
+            if isinstance(e, (DataValidationError, FileOperationError)):
+                raise e
+            else:
+                raise FileOperationError(f"Failed to read ticker file {ticker_file}: {str(e)}")
+
 def get_cache_directory() -> str:
     """Get or create the data cache directory."""
     cache_dir = os.path.join(os.getcwd(), 'data_cache')
@@ -627,13 +678,28 @@ def analyze_ticker(ticker: str, period='6mo', save_to_file=False, output_dir='.'
     df['Volume_Spike'] = df['Volume'] > (df['Volume_MA'] * 1.5)  # 50% above average
     df['Relative_Volume'] = df['Volume'] / df['Volume_MA']
     
-    # 4. Smart Money Indicators
-    df['VWAP'] = indicators.calculate_vwap(df)
+    # 4. Smart Money Indicators (Anchored VWAP from meaningful pivots)
+    df['VWAP'] = indicators.calculate_anchored_vwap(df)
     df['Above_VWAP'] = df['Close'] > df['VWAP']
     
-    # 5. Support Level Analysis (using rolling lows)
-    df['Support_Level'] = indicators.calculate_support_levels(df, window=20)
-    df['Near_Support'] = (df['Close'] - df['Support_Level']) / df['Support_Level'] < 0.05  # Within 5%
+    # 5. Swing-Based Support/Resistance Analysis (replacing rolling lows with pivot structure)
+    df['Recent_Swing_Low'], df['Recent_Swing_High'] = indicators.calculate_swing_levels(df, lookback=3)
+    df['Near_Support'], df['Lost_Support'], df['Near_Resistance'] = indicators.calculate_swing_proximity_signals(
+        df, df['Recent_Swing_Low'], df['Recent_Swing_High']
+    )
+    
+    # Maintain backward compatibility by creating Support_Level alias
+    df['Support_Level'] = df['Recent_Swing_Low']
+    
+    # --- True Range and ATR for Event Day Detection (Item #3: News/Event Spike Filter) ---
+    df['TR'], df['ATR20'] = indicators.calculate_atr(df, period=20)
+    
+    # --- Event Day Detection (News/Earnings Spikes) ---
+    df['Event_Day'] = indicators.detect_event_days(
+        df, 
+        atr_multiplier=2.5,  # ATR spike threshold 
+        volume_threshold=2.0  # Volume spike threshold
+    )
     
     # --- Accumulation Signal Generation ---
     accumulation_conditions = [
@@ -672,6 +738,24 @@ def analyze_ticker(ticker: str, period='6mo', save_to_file=False, output_dir='.'
     df['Sell_Signal'] = signal_generator.generate_sell_signals(df)
     df['Momentum_Exhaustion'] = signal_generator.generate_momentum_exhaustion_signals(df)
     df['Stop_Loss'] = signal_generator.generate_stop_loss_signals(df)
+    
+    # --- Add Next-Day Reference Levels and Display Columns ---
+    
+    # Create reference levels for next-day decision making (documentation/clarity)
+    df = indicators.create_next_day_reference_levels(df)
+    
+    # EXECUTION TIMING: Signals fire at close of day T, you act at open of day T+1
+    # Create display versions of signals that show markers on the ACTION day (T+1)
+    # This ensures chart markers appear when you would actually enter/exit
+    signal_columns = [
+        'Strong_Buy', 'Moderate_Buy', 'Stealth_Accumulation', 'Confluence_Signal', 
+        'Volume_Breakout', 'Profit_Taking', 'Distribution_Warning', 'Sell_Signal', 
+        'Momentum_Exhaustion', 'Stop_Loss'
+    ]
+    
+    for col in signal_columns:
+        # Shift signals by +1 day for chart display (marker shows on action day)
+        df[f'{col}_display'] = df[col].shift(1)
     
     # --- Generate Chart using Chart Builder Module ---
     if save_chart or show_chart:
@@ -742,21 +826,61 @@ def analyze_ticker(ticker: str, period='6mo', save_to_file=False, output_dir='.'
                         "Support_Accumulation": "🟠", "Distribution": "🔴", "Neutral": "⚪"}.get(phase, "⚪")
                 print(f"  {emoji} {phase}: {count} days ({percentage:.1f}%)")
             
-            # Recent accumulation signals (last 10 trading days)
+            # Recent accumulation signals (last 10 trading days) with empirical thresholds
             recent_df = df.tail(10)
             recent_signals = recent_df[recent_df['Phase'] != 'Neutral']
             
-            print(f"\n🔍 RECENT SIGNALS (Last 10 days):")
+            print(f"\n🔍 RECENT SIGNALS (Last 10 days) - EMPIRICALLY VALIDATED THRESHOLDS:")
             if not recent_signals.empty:
                 for date, row in recent_signals.iterrows():
-                    score = row['Accumulation_Score']
-                    phase = row['Phase']
-                    price = row['Close']
-                    volume_ratio = row['Relative_Volume']
+                    # Get empirical scores for current row
+                    moderate_score = row['Moderate_Buy_Score']
+                    profit_score = row['Profit_Taking_Score'] 
+                    stealth_score = row['Stealth_Accumulation_Score']
                     
-                    signal_strength = "🔥 STRONG" if score >= 7 else "⚡ MODERATE" if score >= 4 else "💡 WEAK"
-                    print(f"  {date.strftime('%Y-%m-%d')}: {phase} - Score: {score:.1f}/10 {signal_strength}")
-                    print(f"    Price: ${price:.2f}, Volume: {volume_ratio:.1f}x average")
+                    # Get validated thresholds
+                    moderate_threshold = threshold_config.OPTIMAL_THRESHOLDS['moderate_buy']['threshold']
+                    profit_threshold = threshold_config.OPTIMAL_THRESHOLDS['profit_taking']['threshold']
+                    stealth_threshold = threshold_config.OPTIMAL_THRESHOLDS['stealth_accumulation']['threshold']
+                    
+                    # Check which signals exceed validated thresholds
+                    moderate_exceeds = moderate_score >= moderate_threshold
+                    profit_exceeds = profit_score >= profit_threshold
+                    stealth_exceeds = stealth_score >= stealth_threshold
+                    
+                    # Determine primary signal type and strength
+                    if profit_exceeds:
+                        signal_type = "PROFIT_TAKING"
+                        primary_score = profit_score
+                        threshold_info = f"(exceeds {profit_threshold:.1f} threshold for 96.1% win rate)"
+                    elif moderate_exceeds:
+                        signal_type = "MODERATE_BUY"
+                        primary_score = moderate_score
+                        threshold_info = f"(exceeds {moderate_threshold:.1f} threshold for 64.3% win rate)"
+                    elif stealth_exceeds:
+                        signal_type = "STEALTH_ACCUMULATION"
+                        primary_score = stealth_score
+                        threshold_info = f"(exceeds {stealth_threshold:.1f} threshold for 58.7% win rate)"
+                    else:
+                        signal_type = row['Phase']
+                        primary_score = row['Accumulation_Score']
+                        threshold_info = "(below validated thresholds)"
+                    
+                    # Signal strength based on validated performance
+                    if profit_exceeds or (moderate_exceeds and moderate_score >= 7.5):
+                        signal_strength = "🔥 STRONG"
+                    elif moderate_exceeds or stealth_exceeds:
+                        signal_strength = "⚡ VALIDATED"
+                    else:
+                        signal_strength = "💡 WEAK"
+                    
+                    print(f"  {date.strftime('%Y-%m-%d')}: {signal_type} - Score: {primary_score:.1f} {signal_strength}")
+                    print(f"    {threshold_info}")
+                    print(f"    Price: ${row['Close']:.2f}, Volume: {row['Relative_Volume']:.1f}x average")
+                    
+                    # Show all empirical scores for reference
+                    if moderate_exceeds or profit_exceeds or stealth_exceeds:
+                        print(f"    📊 Scores: Moderate={moderate_score:.1f}, Profit={profit_score:.1f}, Stealth={stealth_score:.1f}")
             else:
                 print("  No significant signals in recent trading days")
             
@@ -862,6 +986,35 @@ def analyze_ticker(ticker: str, period='6mo', save_to_file=False, output_dir='.'
             print("  • Green score >7 = Strong accumulation | Red score >5 = Exit consideration")
             print("  • Look for signal transitions: Entry→Hold→Exit phases")
             print("  • Best trades: Strong entry signals followed by clear exit signals")
+            
+            # --- Empirical Threshold Configuration Summary (Item #8) ---
+            print(f"\n🎯 EMPIRICALLY VALIDATED SIGNAL THRESHOLDS:")
+            print("="*60)
+            print("  These thresholds are based on backtest optimization and historical performance:")
+            print()
+            
+            for signal_type in ['moderate_buy', 'profit_taking', 'stealth_accumulation']:
+                config = threshold_config.OPTIMAL_THRESHOLDS[signal_type]
+                metrics = config['backtest_results']
+                quality = threshold_config.get_threshold_quality(signal_type)
+                
+                # Quality emoji
+                quality_emoji = {
+                    "EXCELLENT": "✅",
+                    "GOOD": "✅", 
+                    "FAIR": "✓",
+                    "POOR": "⚠️"
+                }.get(quality, "❓")
+                
+                print(f"  {quality_emoji} {signal_type.replace('_', ' ').title()} Signal:")
+                print(f"     Threshold: ≥{config['threshold']:.1f}")
+                print(f"     Performance: {metrics['win_rate']:.1f}% win rate, {metrics['expectancy']:+.2f}% expectancy")
+                print(f"     Sample: {metrics['sample_size']} trades, Quality: {quality}")
+                print(f"     Usage: {config['usage_context']}")
+                print()
+            
+            print(f"  💡 NOTE: Scores above these thresholds indicate statistically validated opportunities")
+            print(f"  📊 Last optimized: {threshold_config.LAST_OPTIMIZATION_DATE} ({threshold_config.OPTIMIZATION_PERIOD} period)")
         
         return df
 

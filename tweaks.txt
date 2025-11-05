@@ -1,0 +1,44 @@
+Quick surgical tweaks (minimal change, big payoff)
+De-duplicate volume flow: replace (A/D + OBV) with a single factor, e.g. Chaikin Money Flow (CMF-20) z-score, or keep both but combine as an average after z-scoring.
+Volatility-aware support: proximity = (close - recent_swing_low) / ATR20; require proximity ≤ 1.0.
+Regime filter: only buy if SPY close > SPY 200DMA and sector ETF close > 50DMA. Simple but effective.
+Earnings filter: skip signals T−3..T+3 around earnings (and for ETFs, major scheduled macro if you care).
+Gap guard on entry: if open_{T+1} > close_T + 1*ATR, skip (avoid chasing).
+Risk & exits:
+Initial stop: stop = min(recent_swing_low - 0.5*ATR, anchored_VWAP - 1*ATR)
+Size by risk: risk 0.5–1.0% per trade
+Time stop: exit after 10–15 bars if < +1R
+Trend/momentum fail exit: CMF z-score < 0 or close < anchored VWAP
+Optional profit: scale 50% at +2R, trail rest by 10-day low.
+
+// Pre-filters
+if avg_dollar_volume_20d < $5M or close < 3 or within_earnings_window: reject
+if SPY_close < SPY_200dma or sector_close < sector_50dma: reject
+
+// Features (z-score where noted, 20d window)
+cmf_z   = zscore(CMF_20)                  // replaces raw A/D + OBV duplication
+v_spike = zscore(volume)                  // volume surprise, not raw multiple
+vwap_ok = (close > anchored_VWAP)         // anchored to last confirmed pivot low
+prox    = (close - recent_swing_low)/ATR20  // volatility-aware support distance
+
+score = 0
+score += clamp(cmf_z, -2, +2) * 2.0       // volume-flow strength
+score += v_spike > +1.0 ? 1.0 : 0.0
+score += vwap_ok ? 1.0 : 0.5              // small credit if ≈equal
+score += prox <= 1.0 ? 1.0 : 0.0          // near support (≤1 ATR)
+score -= ( (TR20_z > +2.0) or (v_spike > +2.0) ) ? 1.5 : 0.0  // broader event penalty
+
+// Normalize to 0–10 without clipping
+score = min(10, max(0, 5 + score))        // center at 5
+
+is_actionable = (score >= 6.5)
+if is_actionable:
+    // Entry guard: avoid chase-y gaps
+    if open_{T+1} > close_T + 1*ATR20: skip
+    enter @ open_{T+1}
+    stop  = min(recent_swing_low - 0.5*ATR20, anchored_VWAP - 1*ATR20)
+    size  = risk_capital / (entry - stop)
+    exits:
+      - time_stop: exit at T+10 if PnL < +1R
+      - momentum_fail: cmf_z < 0 or close < anchored_VWAP
+      - profit: take 50% at +2R, trail remainder by 10-day low

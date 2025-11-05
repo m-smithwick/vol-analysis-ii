@@ -27,149 +27,109 @@ from error_handler import (
     validate_file_path, safe_operation, get_logger, setup_logging
 )
 
-def calculate_recent_stealth_score(df: pd.DataFrame) -> Dict[str, float]:
+# Import empirically validated thresholds
+from threshold_config import OPTIMAL_THRESHOLDS, get_threshold_summary, get_threshold_quality
+import signal_generator
+
+def calculate_batch_metrics(df: pd.DataFrame) -> Dict[str, Any]:
     """
-    Calculate recent stealth buying activity score focusing on recent signals.
+    Calculate batch processing metrics using empirically validated thresholds.
+    
+    Uses signal_generator functions with OPTIMAL_THRESHOLDS from threshold_config.py
+    to ensure consistent scoring methodology across the system.
     
     Args:
-        df (pd.DataFrame): Analysis results dataframe
+        df (pd.DataFrame): Analysis results dataframe with required score columns
         
     Returns:
-        Dict[str, float]: Dictionary with stealth metrics
+        Dict[str, Any]: Dictionary with all signal metrics and threshold compliance
     """
-    # Focus on recent 10 days for stealth activity
-    recent_df = df.tail(10)
+    # Get empirically validated thresholds
+    moderate_threshold = OPTIMAL_THRESHOLDS['moderate_buy']['threshold']
+    profit_threshold = OPTIMAL_THRESHOLDS['profit_taking']['threshold'] 
+    stealth_threshold = OPTIMAL_THRESHOLDS['stealth_accumulation']['threshold']
     
-    # 1. Recent Stealth Signal Count (0-4 points)
-    recent_stealth_count = recent_df['Stealth_Accumulation'].sum()
-    stealth_recency_score = min(recent_stealth_count * 2, 4)  # Max 4 points
+    # Calculate scores using signal_generator functions (ensures consistency)
+    moderate_buy_score = signal_generator.calculate_moderate_buy_score(df)
+    profit_taking_score = signal_generator.calculate_profit_taking_score(df)
+    stealth_accumulation_score = signal_generator.calculate_stealth_accumulation_score(df)
     
-    # 2. Days since last stealth signal (0-3 points)
+    # Get current scores
+    current_moderate_score = moderate_buy_score.iloc[-1] if len(moderate_buy_score) > 0 else 0
+    current_profit_score = profit_taking_score.iloc[-1] if len(profit_taking_score) > 0 else 0
+    current_stealth_score = stealth_accumulation_score.iloc[-1] if len(stealth_accumulation_score) > 0 else 0
+    
+    # Check threshold compliance (empirically validated signals)
+    moderate_exceeds_threshold = current_moderate_score >= moderate_threshold
+    profit_exceeds_threshold = current_profit_score >= profit_threshold
+    stealth_exceeds_threshold = current_stealth_score >= stealth_threshold
+    
+    # Calculate signal counts and current status
+    moderate_signals = df[df['Moderate_Buy'] == True]
+    profit_signals = df[df['Profit_Taking'] == True] 
     stealth_signals = df[df['Stealth_Accumulation'] == True]
-    if not stealth_signals.empty:
-        last_stealth_date = stealth_signals.index[-1]
-        days_since_stealth = (df.index[-1] - last_stealth_date).days
-        # More recent = higher score
-        recency_score = max(3 - (days_since_stealth / 3), 0)  # Max 3 points
-    else:
-        recency_score = 0
-        days_since_stealth = 999
     
-    # 3. Price containment during stealth period (0-3 points)
+    # Current signal status (is there an actionable signal NOW?)
+    moderate_signal_active = df['Moderate_Buy'].iloc[-1] if len(df) > 0 else False
+    profit_signal_active = df['Profit_Taking'].iloc[-1] if len(df) > 0 else False
+    stealth_signal_active = df['Stealth_Accumulation'].iloc[-1] if len(df) > 0 else False
+    
+    # Also check for Strong_Buy and Confluence signals (primary entry opportunities)
+    strong_signal_active = df['Strong_Buy'].iloc[-1] if 'Strong_Buy' in df.columns and len(df) > 0 else False
+    confluence_signal_active = df['Confluence_Signal'].iloc[-1] if 'Confluence_Signal' in df.columns and len(df) > 0 else False
+    
+    # Recent signal counts (last 5 trading days for actionable recency)
+    recent_df = df.tail(5)
+    recent_moderate_count = recent_df['Moderate_Buy'].sum()
+    recent_profit_count = recent_df['Profit_Taking'].sum()
+    recent_stealth_count = recent_df['Stealth_Accumulation'].sum()
+    
+    # Price change analysis for stealth
+    price_change_pct = 0
     if not stealth_signals.empty:
-        # Get price change from first stealth signal to now
         first_stealth_price = stealth_signals['Close'].iloc[0] if len(stealth_signals) > 1 else stealth_signals['Close'].iloc[-1]
         current_price = df['Close'].iloc[-1]
         price_change_pct = ((current_price - first_stealth_price) / first_stealth_price) * 100
-        
-        # Lower price appreciation = higher score (what user wants)
-        if price_change_pct <= 2:  # Less than 2% gain
-            containment_score = 3
-        elif price_change_pct <= 5:  # Less than 5% gain
-            containment_score = 2
-        elif price_change_pct <= 10:  # Less than 10% gain
-            containment_score = 1
-        else:
-            containment_score = 0
-    else:
-        containment_score = 0
-        price_change_pct = 0
-    
-    # Total stealth score (0-10 scale)
-    total_stealth_score = stealth_recency_score + recency_score + containment_score
     
     return {
-        'stealth_score': min(total_stealth_score, 10),
+        # OPTIMAL ENTRY - Moderate Buy (empirically validated: ≥6.5 threshold for 64.3% win rate)
+        'moderate_buy_score': current_moderate_score,
+        'moderate_exceeds_threshold': moderate_exceeds_threshold,
+        'moderate_threshold': moderate_threshold,
+        'moderate_signal_active': moderate_signal_active,
+        'strong_signal_active': strong_signal_active,
+        'confluence_signal_active': confluence_signal_active,
+        'recent_moderate_count': recent_moderate_count,
+        'total_moderate_signals': df['Moderate_Buy'].sum(),
+        
+        # OPTIMAL EXIT - Profit Taking (empirically validated: ≥7.0 threshold for 96.1% win rate)
+        'profit_taking_score': current_profit_score,
+        'profit_exceeds_threshold': profit_exceeds_threshold,
+        'profit_threshold': profit_threshold,
+        'profit_signal_active': profit_signal_active,
+        'recent_profit_count': recent_profit_count,
+        'total_profit_signals': df['Profit_Taking'].sum(),
+        
+        # SECONDARY ENTRY - Stealth Accumulation (empirically validated: ≥4.5 threshold for 58.7% win rate)
+        'stealth_score': current_stealth_score,
+        'stealth_exceeds_threshold': stealth_exceeds_threshold,
+        'stealth_threshold': stealth_threshold,
+        'stealth_signal_active': stealth_signal_active,
         'recent_stealth_count': recent_stealth_count,
-        'days_since_stealth': days_since_stealth,
-        'price_change_pct': price_change_pct
+        'price_change_pct': price_change_pct,
+        'total_stealth_signals': df['Stealth_Accumulation'].sum(),
+        
+        # Additional context
+        'total_days': len(df),
+        'latest_phase': df['Phase'].iloc[-1],
+        'exit_score': df['Exit_Score'].iloc[-1] if 'Exit_Score' in df.columns else 0
     }
 
-def calculate_recent_entry_score(df: pd.DataFrame) -> Dict[str, float]:
-    """
-    Calculate recent strong entry signal activity score focusing on momentum signals.
-    
-    Args:
-        df (pd.DataFrame): Analysis results dataframe
-        
-    Returns:
-        Dict[str, float]: Dictionary with entry signal metrics
-    """
-    # Focus on recent 10 days for entry activity
-    recent_df = df.tail(10)
-    
-    # Count different types of entry signals in recent period
-    recent_strong_buy = recent_df['Strong_Buy'].sum()
-    recent_confluence = recent_df['Confluence_Signal'].sum()
-    recent_volume_breakout = recent_df['Volume_Breakout'].sum()
-    
-    # 1. Signal diversity and strength (0-4 points)
-    signal_strength_score = 0
-    if recent_strong_buy > 0:
-        signal_strength_score += min(recent_strong_buy * 1.5, 2)  # Strong buy signals worth more
-    if recent_confluence > 0:
-        signal_strength_score += min(recent_confluence * 2, 2)  # Confluence signals are premium
-    if recent_volume_breakout > 0:
-        signal_strength_score += min(recent_volume_breakout * 1, 1)  # Volume breakouts
-    signal_strength_score = min(signal_strength_score, 4)
-    
-    # 2. Days since last strong entry signal (0-3 points)
-    entry_signals = df[(df['Strong_Buy'] == True) | (df['Confluence_Signal'] == True) | (df['Volume_Breakout'] == True)]
-    if not entry_signals.empty:
-        last_entry_date = entry_signals.index[-1]
-        days_since_entry = (df.index[-1] - last_entry_date).days
-        # More recent = higher score
-        recency_score = max(3 - (days_since_entry / 2), 0)  # Max 3 points, faster decay than stealth
-    else:
-        recency_score = 0
-        days_since_entry = 999
-    
-    # 3. Signal momentum - are signals increasing or decreasing? (0-3 points)
-    # Compare recent 5 days vs previous 5 days
-    if len(df) >= 10:
-        recent_5 = df.tail(5)
-        previous_5 = df.tail(10).head(5)
-        
-        recent_total = (recent_5['Strong_Buy'].sum() + 
-                       recent_5['Confluence_Signal'].sum() + 
-                       recent_5['Volume_Breakout'].sum())
-        previous_total = (previous_5['Strong_Buy'].sum() + 
-                         previous_5['Confluence_Signal'].sum() + 
-                         previous_5['Volume_Breakout'].sum())
-        
-        if recent_total > previous_total:
-            momentum_score = 3  # Increasing momentum
-            momentum_direction = "up"
-        elif recent_total == previous_total and recent_total > 0:
-            momentum_score = 2  # Steady momentum
-            momentum_direction = "steady"
-        elif recent_total > 0:
-            momentum_score = 1  # Some activity but declining
-            momentum_direction = "down"
-        else:
-            momentum_score = 0  # No activity
-            momentum_direction = "none"
-    else:
-        momentum_score = 0
-        momentum_direction = "none"
-    
-    # Total entry score (0-10 scale)
-    total_entry_score = signal_strength_score + recency_score + momentum_score
-    
-    return {
-        'entry_score': min(total_entry_score, 10),
-        'recent_strong_buy': recent_strong_buy,
-        'recent_confluence': recent_confluence,
-        'recent_volume_breakout': recent_volume_breakout,
-        'days_since_entry': days_since_entry,
-        'momentum_direction': momentum_direction,
-        'total_recent_signals': recent_strong_buy + recent_confluence + recent_volume_breakout
-    }
 
 def generate_html_summary(results: List[Dict], errors: List[Dict], period: str, 
                          output_dir: str, timestamp: str) -> str:
     """
-    Generate interactive HTML summary with clickable charts.
+    Generate interactive HTML summary with clickable charts focused on optimal strategies.
     
     Args:
         results (List[Dict]): Processed ticker results
@@ -181,9 +141,14 @@ def generate_html_summary(results: List[Dict], errors: List[Dict], period: str,
     Returns:
         str: HTML filename
     """
-    # Sort results for both rankings
-    sorted_stealth_results = sorted(results, key=lambda x: x['stealth_score'], reverse=True)
-    sorted_entry_results = sorted(results, key=lambda x: x['entry_score'], reverse=True)
+    # Filter for ACTIVE signals only, then sort by score
+    active_moderate = [r for r in results if r['moderate_signal_active']]
+    active_profit = [r for r in results if r['profit_signal_active']]
+    active_stealth = [r for r in results if r['stealth_signal_active']]
+    
+    sorted_moderate_buy_results = sorted(active_moderate, key=lambda x: x['moderate_buy_score'], reverse=True)
+    sorted_profit_taking_results = sorted(active_profit, key=lambda x: x['profit_taking_score'], reverse=True)
+    sorted_stealth_results = sorted(active_stealth, key=lambda x: x['stealth_score'], reverse=True)
     
     html_content = f"""<!DOCTYPE html>
 <html lang="en">
@@ -381,32 +346,32 @@ def generate_html_summary(results: List[Dict], errors: List[Dict], period: str,
                 <p>Tickers Processed</p>
             </div>
             <div class="stat-card">
-                <h3>{len([r for r in results if r['stealth_score'] >= 5])}</h3>
-                <p>Strong Stealth Candidates</p>
+                <h3>{len(active_moderate)}</h3>
+                <p>Active Moderate Buy Signals</p>
             </div>
             <div class="stat-card">
-                <h3>{len([r for r in results if r['entry_score'] >= 5])}</h3>
-                <p>Strong Entry Candidates</p>
+                <h3>{len(active_profit)}</h3>
+                <p>Active Profit Taking Signals</p>
             </div>
             <div class="stat-card">
-                <h3>{len(errors)}</h3>
-                <p>Processing Errors</p>
+                <h3>{len(active_stealth)}</h3>
+                <p>Active Stealth Signals</p>
             </div>
         </div>
         
         <div class="rankings">
             <div class="ranking-section">
-                <h2>🎯 Top Stealth Accumulation Candidates</h2>"""
+                <h2>🎯 Active Stealth Accumulation Signals</h2>"""
     
     # Add stealth candidates
     for i, result in enumerate(sorted_stealth_results[:15], 1):
         stealth_score = result['stealth_score']
+        stealth_active = result['stealth_signal_active']
         recent_count = result['recent_stealth_count']
-        days_since = result['days_since_stealth']
         price_change = result['price_change_pct']
         
         score_emoji = "🎯" if stealth_score >= 7 else "💎" if stealth_score >= 5 else "👁️" if stealth_score >= 3 else "💤"
-        recency_text = "Recent" if days_since <= 2 else f"{days_since}d ago" if days_since < 999 else "None"
+        signal_status = "💎 ACTIVE NOW" if stealth_active else "⚪ No Signal"
         
         # Check if chart exists
         chart_filename = f"{result['ticker']}_{period}_{result['filename'].split('_')[2]}_{result['filename'].split('_')[3]}_chart.png"
@@ -418,7 +383,7 @@ def generate_html_summary(results: List[Dict], errors: List[Dict], period: str,
                     <div class="ticker-symbol">{result['ticker']}</div>
                     <div class="ticker-details">
                         <div><span class="emoji">{score_emoji}</span>Stealth Score: <strong>{stealth_score:.1f}/10</strong></div>
-                        <div>Last Signal: {recency_text} | Recent Count: {recent_count} | Price Change: {price_change:+.1f}%</div>
+                        <div>Status: {signal_status} | Recent (5d): {recent_count} | Price Change: {price_change:+.1f}%</div>
                     </div>
                 </div>"""
         
@@ -436,36 +401,50 @@ def generate_html_summary(results: List[Dict], errors: List[Dict], period: str,
             </div>
             
             <div class="ranking-section">
-                <h2>🚀 Top Recent Strong Entry Candidates</h2>"""
+                <h2>🚀 Active Moderate Buy Signals (Empirically Validated)</h2>"""
     
-    # Add entry candidates
-    for i, result in enumerate(sorted_entry_results[:15], 1):
-        entry_score = result['entry_score']
-        recent_strong = result['recent_strong_buy']
-        recent_confluence = result['recent_confluence']
-        recent_volume = result['recent_volume_breakout']
-        momentum = result['momentum_direction']
+    # Add moderate buy candidates using empirically validated thresholds
+    for i, result in enumerate(sorted_moderate_buy_results[:15], 1):
+        moderate_score = result['moderate_buy_score']
+        recent_count = result['recent_moderate_count']
+        exceeds_threshold = result['moderate_exceeds_threshold']
+        threshold = result['moderate_threshold']
         
-        score_emoji = "🔥" if entry_score >= 9 else "⚡" if entry_score >= 7 else "💪" if entry_score >= 5 else "👁️"
-        momentum_arrow = "↗️" if momentum == "up" else "→" if momentum == "steady" else "↘️" if momentum == "down" else "💤"
+        # Check for any active entry signal
+        moderate_active = result['moderate_signal_active']
+        strong_active = result['strong_signal_active']
+        confluence_active = result['confluence_signal_active']
+        
+        score_emoji = "🔥" if moderate_score >= 8 else "⚡" if moderate_score >= 6.5 else "💪" if moderate_score >= 5 else "👁️"
+        threshold_status = f"✅ Exceeds {threshold} threshold" if exceeds_threshold else f"❌ Below {threshold} threshold"
+        
+        # Show current signal status
+        if strong_active:
+            signal_status = "🟢 STRONG NOW"
+        elif confluence_active:
+            signal_status = "⭐ CONFLUENCE"
+        elif moderate_active:
+            signal_status = "🟡 ACTIVE NOW"
+        else:
+            signal_status = "⚪ No Signal"
         
         # Check if chart exists
         chart_filename = f"{result['ticker']}_{period}_{result['filename'].split('_')[2]}_{result['filename'].split('_')[3]}_chart.png"
         chart_exists = os.path.exists(os.path.join(output_dir, chart_filename))
         
         html_content += f"""
-                <div class="ticker-row" onclick="toggleChart('entry_{result['ticker']}')">
+                <div class="ticker-row" onclick="toggleChart('moderate_{result['ticker']}')">
                     <div class="rank">#{i}</div>
                     <div class="ticker-symbol">{result['ticker']}</div>
                     <div class="ticker-details">
-                        <div><span class="emoji">{score_emoji}</span>Entry Score: <strong>{entry_score:.1f}/10</strong></div>
-                        <div>Strong: {recent_strong} | Confluence: {recent_confluence} | Volume: {recent_volume} | Momentum: {momentum_arrow}</div>
+                        <div><span class="emoji">{score_emoji}</span>Moderate Buy: <strong>{moderate_score:.1f}/10</strong></div>
+                        <div>{threshold_status} | Status: {signal_status} | Recent (5d): {recent_count}</div>
                     </div>
                 </div>"""
         
         if chart_exists:
             html_content += f"""
-                <div id="entry_{result['ticker']}" class="chart-container">
+                <div id="moderate_{result['ticker']}" class="chart-container">
                     <div class="chart-controls">
                         <button class="btn" onclick="openChart('{chart_filename}')">📊 Open Full Size</button>
                         <button class="btn" onclick="openAnalysis('{result['filename']}')">📋 View Analysis</button>
@@ -667,34 +646,13 @@ def process_batch(ticker_file: str, period='12mo', output_dir='results_volume',
                     logger.info(f"Successfully processed {ticker}: {filename}")
                     print(f"✅ {ticker}: Analysis saved to {filename}")
                     
-                    # Collect summary data using both stealth and entry scoring
-                    phase_counts = df['Phase'].value_counts()
-                    stealth_metrics = calculate_recent_stealth_score(df)
-                    entry_metrics = calculate_recent_entry_score(df)
+                    # Calculate metrics using empirically validated thresholds
+                    batch_metrics = calculate_batch_metrics(df)
                     
                     results.append({
                         'ticker': ticker,
                         'filename': filename,
-                        'stealth_score': stealth_metrics['stealth_score'],
-                        'recent_stealth_count': stealth_metrics['recent_stealth_count'],
-                        'days_since_stealth': stealth_metrics['days_since_stealth'],
-                        'price_change_pct': stealth_metrics['price_change_pct'],
-                        'entry_score': entry_metrics['entry_score'],
-                        'recent_strong_buy': entry_metrics['recent_strong_buy'],
-                        'recent_confluence': entry_metrics['recent_confluence'],
-                        'recent_volume_breakout': entry_metrics['recent_volume_breakout'],
-                        'days_since_entry': entry_metrics['days_since_entry'],
-                        'momentum_direction': entry_metrics['momentum_direction'],
-                        'total_recent_entry_signals': entry_metrics['total_recent_signals'],
-                        'total_days': len(df),
-                        'strong_signals': df['Strong_Buy'].sum(),
-                        'moderate_signals': df['Moderate_Buy'].sum(),
-                        'total_stealth_signals': df['Stealth_Accumulation'].sum(),
-                        'latest_phase': df['Phase'].iloc[-1],
-                        'exit_score': df['Exit_Score'].iloc[-1],
-                        'profit_taking_signals': df['Profit_Taking'].sum(),
-                        'sell_signals': df['Sell_Signal'].sum(),
-                        'stop_loss_signals': df['Stop_Loss'].sum()
+                        **batch_metrics  # Unpack all calculated metrics with threshold compliance
                     })
                     
         except DataDownloadError as e:
@@ -735,45 +693,91 @@ def process_batch(ticker_file: str, period='12mo', output_dir='results_volume',
             for error in errors:
                 print(f"   • {error['ticker']}: {error['error']}")
         
-        print(f"\n🎯 TOP STEALTH ACCUMULATION CANDIDATES (by recent activity):")
-        sorted_stealth_results = sorted(results, key=lambda x: x['stealth_score'], reverse=True)
+        # Display results using OPTIMAL indicators from backtest results with empirically validated thresholds
+        print(f"\n🟡 ACTIVE MODERATE BUY SIGNALS (EMPIRICALLY VALIDATED - ≥6.5 threshold for 64.3% win rate):")
+        # Filter for stocks with ACTIVE Moderate Buy signals RIGHT NOW
+        active_moderate = [r for r in results if r['moderate_signal_active']]
+        sorted_moderate_results = sorted(active_moderate, key=lambda x: x['moderate_buy_score'], reverse=True)
         
-        for i, result in enumerate(sorted_stealth_results[:10], 1):  # Top 10
-            stealth_score = result['stealth_score']
-            recent_count = result['recent_stealth_count']
-            days_since = result['days_since_stealth']
-            price_change = result['price_change_pct']
-            total_stealth = result['total_stealth_signals']
+        if not sorted_moderate_results:
+            print("  No active Moderate Buy signals at this time.")
+        
+        for i, result in enumerate(sorted_moderate_results[:10], 1):  # Top 10
+            moderate_score = result['moderate_buy_score']
+            recent_count = result['recent_moderate_count']
+            total_moderate = result['total_moderate_signals']
+            exceeds_threshold = result['moderate_exceeds_threshold']
+            threshold = result['moderate_threshold']
             
-            score_emoji = "🎯" if stealth_score >= 7 else "💎" if stealth_score >= 5 else "👁️" if stealth_score >= 3 else "💤"
+            # Check for any active entry signal (Strong, Moderate, or Confluence)
+            moderate_active = result['moderate_signal_active']
+            strong_active = result['strong_signal_active']
+            confluence_active = result['confluence_signal_active']
             
-            # Display days since or "Recent" if very recent
-            recency_text = "Recent" if days_since <= 2 else f"{days_since}d ago" if days_since < 999 else "None"
+            score_emoji = "🎯" if moderate_score >= 8 else "🟡" if moderate_score >= 6.5 else "👀" if moderate_score >= 4 else "💤"
+            threshold_emoji = "✅" if exceeds_threshold else "❌"
             
-            print(f"  {i:2d}. {result['ticker']:5s} - Stealth: {stealth_score:4.1f}/10 {score_emoji} "
-                  f"(Last: {recency_text}, Recent: {recent_count}, Price: {price_change:+4.1f}%, Total: {total_stealth})")
+            # Show current signal status
+            if strong_active:
+                signal_status = "🟢 STRONG NOW"
+            elif confluence_active:
+                signal_status = "⭐ CONFLUENCE"
+            elif moderate_active:
+                signal_status = "🟡 ACTIVE NOW"
+            else:
+                signal_status = "⚪ No Signal"
+            
+            print(f"  {i:2d}. {result['ticker']:5s} - ModBuy: {moderate_score:4.1f}/10 {score_emoji} {threshold_emoji} "
+                  f"(≥{threshold} threshold, Status: {signal_status:13s}, Rec5d: {recent_count}, Total: {total_moderate})")
 
-        print(f"\n🚀 TOP RECENT STRONG ENTRY CANDIDATES (by signal strength):")
-        sorted_entry_results = sorted(results, key=lambda x: x['entry_score'], reverse=True)
+        print(f"\n🟠 ACTIVE PROFIT TAKING SIGNALS (EMPIRICALLY VALIDATED - ≥7.0 threshold for 96.1% win rate):")
+        # Filter for stocks with ACTIVE Profit Taking signals RIGHT NOW
+        active_profit = [r for r in results if r['profit_signal_active']]
+        sorted_profit_results = sorted(active_profit, key=lambda x: x['profit_taking_score'], reverse=True)
         
-        for i, result in enumerate(sorted_entry_results[:10], 1):  # Top 10
-            entry_score = result['entry_score']
-            recent_strong = result['recent_strong_buy']
-            recent_confluence = result['recent_confluence']
-            recent_volume = result['recent_volume_breakout']
-            days_since = result['days_since_entry']
-            momentum = result['momentum_direction']
+        if not sorted_profit_results:
+            print("  No active Profit Taking signals at this time.")
+        
+        for i, result in enumerate(sorted_profit_results[:10], 1):  # Top 10
+            profit_score = result['profit_taking_score']
+            profit_active = result['profit_signal_active']
+            recent_count = result['recent_profit_count']
+            exceeds_threshold = result['profit_exceeds_threshold']
+            threshold = result['profit_threshold']
             
-            score_emoji = "🔥" if entry_score >= 9 else "⚡" if entry_score >= 7 else "💪" if entry_score >= 5 else "👁️"
+            score_emoji = "🔥" if profit_score >= 8 else "🟠" if profit_score >= 7.0 else "📈" if profit_score >= 4 else "💤"
+            threshold_emoji = "✅" if exceeds_threshold else "❌"
             
-            # Display days since or "Recent" if very recent
-            recency_text = "Recent" if days_since <= 2 else f"{days_since}d ago" if days_since < 999 else "None"
+            # Show current signal status
+            signal_status = "🔴 EXIT NOW!" if profit_active else "⚪ No Signal"
             
-            # Momentum arrow
-            momentum_arrow = "↗️" if momentum == "up" else "→" if momentum == "steady" else "↘️" if momentum == "down" else "💤"
+            print(f"  {i:2d}. {result['ticker']:5s} - Profit: {profit_score:4.1f}/10 {score_emoji} {threshold_emoji} "
+                  f"(≥{threshold} threshold, Status: {signal_status:13s}, Rec5d: {recent_count})")
+
+        print(f"\n💎 ACTIVE STEALTH ACCUMULATION SIGNALS (EMPIRICALLY VALIDATED - ≥4.5 threshold for 58.7% win rate):")
+        # Filter for stocks with ACTIVE Stealth Accumulation signals RIGHT NOW
+        active_stealth = [r for r in results if r['stealth_signal_active']]
+        sorted_stealth_results = sorted(active_stealth, key=lambda x: x['stealth_score'], reverse=True)
+        
+        if not sorted_stealth_results:
+            print("  No active Stealth Accumulation signals at this time.")
+        
+        for i, result in enumerate(sorted_stealth_results[:5], 1):  # Top 5 only (secondary)
+            stealth_score = result['stealth_score']
+            stealth_active = result['stealth_signal_active']
+            recent_count = result['recent_stealth_count']
+            price_change = result['price_change_pct']
+            exceeds_threshold = result['stealth_exceeds_threshold']
+            threshold = result['stealth_threshold']
             
-            print(f"  {i:2d}. {result['ticker']:5s} - Entry: {entry_score:5.1f}/10 {score_emoji} "
-                  f"(Last: {recency_text:7s}, Strong: {recent_strong}, Conf: {recent_confluence}, Vol: {recent_volume}, Momentum: {momentum_arrow})")
+            score_emoji = "💎" if stealth_score >= 5 else "👁️" if stealth_score >= 4.5 else "💤"
+            threshold_emoji = "✅" if exceeds_threshold else "❌"
+            
+            # Show current signal status
+            signal_status = "💎 ACTIVE NOW" if stealth_active else "⚪ No Signal"
+            
+            print(f"  {i:2d}. {result['ticker']:5s} - Stealth: {stealth_score:4.1f}/10 {score_emoji} {threshold_emoji} "
+                  f"(≥{threshold} threshold, Status: {signal_status:13s}, Rec5d: {recent_count}, Price: {price_change:+4.1f}%)")
         
         # Generate consolidated summary file with error handling
         summary_filename = f"batch_summary_{period}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt"
@@ -795,28 +799,63 @@ def process_batch(ticker_file: str, period='12mo', output_dir='results_volume',
                         f.write(f"  • {error['ticker']}: {error['error']}\n")
                     f.write("\n")
                 
-                f.write("RESULTS RANKED BY STEALTH ACCUMULATION SCORE:\n")
-                f.write("-" * 90 + "\n")
-                f.write(f"{'Rank':<4} {'Ticker':<6} {'Stealth':<7} {'Recent':<6} {'DaysAgo':<7} {'Price%':<7} {'Total':<5} {'File'}\n")
-                f.write("-" * 90 + "\n")
+                # Write results using EMPIRICALLY VALIDATED indicators based on backtest performance
+                f.write("🟡 ACTIVE MODERATE BUY SIGNALS (EMPIRICALLY VALIDATED - ≥6.5 threshold for 64.3% win rate):\n")
+                f.write("-" * 120 + "\n")
                 
-                for i, result in enumerate(sorted_stealth_results, 1):
-                    days_text = "Recent" if result['days_since_stealth'] <= 2 else f"{result['days_since_stealth']}d" if result['days_since_stealth'] < 999 else "None"
-                    f.write(f"{i:<4} {result['ticker']:<6} {result['stealth_score']:<7.1f} "
-                           f"{result['recent_stealth_count']:<6} {days_text:<7} {result['price_change_pct']:<+7.1f} "
-                           f"{result['total_stealth_signals']:<5} {result['filename']}\n")
+                if not active_moderate:
+                    f.write("  No active Moderate Buy signals at this time.\n\n")
+                else:
+                    f.write(f"{'Rank':<4} {'Ticker':<6} {'ModBuy':<7} {'Threshold':<9} {'Status':<13} {'Rec5d':<5} {'Total':<5} {'File'}\n")
+                    f.write("-" * 120 + "\n")
+                    
+                    for i, result in enumerate(active_moderate, 1):
+                        # Check for any active entry signal
+                        if result['strong_signal_active']:
+                            signal_status = "STRONG NOW"
+                        elif result['confluence_signal_active']:
+                            signal_status = "CONFLUENCE"
+                        elif result['moderate_signal_active']:
+                            signal_status = "ACTIVE NOW"
+                        else:
+                            signal_status = "No Signal"
+                        
+                        threshold_status = "✅" if result['moderate_exceeds_threshold'] else "❌"
+                        f.write(f"{i:<4} {result['ticker']:<6} {result['moderate_buy_score']:<7.1f} "
+                               f"{threshold_status}≥{result['moderate_threshold']:<6.1f} {signal_status:<13} {result['recent_moderate_count']:<5} "
+                               f"{result['total_moderate_signals']:<5} {result['filename']}\n")
 
-                f.write("\n\nRESULTS RANKED BY RECENT STRONG ENTRY SCORE:\n")
-                f.write("-" * 100 + "\n")
-                f.write(f"{'Rank':<4} {'Ticker':<6} {'Entry':<6} {'Strong':<6} {'Conf':<4} {'Vol':<3} {'DaysAgo':<7} {'Momentum':<8} {'File'}\n")
-                f.write("-" * 100 + "\n")
+                f.write(f"\n🟠 ACTIVE PROFIT TAKING SIGNALS (EMPIRICALLY VALIDATED - ≥7.0 threshold for 96.1% win rate):\n")
+                f.write("-" * 110 + "\n")
                 
-                for i, result in enumerate(sorted_entry_results, 1):
-                    days_text = "Recent" if result['days_since_entry'] <= 2 else f"{result['days_since_entry']}d" if result['days_since_entry'] < 999 else "None"
-                    momentum_text = "Up" if result['momentum_direction'] == "up" else "Steady" if result['momentum_direction'] == "steady" else "Down" if result['momentum_direction'] == "down" else "None"
-                    f.write(f"{i:<4} {result['ticker']:<6} {result['entry_score']:<6.1f} "
-                           f"{result['recent_strong_buy']:<6} {result['recent_confluence']:<4} {result['recent_volume_breakout']:<3} "
-                           f"{days_text:<7} {momentum_text:<8} {result['filename']}\n")
+                if not active_profit:
+                    f.write("  No active Profit Taking signals at this time.\n\n")
+                else:
+                    f.write(f"{'Rank':<4} {'Ticker':<6} {'Profit':<7} {'Threshold':<9} {'Status':<13} {'Rec5d':<5} {'File'}\n")
+                    f.write("-" * 110 + "\n")
+                    
+                    for i, result in enumerate(active_profit, 1):
+                        signal_status = "EXIT NOW!" if result['profit_signal_active'] else "No Signal"
+                        threshold_status = "✅" if result['profit_exceeds_threshold'] else "❌"
+                        f.write(f"{i:<4} {result['ticker']:<6} {result['profit_taking_score']:<7.1f} "
+                               f"{threshold_status}≥{result['profit_threshold']:<6.1f} {signal_status:<13} {result['recent_profit_count']:<5} "
+                               f"{result['filename']}\n")
+
+                f.write(f"\n💎 ACTIVE STEALTH ACCUMULATION SIGNALS (EMPIRICALLY VALIDATED - ≥4.5 threshold for 58.7% win rate):\n")
+                f.write("-" * 110 + "\n")
+                
+                if not active_stealth:
+                    f.write("  No active Stealth Accumulation signals at this time.\n\n")
+                else:
+                    f.write(f"{'Rank':<4} {'Ticker':<6} {'Stealth':<7} {'Threshold':<9} {'Status':<13} {'Rec5d':<5} {'Price%':<7} {'Total':<5} {'File'}\n")
+                    f.write("-" * 110 + "\n")
+                    
+                    for i, result in enumerate(active_stealth, 1):
+                        signal_status = "ACTIVE NOW" if result['stealth_signal_active'] else "No Signal"
+                        threshold_status = "✅" if result['stealth_exceeds_threshold'] else "❌"
+                        f.write(f"{i:<4} {result['ticker']:<6} {result['stealth_score']:<7.1f} "
+                               f"{threshold_status}≥{result['stealth_threshold']:<6.1f} {signal_status:<13} {result['recent_stealth_count']:<5} "
+                               f"{result['price_change_pct']:<+7.1f} {result['total_stealth_signals']:<5} {result['filename']}\n")
                     
                 logger.info(f"Batch summary saved to {summary_filename}")
                 

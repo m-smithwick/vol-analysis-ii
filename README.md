@@ -240,6 +240,26 @@ The `batch_backtest.py` module performs comprehensive strategy optimization by a
 - **Individual Reports**: Generates detailed reports for each ticker
 - **Aggregate Optimization Report**: Creates a master report with strategy recommendations
 
+#### **Independent Analysis Methodology**
+
+The batch backtesting system uses a sophisticated approach where entry and exit signals are analyzed independently before being combined into optimal strategies:
+
+**Independent Signal Analysis:**
+- **Entry signals** are aggregated across ALL trades that used each signal type, regardless of which exit signal was used
+- **Exit signals** are aggregated across ALL trades that used each signal type, regardless of which entry signal was used
+- This independence allows evaluation of each signal's performance in isolation
+
+**Strategy Combination:**
+- The optimal strategy recommendation combines the best-performing entry and exit signals
+- The "Combined Strategy Performance" shows results only for trades where BOTH the recommended entry AND exit signals occurred
+- For example: "Moderate Buy" might show 151 total trades, "Profit Taking" might show 47 total uses, but their combination represents only the 26 trades where both signals occurred together
+
+**Why This Approach:**
+- Identifies which entry signals generate the most profitable opportunities
+- Determines which exit signals most effectively preserve profits  
+- Validates that the best individual signals also work well when combined
+- Provides statistical confidence through large sample sizes for each signal type
+
 #### **Command-Line Usage**
 
 ```bash

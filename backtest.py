@@ -386,11 +386,18 @@ def pair_entry_exit_signals(df: pd.DataFrame, entry_signals: List[str],
     """
     Pair each entry signal with its next exit signal and calculate returns.
     
+    EXECUTION TIMING (CRITICAL FIX):
+    - Entry signal fires at close of day T
+    - Entry executed at OPEN of day T+1 (realistic fill price)
+    - Exit signal fires at close of day X  
+    - Exit executed at OPEN of day X+1 (realistic fill price)
+    
     This function matches each entry signal occurrence with the next exit signal
-    that occurs after it, calculating the actual entry-to-exit return.
+    that occurs after it, calculating the actual entry-to-exit return using
+    realistic execution prices (next day opens, not same day closes).
     
     Args:
-        df (pd.DataFrame): DataFrame with entry/exit signals and Close prices
+        df (pd.DataFrame): DataFrame with entry/exit signals and Next_Open prices
         entry_signals (List[str]): List of entry signal column names
         exit_signals (List[str]): List of exit signal column names
         
@@ -405,36 +412,70 @@ def pair_entry_exit_signals(df: pd.DataFrame, entry_signals: List[str],
     
     # Iterate through each entry signal
     for idx in df[df['Any_Entry']].index:
-        entry_date = idx
-        entry_price = df.loc[idx, 'Close']
+        entry_signal_date = idx
+        
+        # CRITICAL FIX: Entry price = OPEN of next day, not close of signal day
+        # Signal fires at close of day T, we enter at open of day T+1
+        if 'Next_Open' in df.columns and not pd.isna(df.loc[idx, 'Next_Open']):
+            entry_price = df.loc[idx, 'Next_Open']  # ✅ Realistic entry price
+            
+            # Calculate actual entry date (day after signal)
+            entry_idx_pos = df.index.get_loc(idx)
+            if entry_idx_pos + 1 < len(df):
+                actual_entry_date = df.index[entry_idx_pos + 1]
+            else:
+                # No next day data available - skip this signal
+                continue
+        else:
+            # Fallback if Next_Open not available - skip to avoid lookahead
+            continue
         
         # Find which specific entry signals triggered
         triggered_entries = [sig for sig in entry_signals if df.loc[idx, sig]]
         
         # Look for next exit signal after this entry
-        future_data = df.loc[idx:].iloc[1:]  # Start from next day
+        future_data = df.loc[idx:].iloc[1:]  # Start from next day after signal
         exit_signals_future = future_data[future_data['Any_Exit']]
         
         if len(exit_signals_future) > 0:
             # Found an exit signal
-            exit_idx = exit_signals_future.index[0]
-            exit_date = exit_idx
-            exit_price = df.loc[exit_idx, 'Close']
+            exit_signal_idx = exit_signals_future.index[0]
+            exit_signal_date = exit_signal_idx
+            
+            # CRITICAL FIX: Exit price = OPEN of day after exit signal
+            # Exit signal fires at close of day X, we exit at open of day X+1
+            if 'Next_Open' in df.columns and not pd.isna(df.loc[exit_signal_idx, 'Next_Open']):
+                exit_price = df.loc[exit_signal_idx, 'Next_Open']  # ✅ Realistic exit price
+                
+                # Calculate actual exit date (day after exit signal)
+                exit_idx_pos = df.index.get_loc(exit_signal_idx)
+                if exit_idx_pos + 1 < len(df):
+                    actual_exit_date = df.index[exit_idx_pos + 1]
+                else:
+                    # No next day data - use last available price as emergency exit
+                    exit_price = df.loc[exit_signal_idx, 'Close']
+                    actual_exit_date = exit_signal_date
+            else:
+                # Fallback if Next_Open not available - use signal day close
+                exit_price = df.loc[exit_signal_idx, 'Close']
+                actual_exit_date = exit_signal_date
             
             # Find which specific exit signals triggered
-            triggered_exits = [sig for sig in exit_signals if df.loc[exit_idx, sig]]
+            triggered_exits = [sig for sig in exit_signals if df.loc[exit_signal_idx, sig]]
             
-            # Calculate return
+            # Calculate return using realistic entry/exit prices
             return_pct = ((exit_price - entry_price) / entry_price) * 100
             
             # Calculate holding period
-            holding_days = (exit_date - entry_date).days
+            holding_days = (actual_exit_date - actual_entry_date).days
             
             paired_trades.append({
-                'entry_date': entry_date,
-                'exit_date': exit_date,
-                'entry_price': entry_price,
-                'exit_price': exit_price,
+                'entry_signal_date': entry_signal_date,  # When signal fired
+                'entry_date': actual_entry_date,         # When you actually entered
+                'exit_signal_date': exit_signal_date,    # When exit signal fired
+                'exit_date': actual_exit_date,           # When you actually exited
+                'entry_price': entry_price,              # Realistic fill price
+                'exit_price': exit_price,                # Realistic fill price
                 'return_pct': return_pct,
                 'holding_days': holding_days,
                 'entry_signals': triggered_entries,
@@ -446,10 +487,12 @@ def pair_entry_exit_signals(df: pd.DataFrame, entry_signals: List[str],
             last_price = df['Close'].iloc[-1]
             last_date = df.index[-1]
             return_pct = ((last_price - entry_price) / entry_price) * 100
-            holding_days = (last_date - entry_date).days
+            holding_days = (last_date - actual_entry_date).days
             
             paired_trades.append({
-                'entry_date': entry_date,
+                'entry_signal_date': entry_signal_date,
+                'entry_date': actual_entry_date,
+                'exit_signal_date': None,
                 'exit_date': None,
                 'entry_price': entry_price,
                 'exit_price': last_price,
@@ -856,6 +899,305 @@ def run_backtest(df: pd.DataFrame, ticker: str, period: str,
     return strategy_report
 
 
+def optimize_signal_thresholds(df: pd.DataFrame, signal_col: str, score_col: str, 
+                              signal_name: str = None, thresholds: List[float] = None) -> Dict:
+    """
+    Test different score thresholds and measure trading performance at each level.
+    
+    This function enables empirical threshold optimization by:
+    1. Filtering trades to only those meeting each threshold
+    2. Running entry-to-exit analysis on filtered trades
+    3. Measuring win rate, expectancy, and sample size
+    4. Finding optimal threshold that balances performance and sample size
+    
+    Args:
+        df: DataFrame with signals, scores, and Next_Open prices
+        signal_col: Column name for boolean signal (e.g., 'Moderate_Buy')
+        score_col: Column name for signal score (e.g., 'Moderate_Buy_Score')
+        signal_name: Human-readable name for reporting
+        thresholds: List of threshold values to test (default: [0,4,5,6,7,8,9])
+        
+    Returns:
+        Dict: Results mapping threshold → {win_rate, expectancy, trades, etc.}
+    """
+    if thresholds is None:
+        thresholds = [0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0]
+    
+    if signal_name is None:
+        signal_name = signal_col
+    
+    results = {}
+    
+    for threshold in thresholds:
+        # Create a filtered signal that only triggers when score >= threshold
+        df_filtered = df.copy()
+        df_filtered[f'{signal_col}_filtered'] = (
+            (df[signal_col] == True) & 
+            (df[score_col] >= threshold)
+        )
+        
+        # Skip if no signals at this threshold
+        if df_filtered[f'{signal_col}_filtered'].sum() == 0:
+            results[threshold] = {
+                'threshold': threshold,
+                'trades': 0,
+                'win_rate': 0,
+                'avg_return': 0,
+                'expectancy': 0,
+                'sample_size': 0
+            }
+            continue
+        
+        # Run backtest analysis on filtered signals
+        try:
+            # Use existing pair_entry_exit_signals with filtered signal
+            exit_signals = ['Profit_Taking', 'Distribution_Warning', 'Sell_Signal', 
+                           'Momentum_Exhaustion', 'Stop_Loss']
+            
+            # Pair filtered entry signals with exit signals
+            paired_trades = pair_entry_exit_signals(
+                df_filtered, 
+                [f'{signal_col}_filtered'], 
+                exit_signals
+            )
+            
+            if not paired_trades:
+                results[threshold] = {
+                    'threshold': threshold,
+                    'trades': 0,
+                    'win_rate': 0,
+                    'avg_return': 0,
+                    'expectancy': 0,
+                    'sample_size': 0
+                }
+                continue
+            
+            # Analyze performance using existing function
+            metrics = analyze_strategy_performance(paired_trades, 
+                                                  entry_filter=f'{signal_col}_filtered')
+            
+            # Extract key metrics
+            results[threshold] = {
+                'threshold': threshold,
+                'trades': metrics.get('closed_trades', 0),
+                'win_rate': metrics.get('win_rate', 0),
+                'avg_return': metrics.get('avg_return', 0),
+                'expectancy': metrics.get('expectancy', 0),
+                'sample_size': metrics.get('total_trades', 0),
+                'profit_factor': metrics.get('profit_factor', 0),
+                'best_return': metrics.get('best_return', 0),
+                'worst_return': metrics.get('worst_return', 0)
+            }
+            
+        except Exception as e:
+            # Handle any errors gracefully
+            results[threshold] = {
+                'threshold': threshold,
+                'trades': 0,
+                'win_rate': 0,
+                'avg_return': 0,
+                'expectancy': 0,
+                'sample_size': 0,
+                'error': str(e)
+            }
+    
+    return results
+
+
+def generate_threshold_optimization_report(optimization_results: Dict, signal_name: str, 
+                                          ticker: str, period: str) -> str:
+    """
+    Generate formatted threshold optimization report.
+    
+    Args:
+        optimization_results: Results from optimize_signal_thresholds()
+        signal_name: Human-readable signal name
+        ticker: Stock ticker symbol
+        period: Analysis period
+        
+    Returns:
+        str: Formatted optimization report
+    """
+    report_lines = []
+    
+    report_lines.append("=" * 70)
+    report_lines.append(f"📊 THRESHOLD OPTIMIZATION: {signal_name.upper()}")
+    report_lines.append(f"Ticker: {ticker} | Period: {period}")
+    report_lines.append("=" * 70)
+    report_lines.append("")
+    
+    # Sort results by threshold
+    sorted_results = sorted(optimization_results.items(), key=lambda x: x[0])
+    
+    # Table header
+    report_lines.append(f"{'Threshold':<10} {'Trades':<7} {'Win Rate':<10} {'Avg Return':<12} {'Expectancy':<12} {'P.Factor':<10}")
+    report_lines.append("-" * 70)
+    
+    best_expectancy = -999
+    best_threshold = None
+    
+    for threshold, metrics in sorted_results:
+        trades = metrics['trades']
+        win_rate = metrics['win_rate']
+        avg_return = metrics['avg_return']
+        expectancy = metrics['expectancy']
+        profit_factor = metrics.get('profit_factor', 0)
+        
+        # Format the row
+        report_lines.append(f"≥{threshold:<9.1f} {trades:<7} {win_rate:<10.1f}% {avg_return:<+12.2f}% {expectancy:<+12.2f}% {profit_factor:<10.2f}")
+        
+        # Track best performance (minimum 10 trades for reliability)
+        if trades >= 10 and expectancy > best_expectancy:
+            best_expectancy = expectancy
+            best_threshold = threshold
+    
+    report_lines.append("")
+    
+    # Recommendation
+    if best_threshold is not None:
+        best_metrics = optimization_results[best_threshold]
+        report_lines.append("💡 RECOMMENDED THRESHOLD:")
+        report_lines.append(f"  Use threshold ≥{best_threshold:.1f}")
+        report_lines.append(f"  • Win Rate: {best_metrics['win_rate']:.1f}%")
+        report_lines.append(f"  • Expectancy: {best_metrics['expectancy']:+.2f}%")
+        report_lines.append(f"  • Sample Size: {best_metrics['trades']} trades")
+        report_lines.append(f"  • Profit Factor: {best_metrics.get('profit_factor', 0):.2f}")
+        report_lines.append("")
+        
+        # Quality assessment
+        if best_metrics['expectancy'] > 2.0 and best_metrics['win_rate'] > 60:
+            report_lines.append("✅ EXCELLENT - Strong edge with good reliability")
+        elif best_metrics['expectancy'] > 1.0 and best_metrics['win_rate'] > 55:
+            report_lines.append("✅ GOOD - Solid positive edge")
+        elif best_metrics['expectancy'] > 0 and best_metrics['win_rate'] > 50:
+            report_lines.append("✓ FAIR - Marginal positive edge")
+        else:
+            report_lines.append("⚠️ POOR - Consider alternative thresholds or signal improvements")
+    else:
+        report_lines.append("⚠️ NO RELIABLE THRESHOLD FOUND")
+        report_lines.append("  • All thresholds had <10 trades (insufficient sample)")
+        report_lines.append("  • Consider using longer time period or lower thresholds")
+    
+    report_lines.append("")
+    
+    # Sample size warnings
+    insufficient_samples = [t for t, m in sorted_results if m['trades'] > 0 and m['trades'] < 10]
+    if insufficient_samples:
+        report_lines.append("⚠️ SAMPLE SIZE WARNINGS:")
+        for threshold in insufficient_samples:
+            metrics = optimization_results[threshold]
+            report_lines.append(f"  • Threshold ≥{threshold:.1f}: Only {metrics['trades']} trades (need ≥10)")
+        report_lines.append("")
+    
+    # Usage guide
+    report_lines.append("📝 INTERPRETATION GUIDE:")
+    report_lines.append("  • Expectancy >2.0% = Excellent edge")
+    report_lines.append("  • Expectancy 1.0-2.0% = Good edge")
+    report_lines.append("  • Expectancy 0-1.0% = Marginal edge")
+    report_lines.append("  • Win Rate >60% = Strong")
+    report_lines.append("  • Profit Factor >2.0 = Excellent")
+    report_lines.append("  • Sample Size ≥20 preferred for reliability")
+    report_lines.append("")
+    
+    return "\n".join(report_lines)
+
+
+def run_full_threshold_optimization(df: pd.DataFrame, ticker: str, period: str, 
+                                   save_to_file: bool = True, output_dir: str = 'backtest_results') -> str:
+    """
+    Run threshold optimization for all major signal types.
+    
+    Args:
+        df: DataFrame with signals and scores
+        ticker: Stock ticker symbol
+        period: Analysis period
+        save_to_file: Whether to save report to file
+        output_dir: Directory to save report
+        
+    Returns:
+        str: Complete threshold optimization report
+    """
+    import os
+    
+    # Define signals to optimize
+    signals_to_optimize = [
+        ('Moderate_Buy', 'Moderate_Buy_Score', 'Moderate Buy'),
+        ('Profit_Taking', 'Profit_Taking_Score', 'Profit Taking'),
+        ('Stealth_Accumulation', 'Stealth_Accumulation_Score', 'Stealth Accumulation')
+    ]
+    
+    full_report_lines = []
+    full_report_lines.append("=" * 80)
+    full_report_lines.append(f"🎯 COMPLETE THRESHOLD OPTIMIZATION ANALYSIS")
+    full_report_lines.append(f"Ticker: {ticker} | Period: {period}")
+    full_report_lines.append(f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    full_report_lines.append("=" * 80)
+    full_report_lines.append("")
+    
+    recommended_thresholds = {}
+    
+    for signal_col, score_col, signal_name in signals_to_optimize:
+        if signal_col not in df.columns or score_col not in df.columns:
+            full_report_lines.append(f"⚠️ Skipping {signal_name}: Missing columns")
+            full_report_lines.append("")
+            continue
+        
+        print(f"  Optimizing {signal_name}...")
+        
+        # Run optimization for this signal
+        results = optimize_signal_thresholds(df, signal_col, score_col, signal_name)
+        
+        # Generate individual report
+        signal_report = generate_threshold_optimization_report(results, signal_name, ticker, period)
+        full_report_lines.append(signal_report)
+        full_report_lines.append("")
+        
+        # Extract recommendation for summary
+        valid_results = {t: m for t, m in results.items() if m['trades'] >= 10}
+        if valid_results:
+            best_threshold = max(valid_results.items(), key=lambda x: x[1]['expectancy'])
+            recommended_thresholds[signal_name] = {
+                'threshold': best_threshold[0],
+                'metrics': best_threshold[1]
+            }
+    
+    # Summary of recommendations
+    full_report_lines.append("🎯 THRESHOLD RECOMMENDATIONS SUMMARY:")
+    full_report_lines.append("=" * 50)
+    
+    if recommended_thresholds:
+        for signal_name, rec in recommended_thresholds.items():
+            threshold = rec['threshold']
+            metrics = rec['metrics']
+            full_report_lines.append(f"{signal_name}:")
+            full_report_lines.append(f"  Threshold: ≥{threshold:.1f}")
+            full_report_lines.append(f"  Win Rate: {metrics['win_rate']:.1f}%")
+            full_report_lines.append(f"  Expectancy: {metrics['expectancy']:+.2f}%")
+            full_report_lines.append(f"  Sample: {metrics['trades']} trades")
+            full_report_lines.append("")
+    else:
+        full_report_lines.append("⚠️ No reliable thresholds found.")
+        full_report_lines.append("Consider using longer time period or reviewing signal logic.")
+        full_report_lines.append("")
+    
+    # Save to file if requested
+    full_report = "\n".join(full_report_lines)
+    
+    if save_to_file:
+        os.makedirs(output_dir, exist_ok=True)
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        filename = f"{ticker}_{period}_threshold_optimization_{timestamp}.txt"
+        filepath = os.path.join(output_dir, filename)
+        
+        with open(filepath, 'w') as f:
+            f.write(full_report)
+        
+        print(f"  💾 Optimization report saved: {filename}")
+    
+    return full_report
+
+
 if __name__ == "__main__":
     print("This module is designed to be imported by vol_analysis.py")
     print("Use: python vol_analysis.py TICKER --backtest")
+    print("Use: python vol_analysis.py TICKER --optimize-thresholds")
