@@ -6,41 +6,77 @@ import pandas as pd
 import numpy as np
 from typing import Optional, Tuple
 
-def calculate_obv(df: pd.DataFrame) -> pd.Series:
+def calculate_cmf(df: pd.DataFrame, period: int = 20) -> pd.Series:
     """
-    Calculate On-Balance Volume (OBV).
+    Calculate Chaikin Money Flow (CMF).
     
-    Args:
-        df (pd.DataFrame): DataFrame with Close and Volume columns
-        
-    Returns:
-        pd.Series: OBV values
-    """
-    return ((df['Close'] > df['Close'].shift(1)) * df['Volume'] - 
-            (df['Close'] < df['Close'].shift(1)) * df['Volume']).cumsum()
-
-def calculate_ad_line(df: pd.DataFrame) -> pd.Series:
-    """
-    Calculate Accumulation/Distribution Line.
+    CMF measures buying/selling pressure by comparing close position within 
+    the bar's range, weighted by volume. Replaces A/D Line and OBV to eliminate
+    redundant volume flow indicators.
+    
+    Formula:
+    Money Flow Multiplier = ((Close - Low) - (High - Close)) / (High - Low)
+    Money Flow Volume = Money Flow Multiplier × Volume
+    CMF = Sum(Money Flow Volume, period) / Sum(Volume, period)
+    
+    Range: -1.0 to +1.0
+    - Values near +1.0: Strong buying pressure
+    - Values near -1.0: Strong selling pressure
+    - Values near 0: Neutral or choppy
     
     Args:
         df (pd.DataFrame): DataFrame with OHLCV columns
+        period (int): Rolling period for CMF calculation (default: 20)
         
     Returns:
-        pd.Series: A/D Line values
+        pd.Series: CMF values
     """
     # Handle division by zero when High == Low
     high_low_diff = df['High'] - df['Low']
     
-    # Calculate AD_Multiplier with proper handling of zero divisions
-    ad_multiplier = ((df['Close'] - df['Low']) - (df['High'] - df['Close'])) / high_low_diff
-    ad_multiplier = ad_multiplier.fillna(0)  # Replace inf/NaN with 0
-    ad_multiplier = ad_multiplier.replace([np.inf, -np.inf], 0)  # Replace inf values with 0
+    # Calculate Money Flow Multiplier
+    mf_multiplier = ((df['Close'] - df['Low']) - (df['High'] - df['Close'])) / high_low_diff
+    mf_multiplier = mf_multiplier.fillna(0)  # Replace NaN with 0
+    mf_multiplier = mf_multiplier.replace([np.inf, -np.inf], 0)  # Replace inf values with 0
     
-    # Calculate A/D Line
-    ad_line = (ad_multiplier * df['Volume']).cumsum()
+    # Calculate Money Flow Volume
+    mf_volume = mf_multiplier * df['Volume']
     
-    return ad_line
+    # Calculate CMF as ratio of sums
+    cmf = mf_volume.rolling(period).sum() / df['Volume'].rolling(period).sum()
+    
+    return cmf
+
+
+def calculate_cmf_zscore(df: pd.DataFrame, cmf_period: int = 20, zscore_window: int = 20) -> pd.Series:
+    """
+    Calculate CMF and convert to z-score for normalized cross-stock comparison.
+    
+    Z-score normalization allows consistent thresholds across stocks with
+    different volatility characteristics. This is the primary volume flow
+    indicator for the system.
+    
+    Args:
+        df (pd.DataFrame): DataFrame with OHLCV columns
+        cmf_period (int): Period for CMF calculation (default: 20)
+        zscore_window (int): Rolling window for z-score calculation (default: 20)
+        
+    Returns:
+        pd.Series: CMF z-score values
+    """
+    # Calculate base CMF
+    cmf = calculate_cmf(df, period=cmf_period)
+    
+    # Calculate rolling z-score
+    rolling_mean = cmf.rolling(zscore_window).mean()
+    rolling_std = cmf.rolling(zscore_window).std()
+    
+    # Handle zero std dev (constant values)
+    rolling_std = rolling_std.replace(0, np.nan)
+    
+    cmf_zscore = (cmf - rolling_mean) / rolling_std
+    
+    return cmf_zscore
 
 def calculate_vwap(df: pd.DataFrame) -> pd.Series:
     """

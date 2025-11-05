@@ -1,264 +1,154 @@
 # Volume Analysis Project - Code Map
 
-**Last Updated**: 2025-11-03 (Phase 4 Refactoring Complete)
-
-This document provides a comprehensive overview of the project's file structure, module purposes, and their relationships. It should be updated after each refactoring phase to reflect architectural changes.
-
----
-
-## 📁 Project Structure
-
-### Core Modules
-
-**`vol_analysis.py`** - Main analysis script and orchestrator (Phase 4 refactor complete)
-- Entry point for all analysis operations
-- Command-line interface and argument parsing
-- Orchestrates data fetching, signal generation, and output creation
-- Integrates all other modules
-- Reduced from ~1,558 lines to ~912 lines after Phase 4 refactoring
-
-**`signal_generator.py`** - ✨ Signal generation module for all buy/sell signals (Phase 2 refactor)
-- Centralized signal detection logic
-- Accumulation and exit scoring algorithms
-- Entry signals: Strong Buy, Moderate Buy, Stealth Accumulation, Confluence, Volume Breakout
-- Exit signals: Profit Taking, Distribution Warning, Sell, Momentum Exhaustion, Stop Loss
-- ~450 lines of pure signal generation logic
-
-**`indicators.py`** - Technical indicator calculations (Phase 1 refactor)
-- On-Balance Volume (OBV)
-- Accumulation/Distribution Line (A/D Line)
-- Volume Weighted Average Price (VWAP)
-- Support Level detection
-- Price-Volume correlation
-- ~350 lines of technical calculations
-
-**`batch_processor.py`** - ✨ Batch processing module for multi-ticker analysis (Phase 4 refactor)
-- Multi-ticker processing from file input
-- HTML summary generation with interactive charts
-- Stealth accumulation and entry signal scoring algorithms
-- Batch reporting and ranking functionality
-- ~800+ lines of batch processing logic
-
-**`backtest.py`** - Backtesting framework for validating signal performance
-- Entry-to-exit trade pairing
-- Strategy performance analysis
-- Win rate, profit factor, and expectancy calculations
-- Generates detailed backtest reports
-- ~600 lines
-
-**`error_handler.py`** - Centralized error handling and logging framework
-- Error context management
-- Validation functions
-- Logging configuration and utilities
-- ~200 lines
-
-**`schema_manager.py`** - Database schema management for backtesting results
-- Schema versioning for cache files
-- Metadata management
-- Data integrity validation (checksums, column validation)
-- ~150 lines
-
-**`data_manager.py`** - Data management utilities and helpers
-- Yahoo Finance API integration
-- Smart caching with schema versioning
-- Cache management operations (clear, refresh, info)
-- Incremental data updates
-- ~400 lines
-
-**`batch_backtest.py`** - Batch backtesting and strategy optimization module
-- Runs backtests across multiple tickers from file input
-- Aggregates trade results for statistical analysis
-- Ranks entry and exit signals by performance metrics
-- Generates individual ticker backtest reports
-- Creates comprehensive aggregate optimization reports
-- Analyzes strategy combinations across different stocks
-- Provides statistical significance validation
-- Command-line interface with customizable output directory
-- ~700 lines of optimization and reporting logic
-
-**`migrate_cache.py`** - Cache schema migration utility
-- Migrates legacy cache files to current schema
-- Validates cache file integrity
-- Batch processing for multiple files
+**Last Updated**: 2025-11-05
+**Purpose**: Quick reference for upgrade spec implementation
 
 ---
 
-### Data Directories
+## Core Analysis Pipeline
 
-**`data_cache/`** - Cached price data with schema versioning
-- Stores historical price data locally
-- Includes metadata headers with schema version, checksums, and provenance
-- Reduces API calls to Yahoo Finance
-- Format: `{TICKER}_{INTERVAL}_cache.csv`
+**`vol_analysis.py`** - Main orchestrator
+- Entry point and CLI
+- Coordinates all modules
+- Single-ticker and batch analysis
 
-**`results_volume/`** - Analysis output directory
-- Individual ticker analysis reports
-- Batch processing summaries
-- HTML interactive reports
-- Chart images (when `--save-charts` used)
+**`signal_generator.py`** - Entry/exit signal logic
+- Accumulation scoring (Strong Buy, Moderate Buy, Stealth)
+- Exit scoring (Profit Taking, Distribution, Stop Loss)
+- Primary target for Items #5, #10, #12, #13
 
-**`backtest_results/`** - Backtest results database
-- SQLite database with trade analysis
-- Entry-to-exit paired trades
-- Strategy performance metrics
-- Historical backtest reports
+**`indicators.py`** - Technical calculations
+- Anchored VWAP (Item #1 ✅)
+- Swing levels (Item #2 ✅)
+- ATR/Event detection (Item #3 ✅)
+- Next-day references (Item #4 ✅)
+- Primary target for Items #10, #12
 
----
+**`chart_builder.py`** - Visualization
+- 3-panel charts with signal markers
+- Displays swing levels, event days, signals
 
-### Configuration Files
-
-**`.gitignore`** - Git ignore rules
-- Excludes cache files, results, and sensitive data
-
-**`stocks.txt`** - Sample ticker list for batch processing
-- One ticker per line format
-- Comments with # supported
-
-**`short.txt`** - Short ticker list for testing
-- Smaller subset for quick batch tests
+**`batch_processor.py`** - Multi-ticker processing
+- HTML summary generation
+- Batch ranking and scoring
+- Target for Item #11 (pre-filters)
 
 ---
 
-### Documentation Files
+## Risk & Testing
 
-**`README.md`** - Main project documentation
-- Feature overview and usage guide
-- Command-line interface examples
-- Signal interpretation guide
-- Installation and troubleshooting
+**`backtest.py`** - Trade validation
+- Entry-to-exit pairing
+- Performance metrics
+- Primary target for Items #5, #13
 
-**`refactor.md`** - Refactoring plan and progress
-- 5-phase modularization strategy
-- Current status and next steps
-- Architecture goals and benefits
+**`data_manager.py`** - Data fetch/cache
+- Yahoo Finance integration
+- Cache management with schema versioning
 
-**`CODE_MAP.txt`** - This file
-- Project structure overview
-- Module purposes and relationships
-- Kept up-to-date after each refactoring phase
-
-**`upgrade_spec.md`** - Feature upgrade specifications
-- Planned enhancements and new features
-- Technical requirements
-- Implementation notes
-
-**`tasks.md`** - Task tracking and project management
-- Current tasks and priorities
-- Completed work log
-
-**`git-workflow.md`** - Git workflow and best practices
-- Branching strategy
-- Commit conventions
-- Collaboration guidelines
+**`threshold_config.py`** - Signal thresholds (NEW)
+- Empirically-validated thresholds (Item #8 ✅)
+- Target for optimization refinement
 
 ---
 
-### Testing Files
+## Support Modules
 
-**`test_error_framework.py`** - Error handling framework tests
-- Tests error context management
-- Validates error handling behavior
-
-**`test_schema_manager.py`** - Schema manager tests
-- Tests cache schema validation
-- Validates migration functionality
-
-**`test_timezone.py`** - Timezone handling tests
-- Tests timezone normalization
-- Validates datetime consistency
-
-**`debug_timezone_simple.py`** - Timezone debugging utility
-- Helper script for diagnosing timezone issues
+**`schema_manager.py`** - Cache schema management
+**`error_handler.py`** - Error handling framework
+**`utils.py`** - Utility functions
 
 ---
 
-## 🔄 Refactoring Progress
+## Upgrade Status Matrix
 
-### Completed Phases
+### Completed
+- ✅ Item #1: Anchored VWAP (indicators.py, signal_generator.py)
+- ✅ Item #2: Swing Support/Resistance (indicators.py, chart_builder.py)
+- ✅ Item #3: Event Spike Filter (indicators.py, signal_generator.py)
+- ✅ Item #4: Next-Day Execution (indicators.py, backtest.py, chart_builder.py)
+- ✅ Item #8: Threshold Optimization (threshold_config.py, signal_generator.py)
 
-**✅ Phase 1: Utilize Existing Indicators Module (2025-11-03)**
-- Eliminated ~150 lines of duplicate code
-- All technical indicators now use `indicators.py`
-- No breaking changes to functionality
+### Ready to Implement (Specs Complete)
+- ⏸️ Item #5: P&L-Aware Exits
+  - Files: signal_generator.py, backtest.py
+  - New: RiskManager integration
+  
+- ⏸️ Item #6: Market/Sector Regime Filter
+  - Files: vol_analysis.py
+  - New: regime_filter.py
+  
+- ⏸️ Item #10: CMF Replacement (A/D + OBV → CMF-20)
+  - Files: indicators.py, signal_generator.py
+  - Action: Remove A/D, OBV; add CMF-20 with z-score
+  
+- ⏸️ Item #11: Pre-Trade Quality Filters
+  - Files: vol_analysis.py, batch_processor.py
+  - New: Liquidity, price, earnings window checks
+  
+- ⏸️ Item #12: Z-Score Normalization
+  - Files: indicators.py, signal_generator.py
+  - Action: Standardize all features (Volume, CMF, TR, ATR)
+  
+- ⏸️ Item #13: RiskManager Framework
+  - New: risk_manager.py
+  - Integration: backtest.py, signal_generator.py
+  - Features: Position sizing, stop placement, profit scaling
 
-**✅ Phase 2: Extract Signal Generation Logic (2025-11-03)**
-- Created `signal_generator.py` (~450 lines)
-- Centralized all buy/sell signal detection
-- Reduced `vol_analysis.py` by ~350 lines
-- All signals working correctly
-
-**✅ Phase 3: Extract Visualization Logic (2025-11-03)**
-- Created `chart_builder.py` (~300 lines)
-- Extracted all matplotlib plotting code into modular functions
-- Complete 3-panel chart generation with signal markers
-- Reduced `vol_analysis.py` by ~250 lines
-- All chart functionality preserved and working correctly
-
-**✅ Phase 4: Extract Batch Processing Logic (2025-11-03)**
-- Created `batch_processor.py` (~800+ lines)
-- Extracted all multi-ticker processing functionality
-- Includes stealth/entry scoring algorithms and HTML summary generation
-- Reduced `vol_analysis.py` by ~646+ lines (from ~1,558 to ~912 lines)
-- All batch processing functionality working correctly
-- Interactive HTML summaries with clickable charts preserved
-
-### Pending Phases
-
-**⏸️ Phase 5: Extract Report Generation (Optional)**
-- Target: Create `report_generator.py` (~200 lines)
-- Isolate text output formatting
-- Separate console output logic
+### Planned
+- ⏸️ Item #9: Validation Framework (prevent overfitting)
+- ⏸️ Item #7: Further modularization (optional)
 
 ---
 
-## 🎯 Module Dependencies
+## File → Upgrade Item Quick Reference
 
 ```
-vol_analysis.py (main orchestrator)
-├── data_manager.py (data fetching & caching)
-├── indicators.py (technical calculations)
-├── signal_generator.py (signal detection)
-├── chart_builder.py (visualization)
-├── batch_processor.py (multi-ticker processing)
-├── backtest.py (performance validation)
-├── error_handler.py (error handling)
-└── schema_manager.py (cache management)
+indicators.py      → Items #10, #12 (CMF, z-scores)
+signal_generator.py → Items #5, #10, #12, #13 (exits, CMF, z-scores, risk)
+backtest.py        → Items #5, #13 (P&L exits, RiskManager)
+vol_analysis.py    → Items #6, #11 (regime filter, pre-filters)
+batch_processor.py → Item #11 (pre-filters)
 
-batch_processor.py
-├── vol_analysis.py (imports analyze_ticker function)
-└── error_handler.py (error handling)
+NEW FILES NEEDED:
+- risk_manager.py  → Item #13 (comprehensive risk framework)
+- regime_filter.py → Item #6 (market/sector regime checks)
+```
 
-backtest.py
-├── schema_manager.py (database schema)
-└── error_handler.py (error handling)
+---
 
-chart_builder.py
-├── signal_generator.py (signal detection)
-└── indicators.py (technical indicators - indirect via DataFrame)
+## Key Dependencies
+
+```
+vol_analysis.py
+├── data_manager.py
+├── indicators.py
+├── signal_generator.py
+├── chart_builder.py
+├── batch_processor.py
+└── backtest.py
 
 signal_generator.py
-└── indicators.py (technical indicators - indirect via DataFrame)
+└── indicators.py (uses calculated columns)
 
-data_manager.py
-└── schema_manager.py (cache schema validation)
+backtest.py
+└── schema_manager.py
 ```
 
 ---
 
-## 📝 Maintenance Notes
+## Implementation Priority Order
 
-- **Update Frequency**: This file should be updated after completing each refactoring phase
-- **Version Control**: Keep this file in sync with actual codebase structure
-- **Line Counts**: Approximate values, may vary slightly with updates
-- **Dependencies**: Update dependency graph when new modules are added or relationships change
+Based on upgrade spec pragmatic sequence:
+
+1. **Item #10** (CMF) - Foundation for scoring
+2. **Item #12** (Z-scores) - Standardization enables optimization
+3. **Item #11** (Pre-filters) - Quality gate before signals
+4. **Item #6** (Regime) - Market context validation
+5. **Item #13** (RiskManager) - Unified risk management
+6. **Item #5** (P&L Exits) - Integrates with RiskManager
+7. **Item #9** (Validation) - Prevent overfitting
 
 ---
 
-**Current Status**: Phase 4 complete! Major refactoring achievement:
-- **Before**: Single monolithic file (~1,558 lines)
-- **After**: Modular architecture with 4 specialized modules
-- **Reduction**: ~646 lines removed from main file (58% size reduction)
-- **Benefits**: Improved maintainability, reduced context window usage, better separation of concerns
-- **Status**: All functionality preserved and working correctly
-
-**Optional Phase 5**: Text report generation extraction (~200 lines) - low priority
+**Maintenance**: Update only when modules change or upgrades complete.

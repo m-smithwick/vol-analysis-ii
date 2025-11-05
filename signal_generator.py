@@ -20,38 +20,42 @@ def calculate_accumulation_score(df: pd.DataFrame) -> pd.Series:
     Calculate accumulation confidence score (0-10 scale).
     
     Analyzes multiple factors to determine accumulation strength:
-    - A/D divergence (price down, A/D up)
-    - OBV divergence (price down, OBV up)
+    - CMF z-score (volume flow - replaces A/D and OBV)
     - Volume spikes
     - Price position relative to VWAP
     - Proximity to support levels
     
+    CMF z-score provides normalized volume flow measurement across different stocks,
+    replacing the redundant A/D Line and OBV indicators.
+    
     Args:
-        df: DataFrame with required columns: AD_Rising, Price_Rising, OBV_Trend,
-            Price_Trend, Volume_Spike, Above_VWAP, Near_Support
+        df: DataFrame with required columns: CMF_Z, Volume_Spike, Above_VWAP, Near_Support
             
     Returns:
         Series with accumulation scores (0-10 scale)
     """
-    score = pd.Series(0, index=df.index)
+    score = pd.Series(5.0, index=df.index)  # Start at neutral (mid-scale)
     
-    # A/D divergence: A/D rising while price not rising (2 points)
-    score = score + (df['AD_Rising'] & ~df['Price_Rising']).astype(int) * 2
-    
-    # OBV divergence: OBV trending up while price not trending up (2 points)
-    score = score + (df['OBV_Trend'] & ~df['Price_Trend']).astype(int) * 2
+    # CMF z-score contribution (weight 2.0, clamped to ±2σ)
+    # Replaces both A/D and OBV divergence logic (was 4 points combined)
+    if 'CMF_Z' in df.columns:
+        cmf_contribution = np.clip(df['CMF_Z'], -2, +2) * 2.0
+        score = score + cmf_contribution
     
     # Volume spike present (1 point)
-    score = score + df['Volume_Spike'].astype(int) * 1
+    if 'Volume_Spike' in df.columns:
+        score = score + df['Volume_Spike'].astype(float) * 1.0
     
     # Price above VWAP (1 point)
-    score = score + df['Above_VWAP'].astype(int) * 1
+    if 'Above_VWAP' in df.columns:
+        score = score + df['Above_VWAP'].astype(float) * 1.0
     
     # Price near support level (1 point)
-    score = score + df['Near_Support'].astype(int) * 1
+    if 'Near_Support' in df.columns:
+        score = score + df['Near_Support'].astype(float) * 1.0
     
-    # Normalize to 0-10 scale (max raw score is 7)
-    score = np.clip(score * 10 / 7, 0, 10)
+    # Normalize to 0-10 scale and clip
+    score = np.clip(score, 0, 10)
     
     return score
 
@@ -133,14 +137,14 @@ def generate_moderate_buy_signals(df: pd.DataFrame) -> pd.Series:
     
     Criteria:
     - Moderate accumulation score (5-7)
-    - A/D rising OR OBV trending up
+    - CMF z-score positive (>0, indicating buying pressure)
     - Above VWAP
     - Not already a strong buy signal
     - Not an event day (ATR spike filter)
     
     Args:
-        df: DataFrame with required columns: Accumulation_Score, AD_Rising,
-            OBV_Trend, Above_VWAP, Strong_Buy, Event_Day
+        df: DataFrame with required columns: Accumulation_Score, CMF_Z,
+            Above_VWAP, Strong_Buy, Event_Day
             
     Returns:
         Boolean Series indicating moderate buy signals
@@ -148,10 +152,13 @@ def generate_moderate_buy_signals(df: pd.DataFrame) -> pd.Series:
     # Check if Event_Day column exists for filtering
     event_day_filter = ~df['Event_Day'] if 'Event_Day' in df.columns else True
     
+    # CMF z-score positive indicates buying pressure (replaces A/D rising OR OBV trending)
+    cmf_positive = df['CMF_Z'] > 0 if 'CMF_Z' in df.columns else True
+    
     moderate_conditions = (
         (df['Accumulation_Score'] >= 5) & 
         (df['Accumulation_Score'] < 7) &
-        (df['AD_Rising'] | df['OBV_Trend']) &
+        cmf_positive &
         df['Above_VWAP'] &
         event_day_filter
     )
@@ -170,13 +177,13 @@ def generate_stealth_accumulation_signals(df: pd.DataFrame) -> pd.Series:
     Criteria:
     - High accumulation score (≥6)
     - Low/normal volume (<1.3x average)
-    - A/D rising while price not rising (divergence)
+    - CMF positive while price not rising (divergence)
     - Not already a strong or moderate buy signal
     - Not an event day (ATR spike filter)
     
     Args:
         df: DataFrame with required columns: Accumulation_Score, Relative_Volume,
-            AD_Rising, Price_Rising, Strong_Buy, Moderate_Buy, Event_Day
+            CMF_Z, Price_Rising, Strong_Buy, Moderate_Buy, Event_Day
             
     Returns:
         Boolean Series indicating stealth accumulation signals
@@ -184,10 +191,17 @@ def generate_stealth_accumulation_signals(df: pd.DataFrame) -> pd.Series:
     # Check if Event_Day column exists for filtering
     event_day_filter = ~df['Event_Day'] if 'Event_Day' in df.columns else True
     
+    # CMF positive while price not rising indicates stealth accumulation
+    # (replaces A/D rising & ~Price_Rising divergence)
+    if 'CMF_Z' in df.columns and 'Price_Rising' in df.columns:
+        cmf_divergence = (df['CMF_Z'] > 0) & ~df['Price_Rising']
+    else:
+        cmf_divergence = True  # Default to allowing signal if columns missing
+    
     stealth_conditions = (
         (df['Accumulation_Score'] >= 6) &
         (df['Relative_Volume'] < 1.3) &
-        (df['AD_Rising'] & ~df['Price_Rising']) &
+        cmf_divergence &
         event_day_filter
     )
     
@@ -210,12 +224,12 @@ def generate_confluence_signals(df: pd.DataFrame) -> pd.Series:
     - Near support level
     - Volume spike
     - Above VWAP
-    - Both A/D and OBV trending up
+    - Strong CMF (z-score > 1.0, indicating strong buying pressure)
     - Not an event day (ATR spike filter)
     
     Args:
         df: DataFrame with required columns: Accumulation_Score, Near_Support,
-            Volume_Spike, Above_VWAP, AD_Rising, OBV_Trend, Event_Day
+            Volume_Spike, Above_VWAP, CMF_Z, Event_Day
             
     Returns:
         Boolean Series indicating confluence signals
@@ -223,12 +237,15 @@ def generate_confluence_signals(df: pd.DataFrame) -> pd.Series:
     # Check if Event_Day column exists for filtering
     event_day_filter = ~df['Event_Day'] if 'Event_Day' in df.columns else True
     
+    # Strong CMF (>1σ) replaces "both A/D and OBV trending up"
+    strong_cmf = df['CMF_Z'] > 1.0 if 'CMF_Z' in df.columns else True
+    
     return (
         (df['Accumulation_Score'] >= 6) &
         df['Near_Support'] &
         df['Volume_Spike'] &
         df['Above_VWAP'] &
-        (df['AD_Rising'] & df['OBV_Trend']) &
+        strong_cmf &
         event_day_filter
     )
 

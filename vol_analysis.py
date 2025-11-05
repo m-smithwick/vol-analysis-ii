@@ -651,27 +651,35 @@ def analyze_ticker(ticker: str, period='6mo', save_to_file=False, output_dir='.'
             # Catch any other unexpected errors
             raise DataDownloadError(f"Failed to get data for {ticker}: {str(e)}")
     
-    # --- OBV (On-Balance Volume) ---
-    df['OBV'] = indicators.calculate_obv(df)
-    
-    # --- Accumulation/Distribution Line ---
-    df['AD_Line'] = indicators.calculate_ad_line(df)
+    # --- CMF (Chaikin Money Flow) - Replaces OBV and A/D Line ---
+    # Item #10: Volume Flow Simplification
+    df['CMF_20'] = indicators.calculate_cmf(df, period=20)
+    df['CMF_Z'] = indicators.calculate_cmf_zscore(df, cmf_period=20, zscore_window=20)
     
     # --- Rolling correlation between price and volume ---
     df['PriceVolumeCorr'] = indicators.calculate_price_volume_correlation(df, window=20)
     
-    # --- Enhanced Accumulation/Distribution Detection ---
+    # --- Enhanced Volume Flow Detection (using CMF) ---
     
-    # 1. OBV Trend Analysis
-    df['OBV_MA'] = df['OBV'].rolling(window=10).mean()
-    df['OBV_Trend'] = df['OBV'] > df['OBV_MA']
+    # 1. Price Trend Analysis (for divergence detection)
     df['Price_MA'] = df['Close'].rolling(window=10).mean()
     df['Price_Trend'] = df['Close'] > df['Price_MA']
-    
-    # 2. A/D Line Divergence Detection
-    df['AD_MA'] = df['AD_Line'].rolling(window=10).mean()
-    df['AD_Rising'] = df['AD_Line'] > df['AD_MA']
     df['Price_Rising'] = df['Close'] > df['Close'].shift(5)
+    
+    # 2. CMF-based divergence signals
+    # CMF positive indicates buying pressure, negative indicates selling pressure
+    df['CMF_Positive'] = df['CMF_Z'] > 0
+    df['CMF_Strong'] = df['CMF_Z'] > 1.0  # Strong buying pressure (>1 std dev)
+    
+    # --- Legacy columns for backward compatibility with exit signals ---
+    # These will be removed in future updates when exit signals are refactored
+    # For now, create minimal backward-compatible versions using CMF
+    df['OBV'] = df['CMF_20'] * df['Volume'].cumsum()  # Approximate OBV from CMF
+    df['OBV_MA'] = df['OBV'].rolling(window=10).mean()
+    df['OBV_Trend'] = df['CMF_Z'] > 0  # CMF positive = OBV trending up
+    df['AD_Line'] = df['CMF_20'] * df['Volume'].cumsum()  # Approximate AD from CMF
+    df['AD_MA'] = df['AD_Line'].rolling(window=10).mean()
+    df['AD_Rising'] = df['CMF_Z'] > 0  # CMF positive = AD rising
     
     # 3. Volume Analysis
     df['Volume_MA'] = df['Volume'].rolling(window=20).mean()

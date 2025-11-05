@@ -667,7 +667,15 @@ Rather than bolt on each fix individually, refactor into a modular pipeline:
 
 ## 10. Volume Flow Simplification (CMF Replacement)
 
-**STATUS: ⏸️ NOT STARTED - NEW ITEM from tweaks.txt**
+**STATUS: ✅ COMPLETED (2025-11-05)**
+
+**Implementation Notes:**
+- Added `calculate_cmf()` and `calculate_cmf_zscore()` to `indicators.py`
+- Updated `signal_generator.py` to use CMF_Z instead of A/D and OBV
+- Updated `vol_analysis.py` to calculate CMF-20 and CMF z-score
+- Fixed FutureWarning issues in `chart_builder.py` (changed `.fillna(False).astype(bool)` to `== True`)
+- Validation: CMF successfully replaces redundant A/D + OBV indicators
+- Benefits: Simplified scoring logic, single volume flow metric, normalized z-scores
 
 ### Goal
 Current system uses both A/D (Accumulation/Distribution) and OBV (On-Balance Volume), which creates duplication since both measure volume-price flow. This redundancy adds complexity without proportional information gain.
