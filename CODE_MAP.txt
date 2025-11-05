@@ -68,27 +68,34 @@
 - ✅ Item #3: Event Spike Filter (indicators.py, signal_generator.py)
 - ✅ Item #4: Next-Day Execution (indicators.py, backtest.py, chart_builder.py)
 - ✅ Item #8: Threshold Optimization (threshold_config.py, signal_generator.py)
+- ✅ Item #10: CMF Replacement (indicators.py, signal_generator.py, vol_analysis.py, chart_builder.py)
+  - Implemented: 2025-11-05
+  - Added calculate_cmf() and calculate_cmf_zscore() functions
+  - Replaced A/D + OBV with single CMF indicator
+  - Fixed FutureWarnings in chart_builder.py
 
 ### Ready to Implement (Specs Complete)
 - ⏸️ Item #5: P&L-Aware Exits
   - Files: signal_generator.py, backtest.py
   - New: RiskManager integration
   
-- ⏸️ Item #6: Market/Sector Regime Filter
-  - Files: vol_analysis.py
-  - New: regime_filter.py
+- ✅ Item #6: Market/Sector Regime Filter (regime_filter.py, vol_analysis.py)
+  - Implemented: 2025-11-05
+  - SPY > 200DMA AND Sector ETF > 50DMA pre-filter
+  - Comprehensive sector mapping for all major stocks
+  - Integrates seamlessly with signal generation pipeline
   
-- ⏸️ Item #10: CMF Replacement (A/D + OBV → CMF-20)
-  - Files: indicators.py, signal_generator.py
-  - Action: Remove A/D, OBV; add CMF-20 with z-score
+- ✅ Item #11: Pre-Trade Quality Filters (indicators.py, signal_generator.py, vol_analysis.py)
+  - Implemented: 2025-11-05
+  - Added check_liquidity(), check_price(), check_earnings_window() functions
+  - Integrated with signal generation via apply_prefilters parameter
+  - Three-layer filtering: liquidity ($5M), price ($3), earnings (T-3 to T+3)
   
-- ⏸️ Item #11: Pre-Trade Quality Filters
-  - Files: vol_analysis.py, batch_processor.py
-  - New: Liquidity, price, earnings window checks
-  
-- ⏸️ Item #12: Z-Score Normalization
-  - Files: indicators.py, signal_generator.py
-  - Action: Standardize all features (Volume, CMF, TR, ATR)
+- ✅ Item #12: Z-Score Normalization (indicators.py, signal_generator.py, vol_analysis.py)
+  - Implemented: 2025-11-05
+  - Added calculate_zscore() and standardize_features() functions
+  - Updated accumulation scoring to use Volume_Z and TR_Z
+  - Enables consistent feature weighting across different stocks
   
 - ⏸️ Item #13: RiskManager Framework
   - New: risk_manager.py
@@ -110,9 +117,11 @@ backtest.py        → Items #5, #13 (P&L exits, RiskManager)
 vol_analysis.py    → Items #6, #11 (regime filter, pre-filters)
 batch_processor.py → Item #11 (pre-filters)
 
+NEW FILES CREATED:
+- regime_filter.py → Item #6 ✅ (market/sector regime checks)
+
 NEW FILES NEEDED:
 - risk_manager.py  → Item #13 (comprehensive risk framework)
-- regime_filter.py → Item #6 (market/sector regime checks)
 ```
 
 ---
@@ -141,11 +150,11 @@ backtest.py
 
 Based on upgrade spec pragmatic sequence:
 
-1. **Item #10** (CMF) - Foundation for scoring
-2. **Item #12** (Z-scores) - Standardization enables optimization
-3. **Item #11** (Pre-filters) - Quality gate before signals
-4. **Item #6** (Regime) - Market context validation
-5. **Item #13** (RiskManager) - Unified risk management
+1. ✅ **Item #10** (CMF) - Foundation for scoring - COMPLETED
+2. ✅ **Item #12** (Z-scores) - Standardization enables optimization - COMPLETED
+3. ✅ **Item #11** (Pre-filters) - Quality gate before signals - COMPLETED
+4. ✅ **Item #6** (Regime) - Market context validation - COMPLETED
+5. **Item #13** (RiskManager) - Unified risk management - NEXT
 6. **Item #5** (P&L Exits) - Integrates with RiskManager
 7. **Item #9** (Validation) - Prevent overfitting
 

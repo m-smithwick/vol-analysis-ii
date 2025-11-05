@@ -26,6 +26,22 @@ Quick reference for all upgrade items and their implementation status.
 - Data-driven threshold selection via backtests (Moderate Buy ≥6.5, Strong Buy ≥8.0)
 - **Status:** ✅ COMPLETED (2025-11-04) - **Note:** Overfitting risk identified
 
+**Item #10: Volume Flow Simplification (CMF Replacement)** 🆕
+- Replace A/D + OBV duplication with single Chaikin Money Flow (CMF-20) z-score
+- **Status:** ✅ COMPLETED (2025-11-05)
+
+**Item #11: Pre-Trade Quality Filters** 🆕
+- Three-layer filters: liquidity ($5M min), price ($3.00 min), earnings window (T-3 to T+3)
+- **Status:** ✅ COMPLETED (2025-11-05)
+
+**Item #12: Feature Standardization (Z-Score Normalization)** 🆕
+- Convert all features to z-scores for consistent weighting across different stocks
+- **Status:** ✅ COMPLETED (2025-11-05)
+
+**Item #6: Market/Sector Regime Filter**
+- Require SPY > 200DMA AND sector ETF > 50DMA before allowing entry signals
+- **Status:** ✅ COMPLETED (2025-11-05)
+
 ---
 
 ## Pending Implementation ⏸️
@@ -34,9 +50,6 @@ Quick reference for all upgrade items and their implementation status.
 - Risk-based exits with time stops, momentum failures, and profit scaling at +2R
 - **Status:** ⏸️ NOT STARTED - Enhanced with tweaks.txt formulas
 
-**Item #6: Market/Sector Regime Filter**
-- Require SPY > 200DMA AND sector ETF > 50DMA before allowing entry signals
-- **Status:** ⏸️ NOT STARTED - Enhanced with tweaks.txt thresholds
 
 **Item #7: Refactor/Integration Plan**
 - Modular pipeline architecture with separate modules for each feature type
@@ -45,18 +58,6 @@ Quick reference for all upgrade items and their implementation status.
 **Item #9: Robust Threshold Validation & Overfitting Prevention**
 - Walk-forward analysis and out-of-sample validation to prevent curve-fitting
 - **Status:** ⏸️ PLANNED (depends on Item #8)
-
-**Item #10: Volume Flow Simplification (CMF Replacement)** 🆕
-- Replace A/D + OBV duplication with single Chaikin Money Flow (CMF-20) z-score
-- **Status:** ⏸️ NOT STARTED - New item from tweaks.txt
-
-**Item #11: Pre-Trade Quality Filters** 🆕
-- Three-layer filters: liquidity ($5M min), price ($3.00 min), earnings window (T-3 to T+3)
-- **Status:** ⏸️ NOT STARTED - New item from tweaks.txt
-
-**Item #12: Feature Standardization (Z-Score Normalization)** 🆕
-- Convert all features to z-scores for consistent weighting across different stocks
-- **Status:** ⏸️ NOT STARTED - New item from tweaks.txt
 
 **Item #13: Comprehensive Risk Framework** 🆕
 - Unified RiskManager class handling position sizing, stops, time exits, and profit scaling
@@ -88,13 +89,14 @@ Quick reference for all upgrade items and their implementation status.
 - Items #2-6 enhanced with concrete tweaks.txt specifications
 - Items #10-13 added as new upgrade items
 
-**Files Modified (Items #1-4, #8):**
+**Files Modified (Items #1-4, #6, #8, #10-12):**
 - `indicators.py` - Swing detection, anchored VWAP, ATR calculations
 - `vol_analysis.py` - Signal display timing, event filtering
 - `signal_generator.py` - Scoring functions, threshold application
 - `backtest.py` - Realistic pricing, threshold testing
 - `chart_builder.py` - Visual markers, event indicators
 - `threshold_config.py` - Empirical threshold storage
+- `regime_filter.py` - Market/sector regime checks (NEW - Item #6)
 
 **Key Metrics (Current Implementation):**
 - Moderate Buy (≥6.5): 64.3% win rate, +2.15% expectancy, 28 trades
@@ -112,16 +114,16 @@ Quick reference for all upgrade items and their implementation status.
 | Event Spike Filter | ✅ | ✅ | ✅ |
 | Next-Day Execution | ✅ | ✅ | ✅ |
 | Gap Guard | ❌ | ✅ | ✅ |
-| CMF (vs A/D + OBV) | ❌ | ✅ | ✅ |
-| Pre-Trade Filters | ❌ | ✅ | ✅ |
-| Z-Score Normalization | ❌ | ✅ | ✅ |
+| CMF (vs A/D + OBV) | ✅ | ✅ | ✅ |
+| Pre-Trade Filters | ✅ | ✅ | ✅ |
+| Z-Score Normalization | ✅ | ✅ | ✅ |
+| Regime Filter | ✅ | ✅ | ✅ |
 | Risk Framework | ❌ | ✅ | ✅ |
 | P&L-Aware Exits | ❌ | ✅ | ✅ |
-| Regime Filter | ❌ | ✅ | ✅ |
 | Threshold Validation | ❌ | ✅ | ✅ |
 
 ---
 
 **Last Updated:** 2025-11-05
-**Total Items:** 13 (5 completed, 8 pending)
+**Total Items:** 13 (9 completed, 4 pending)
 **Integration:** tweaks.txt fully incorporated into specifications

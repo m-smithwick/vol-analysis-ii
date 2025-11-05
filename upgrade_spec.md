@@ -52,13 +52,13 @@ The intent is to move from "decent scanner with heuristics" to "swing process th
   - Status: Architecture designed, phased implementation planned
   - Impact: Ensures thresholds have real edge, not just lucky curve-fitting on historical data
 
-- ⏸️ **Items #10-13: tweaks.txt Integration** - PLANNED  
-  - **Item #10:** Volume Flow Simplification (CMF Replacement)
-  - **Item #11:** Pre-Trade Quality Filters  
-  - **Item #12:** Feature Standardization (Z-Score Normalization)
-  - **Item #13:** Comprehensive Risk Framework
+- ⏸️ **Items #10-13: tweaks.txt Integration** - IN PROGRESS  
+  - ✅ **Item #10:** Volume Flow Simplification (CMF Replacement) - COMPLETED 2025-11-05
+  - ✅ **Item #11:** Pre-Trade Quality Filters - COMPLETED 2025-11-05
+  - ✅ **Item #12:** Feature Standardization (Z-Score Normalization) - COMPLETED 2025-11-05
+  - ⏸️ **Item #13:** Comprehensive Risk Framework - PLANNED
   - **INTEGRATION COMPLETED:** 2025-11-05 - All tweaks.txt enhancements integrated into upgrade_spec.md
-  - Status: Methodical implementation plan established with specific formulas and thresholds
+  - Status: Items #10, #11, #12 implemented; Item #13 pending
 
 - ⏸️ **Item #5: P&L-Aware Exit Logic** - NOT STARTED (Enhanced with tweaks.txt)
 - ⏸️ **Item #6: Market / Sector Regime Filter** - NOT STARTED (Enhanced with tweaks.txt)
@@ -827,7 +827,16 @@ def calculate_entry_score(df):
 
 ## 11. Pre-Trade Quality Filters
 
-**STATUS: ⏸️ NOT STARTED - NEW ITEM from tweaks.txt**
+**STATUS: ✅ COMPLETED (2025-11-05)**
+
+**Implementation Notes:**
+- Added `check_liquidity()`, `check_price()`, `check_earnings_window()` to `indicators.py`
+- Added `apply_prefilters()` master function to `indicators.py`
+- Added `create_filter_summary()` for dashboard reporting in `indicators.py`
+- Updated `signal_generator.py` to preserve raw signals and apply filters
+- Integrated into `vol_analysis.py` after feature standardization
+- Validation: Filters successfully reject illiquid, low-priced, and earnings-window signals
+- Benefits: Focus analysis on quality, tradable setups with realistic execution prospects
 
 ### Goal
 Not all stocks are equally tradable. Before evaluating technical signals, we should filter out:
@@ -1053,7 +1062,15 @@ def create_filter_summary(df):
 
 ## 12. Feature Standardization (Z-Score Normalization)
 
-**STATUS: ⏸️ NOT STARTED - NEW ITEM from tweaks.txt**
+**STATUS: ✅ COMPLETED (2025-11-05)**
+
+**Implementation Notes:**
+- Added `calculate_zscore()` function to `indicators.py` for universal z-score calculation
+- Added `standardize_features()` function to `indicators.py` to convert Volume, CMF, TR, ATR to z-scores
+- Updated `signal_generator.py` accumulation score to use z-scored features (Volume_Z, TR_Z)
+- Updated `vol_analysis.py` to call `standardize_features()` after feature calculation
+- Validation: Z-scored features now enable consistent thresholds across different stocks
+- Benefits: Cross-stock consistency, feature balance, statistical validity, optimization-friendly
 
 ### Goal
 Different features have wildly different scales:

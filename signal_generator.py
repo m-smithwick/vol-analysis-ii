@@ -17,19 +17,20 @@ from typing import Tuple
 
 def calculate_accumulation_score(df: pd.DataFrame) -> pd.Series:
     """
-    Calculate accumulation confidence score (0-10 scale).
+    Calculate accumulation confidence score (0-10 scale) using z-scored features.
+    
+    ITEM #12: Feature Standardization - Uses z-scored features for consistent
+    weighting across stocks with different volatility characteristics.
     
     Analyzes multiple factors to determine accumulation strength:
     - CMF z-score (volume flow - replaces A/D and OBV)
-    - Volume spikes
+    - Volume z-score (standardized volume spike detection)
     - Price position relative to VWAP
     - Proximity to support levels
     
-    CMF z-score provides normalized volume flow measurement across different stocks,
-    replacing the redundant A/D Line and OBV indicators.
-    
     Args:
-        df: DataFrame with required columns: CMF_Z, Volume_Spike, Above_VWAP, Near_Support
+        df: DataFrame with columns: CMF_Z, Volume_Z (or Volume_Spike), 
+            Above_VWAP, Near_Support, TR_Z (optional for event penalty)
             
     Returns:
         Series with accumulation scores (0-10 scale)
@@ -42,8 +43,13 @@ def calculate_accumulation_score(df: pd.DataFrame) -> pd.Series:
         cmf_contribution = np.clip(df['CMF_Z'], -2, +2) * 2.0
         score = score + cmf_contribution
     
-    # Volume spike present (1 point)
-    if 'Volume_Spike' in df.columns:
+    # Volume spike using z-score (1 point for z > +1σ)
+    # Standardized approach replaces raw volume multiples
+    if 'Volume_Z' in df.columns:
+        volume_contrib = (df['Volume_Z'] > 1.0).astype(float) * 1.0
+        score = score + volume_contrib
+    elif 'Volume_Spike' in df.columns:
+        # Fallback to legacy Volume_Spike if z-score not available
         score = score + df['Volume_Spike'].astype(float) * 1.0
     
     # Price above VWAP (1 point)
@@ -53,6 +59,12 @@ def calculate_accumulation_score(df: pd.DataFrame) -> pd.Series:
     # Price near support level (1 point)
     if 'Near_Support' in df.columns:
         score = score + df['Near_Support'].astype(float) * 1.0
+    
+    # Event penalty using z-scored True Range (subtract 1.5 points for z > +2σ)
+    # Prevents signals during extreme volatility events
+    if 'TR_Z' in df.columns and 'Volume_Z' in df.columns:
+        event_penalty = ((df['TR_Z'] > 2.0) | (df['Volume_Z'] > 2.0)).astype(float) * 1.5
+        score = score - event_penalty
     
     # Normalize to 0-10 scale and clip
     score = np.clip(score, 0, 10)
@@ -431,9 +443,13 @@ def generate_stop_loss_signals(df: pd.DataFrame) -> pd.Series:
     )
 
 
-def generate_all_entry_signals(df: pd.DataFrame) -> pd.DataFrame:
+def generate_all_entry_signals(df: pd.DataFrame, apply_prefilters: bool = True) -> pd.DataFrame:
     """
     Generate all entry signals and add to DataFrame.
+    
+    ITEM #11: Pre-Trade Quality Filters - If apply_prefilters=True and Pre_Filter_OK
+    column exists, raw signals are preserved with _raw suffix and filtered signals
+    are created that respect liquidity, price, and earnings window filters.
     
     This convenience function generates:
     - Accumulation Score
@@ -445,21 +461,35 @@ def generate_all_entry_signals(df: pd.DataFrame) -> pd.DataFrame:
     
     Args:
         df: DataFrame with OHLCV data and technical indicators
+        apply_prefilters: If True and Pre_Filter_OK exists, apply pre-trade filters
         
     Returns:
-        DataFrame with all entry signal columns added
+        DataFrame with all entry signal columns added (and _raw versions if filtered)
     """
     df = df.copy()
     
     # Generate accumulation score first
     df['Accumulation_Score'] = calculate_accumulation_score(df)
     
-    # Generate entry signals (order matters for exclusions)
+    # Generate raw entry signals (order matters for exclusions)
+    signal_columns = ['Strong_Buy', 'Moderate_Buy', 'Stealth_Accumulation', 
+                      'Confluence_Signal', 'Volume_Breakout']
+    
     df['Strong_Buy'] = generate_strong_buy_signals(df)
     df['Moderate_Buy'] = generate_moderate_buy_signals(df)
     df['Stealth_Accumulation'] = generate_stealth_accumulation_signals(df)
     df['Confluence_Signal'] = generate_confluence_signals(df)
     df['Volume_Breakout'] = generate_volume_breakout_signals(df)
+    
+    # Apply pre-filters if available and requested
+    if apply_prefilters and 'Pre_Filter_OK' in df.columns:
+        # Preserve raw signals
+        for col in signal_columns:
+            df[f'{col}_raw'] = df[col].copy()
+        
+        # Apply filter to all entry signals
+        for col in signal_columns:
+            df[col] = df[col] & df['Pre_Filter_OK']
     
     return df
 

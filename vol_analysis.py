@@ -39,6 +39,9 @@ import batch_processor
 # Import empirically validated signal thresholds
 import threshold_config
 
+# Import regime filter module for market/sector regime checks (Item #6)
+import regime_filter
+
 def read_ticker_file(ticker_file: str) -> List[str]:
     """
     Read ticker symbols from a file (one per line).
@@ -709,6 +712,24 @@ def analyze_ticker(ticker: str, period='6mo', save_to_file=False, output_dir='.'
         volume_threshold=2.0  # Volume spike threshold
     )
     
+    # --- Feature Standardization (Item #12: Z-Score Normalization) ---
+    # Convert features to z-scores for consistent weighting across stocks
+    # This adds Volume_Z, CMF_Z, TR_Z, ATR_Z columns
+    df = indicators.standardize_features(df, window=20)
+    
+    # --- Pre-Trade Quality Filters (Item #11) ---
+    # Apply pre-filters to reject unfilterable signals:
+    # - Insufficient liquidity (< $5M average daily dollar volume)
+    # - Price too low (< $3.00)
+    # - Within earnings window (T-3 to T+3 around earnings dates)
+    df = indicators.apply_prefilters(
+        ticker=ticker,
+        df=df,
+        min_dollar_volume=5_000_000,  # $5M minimum
+        min_price=3.00,  # $3 minimum
+        earnings_window_days=3  # T-3 to T+3
+    )
+    
     # --- Accumulation Signal Generation ---
     accumulation_conditions = [
         # Strong Accumulation: Multiple confirmations
@@ -731,6 +752,11 @@ def analyze_ticker(ticker: str, period='6mo', save_to_file=False, output_dir='.'
     df['Accumulation_Score'] = signal_generator.calculate_accumulation_score(df)
     df['Exit_Score'] = signal_generator.calculate_exit_score(df)
     
+    # --- Calculate Empirical Signal Scores (Item #8) ---
+    df['Moderate_Buy_Score'] = signal_generator.calculate_moderate_buy_score(df)
+    df['Profit_Taking_Score'] = signal_generator.calculate_profit_taking_score(df)
+    df['Stealth_Accumulation_Score'] = signal_generator.calculate_stealth_accumulation_score(df)
+    
     # --- Use Signal Generator for All Signal Detection ---
     
     # ENTRY SIGNALS - Generate all buy signals using signal_generator module
@@ -739,6 +765,13 @@ def analyze_ticker(ticker: str, period='6mo', save_to_file=False, output_dir='.'
     df['Stealth_Accumulation'] = signal_generator.generate_stealth_accumulation_signals(df)
     df['Confluence_Signal'] = signal_generator.generate_confluence_signals(df)
     df['Volume_Breakout'] = signal_generator.generate_volume_breakout_signals(df)
+    
+    # --- Market/Sector Regime Filter (Item #6) ---
+    # Apply regime filter to entry signals
+    # Requires: SPY > 200DMA AND Sector ETF > 50DMA
+    # This filter is applied AFTER all other signal generation
+    # Original signals preserved in *_raw columns for analysis
+    df = regime_filter.apply_regime_filter(df, ticker, verbose=show_summary)
     
     # EXIT SIGNALS - Generate all exit signals using signal_generator module
     df['Profit_Taking'] = signal_generator.generate_profit_taking_signals(df)
@@ -919,6 +952,9 @@ def analyze_ticker(ticker: str, period='6mo', save_to_file=False, output_dir='.'
                     print(f"  Most recent: {last_date.strftime('%Y-%m-%d')} (Score: {last_score:.1f}, Price: ${last_price:.2f})")
                     print(f"  That was {days_ago} trading days ago")
             
+            # Get regime filter summary for display
+            regime_info = regime_filter.get_regime_status(ticker)
+            
             # Enhanced signal counts - Entry and Exit
             entry_signals = {
                 'Strong_Buy': df['Strong_Buy'].sum(),
@@ -928,6 +964,17 @@ def analyze_ticker(ticker: str, period='6mo', save_to_file=False, output_dir='.'
                 'Volume_Breakout': df['Volume_Breakout'].sum()
             }
             
+            # Count regime-filtered signals (difference between raw and filtered)
+            entry_signals_raw = {
+                'Strong_Buy': df.get('Strong_Buy_raw', df['Strong_Buy']).sum(),
+                'Moderate_Buy': df.get('Moderate_Buy_raw', df['Moderate_Buy']).sum(),
+                'Stealth_Accumulation': df.get('Stealth_Accumulation_raw', df['Stealth_Accumulation']).sum(),
+                'Confluence_Signal': df.get('Confluence_Signal_raw', df['Confluence_Signal']).sum(),
+                'Volume_Breakout': df.get('Volume_Breakout_raw', df['Volume_Breakout']).sum()
+            }
+            
+            total_filtered = sum(entry_signals_raw.values()) - sum(entry_signals.values())
+            
             exit_signals = {
                 'Profit_Taking': df['Profit_Taking'].sum(),
                 'Distribution_Warning': df['Distribution_Warning'].sum(),
@@ -936,12 +983,23 @@ def analyze_ticker(ticker: str, period='6mo', save_to_file=False, output_dir='.'
                 'Stop_Loss': df['Stop_Loss'].sum()
             }
             
+            print(f"\n🌍 REGIME FILTER STATUS (Item #6):")
+            regime_status = "✅ PASS" if regime_info['overall_regime_ok'] else "❌ FAIL"
+            print(f"  Overall Regime: {regime_status}")
+            print(f"  Market (SPY): {'✅' if regime_info['market_regime_ok'] else '❌'} ${regime_info.get('spy_close', 0):.2f} vs 200DMA ${regime_info.get('spy_200ma', 0):.2f}")
+            print(f"  Sector ({regime_info.get('sector_etf', 'N/A')}): {'✅' if regime_info['sector_regime_ok'] else '❌'} ${regime_info.get('sector_close', 0):.2f} vs 50DMA ${regime_info.get('sector_50ma', 0):.2f}")
+            if total_filtered > 0:
+                print(f"  ⚠️  {total_filtered} signals filtered due to poor regime")
+            
             print(f"\n🎯 ENTRY SIGNAL SUMMARY:")
             print("  🟢 Strong Buy Signals: {} (Large green dots - Score ≥7, near support, above VWAP)".format(entry_signals['Strong_Buy']))
             print("  🟡 Moderate Buy Signals: {} (Medium yellow dots - Score 5-7, divergence signals)".format(entry_signals['Moderate_Buy']))
             print("  💎 Stealth Accumulation: {} (Cyan diamonds - High score, low volume)".format(entry_signals['Stealth_Accumulation']))
             print("  ⭐ Multi-Signal Confluence: {} (Magenta stars - All indicators aligned)".format(entry_signals['Confluence_Signal']))
             print("  🔥 Volume Breakouts: {} (Orange triangles - 2.5x+ volume)".format(entry_signals['Volume_Breakout']))
+            if total_filtered > 0:
+                print(f"  📊 Total signals before regime filter: {sum(entry_signals_raw.values())}")
+                print(f"  🌍 Signals after regime filter: {sum(entry_signals.values())} ({total_filtered} filtered)")
             
             print(f"\n🚪 EXIT SIGNAL SUMMARY:")
             print("  🟠 Profit Taking: {} (Orange dots - New highs with waning accumulation)".format(exit_signals['Profit_Taking']))

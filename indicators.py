@@ -48,6 +48,43 @@ def calculate_cmf(df: pd.DataFrame, period: int = 20) -> pd.Series:
     return cmf
 
 
+def calculate_zscore(series: pd.Series, window: int = 20) -> pd.Series:
+    """
+    Calculate rolling z-score for any feature series.
+    
+    Z-score shows how many standard deviations the current value
+    is from its rolling mean. Enables cross-feature comparison and
+    consistent thresholds across different stocks.
+    
+    Args:
+        series (pd.Series): Pandas Series of feature values
+        window (int): Rolling window for mean/std calculation (default: 20)
+        
+    Returns:
+        pd.Series: Z-score normalized series
+        
+    Interpretation:
+        - z = 0: At mean
+        - z = +1: One std dev above mean  
+        - z = +2: Two std devs above mean (rare/extreme)
+        - z = -1: One std dev below mean
+        - z = -2: Two std devs below mean (rare/extreme)
+    
+    Example:
+        >>> df['Volume_Z'] = calculate_zscore(df['Volume'], window=20)
+        >>> high_volume_days = df['Volume_Z'] > 1.0  # More than 1 std dev above avg
+    """
+    rolling_mean = series.rolling(window).mean()
+    rolling_std = series.rolling(window).std()
+    
+    # Handle zero std dev (constant values)
+    rolling_std = rolling_std.replace(0, np.nan)
+    
+    zscore = (series - rolling_mean) / rolling_std
+    
+    return zscore
+
+
 def calculate_cmf_zscore(df: pd.DataFrame, cmf_period: int = 20, zscore_window: int = 20) -> pd.Series:
     """
     Calculate CMF and convert to z-score for normalized cross-stock comparison.
@@ -67,14 +104,8 @@ def calculate_cmf_zscore(df: pd.DataFrame, cmf_period: int = 20, zscore_window: 
     # Calculate base CMF
     cmf = calculate_cmf(df, period=cmf_period)
     
-    # Calculate rolling z-score
-    rolling_mean = cmf.rolling(zscore_window).mean()
-    rolling_std = cmf.rolling(zscore_window).std()
-    
-    # Handle zero std dev (constant values)
-    rolling_std = rolling_std.replace(0, np.nan)
-    
-    cmf_zscore = (cmf - rolling_mean) / rolling_std
+    # Use the general z-score function
+    cmf_zscore = calculate_zscore(cmf, window=zscore_window)
     
     return cmf_zscore
 
@@ -551,6 +582,61 @@ def analyze_morning_momentum(df: pd.DataFrame, morning_end_hour: int = 11) -> pd
     
     return result
 
+def standardize_features(df: pd.DataFrame, window: int = 20) -> pd.DataFrame:
+    """
+    Convert all features to z-scores for consistent weighting across stocks.
+    
+    This is a key component of Item #12: Feature Standardization. Z-score
+    normalization ensures that features with different scales can be combined
+    with meaningful weights in scoring functions.
+    
+    Features normalized:
+    - Volume: Replaces raw volume multiples with z-scores
+    - CMF-20: Volume flow indicator (already z-scored separately)
+    - True Range: For volatility/event detection
+    - ATR: For regime context
+    
+    Benefits:
+    - Cross-stock consistency: Same threshold has similar meaning across all stocks
+    - Feature balance: No single feature dominates due to scale differences
+    - Statistical validity: Features measured in standard deviations from their own norm
+    - Interpretability: z = +2 means "rare event" regardless of feature type
+    - Optimization-friendly: Weights can be empirically tuned with confidence
+    
+    Args:
+        df (pd.DataFrame): DataFrame with raw features (Volume, CMF_20, TR, ATR20)
+        window (int): Z-score rolling window (default: 20 days)
+        
+    Returns:
+        pd.DataFrame: DataFrame with added *_Z columns for standardized features
+        
+    Example:
+        >>> df = standardize_features(df)
+        >>> # Now df has Volume_Z, CMF_Z, TR_Z, ATR_Z columns
+        >>> high_volume_days = df['Volume_Z'] > 1.0  # More than 1σ above average
+    """
+    df_standardized = df.copy()
+    
+    # Volume z-score (replaces raw multiple like Relative_Volume)
+    if 'Volume' in df.columns:
+        df_standardized['Volume_Z'] = calculate_zscore(df['Volume'], window)
+    
+    # CMF z-score (volume flow - already calculated by calculate_cmf_zscore)
+    # This is included here for completeness but typically calculated separately
+    if 'CMF_20' in df.columns:
+        df_standardized['CMF_Z'] = calculate_zscore(df['CMF_20'], window)
+    
+    # True Range z-score (for event detection)
+    if 'TR' in df.columns:
+        df_standardized['TR_Z'] = calculate_zscore(df['TR'], window)
+    
+    # ATR z-score (for regime context)
+    if 'ATR20' in df.columns:
+        df_standardized['ATR_Z'] = calculate_zscore(df['ATR20'], window)
+    
+    return df_standardized
+
+
 def identify_early_movers(df_dict: dict, threshold_pct: float = 1.5) -> list:
     """
     Identify stocks with significant early price movement.
@@ -611,3 +697,243 @@ def identify_early_movers(df_dict: dict, threshold_pct: float = 1.5) -> list:
     
     # Sort by absolute movement
     return sorted(early_movers, key=lambda x: abs(x['net_move_pct']), reverse=True)
+
+
+# =============================================================================
+# PRE-TRADE QUALITY FILTERS (Item #11)
+# =============================================================================
+
+def check_liquidity(df: pd.DataFrame, min_dollar_volume: float = 5_000_000) -> pd.Series:
+    """
+    Reject stocks with insufficient daily dollar volume.
+    
+    Liquidity filter prevents trading illiquid stocks that have:
+    - Wide bid-ask spreads
+    - Difficulty entering/exiting positions
+    - Slippage risk
+    
+    Args:
+        df (pd.DataFrame): DataFrame with Close and Volume columns
+        min_dollar_volume (float): Minimum avg daily dollar volume (default: $5M)
+        
+    Returns:
+        pd.Series: Boolean series indicating liquid days (True = sufficient liquidity)
+        
+    Example:
+        >>> df['Liquidity_OK'] = check_liquidity(df, min_dollar_volume=5_000_000)
+        >>> # Filter signals: df['Strong_Buy'] & df['Liquidity_OK']
+    """
+    # Calculate dollar volume for each day
+    df_temp = df.copy()
+    df_temp['Dollar_Volume'] = df_temp['Close'] * df_temp['Volume']
+    
+    # Calculate 20-day average dollar volume
+    df_temp['Avg_Dollar_Volume_20d'] = df_temp['Dollar_Volume'].rolling(20).mean()
+    
+    # Check if liquidity is sufficient
+    liquidity_ok = df_temp['Avg_Dollar_Volume_20d'] >= min_dollar_volume
+    
+    return liquidity_ok
+
+
+def check_price(df: pd.DataFrame, min_price: float = 3.00) -> pd.Series:
+    """
+    Reject penny stocks and very low-priced stocks.
+    
+    Price filter prevents trading stocks with:
+    - Extreme volatility
+    - Manipulation risk
+    - Poor institutional following
+    - Wide percentage spreads
+    
+    Args:
+        df (pd.DataFrame): DataFrame with Close prices
+        min_price (float): Minimum acceptable price (default: $3.00)
+        
+    Returns:
+        pd.Series: Boolean series indicating acceptable prices (True = price OK)
+        
+    Example:
+        >>> df['Price_OK'] = check_price(df, min_price=3.00)
+    """
+    price_ok = df['Close'] >= min_price
+    
+    return price_ok
+
+
+def check_earnings_window(ticker: str, df: pd.DataFrame, window_days: int = 3,
+                          earnings_dates: Optional[list] = None) -> pd.Series:
+    """
+    Skip signals T-3 to T+3 around earnings dates.
+    
+    Earnings window filter prevents entering positions before scheduled
+    volatility events that can invalidate technical analysis.
+    
+    Args:
+        ticker (str): Stock symbol
+        df (pd.DataFrame): DataFrame with DatetimeIndex
+        window_days (int): Days before/after earnings to exclude (default: 3)
+        earnings_dates (Optional[list]): List of earnings dates. If None, attempts to fetch.
+        
+    Returns:
+        pd.Series: Boolean series indicating safe periods (True = outside earnings windows)
+        
+    Example:
+        >>> earnings_dates = [pd.Timestamp('2024-11-02'), pd.Timestamp('2024-08-01')]
+        >>> df['Earnings_OK'] = check_earnings_window('AAPL', df, earnings_dates=earnings_dates)
+    """
+    # Initialize all dates as OK (outside earnings window)
+    earnings_ok = pd.Series(True, index=df.index)
+    
+    # If no earnings dates provided, try to fetch them
+    if earnings_dates is None:
+        try:
+            import yfinance as yf
+            stock = yf.Ticker(ticker)
+            calendar = stock.calendar
+            
+            if calendar is not None and 'Earnings Date' in calendar:
+                # Handle various return types from yfinance
+                raw_dates = calendar['Earnings Date']
+                
+                # Convert to list of Timestamps
+                if isinstance(raw_dates, pd.DatetimeIndex):
+                    earnings_dates = raw_dates.tolist()
+                elif isinstance(raw_dates, pd.Timestamp):
+                    earnings_dates = [raw_dates]
+                elif isinstance(raw_dates, list):
+                    earnings_dates = [pd.Timestamp(d) for d in raw_dates]
+                else:
+                    # Try to convert whatever we got
+                    earnings_dates = [pd.Timestamp(raw_dates)]
+            else:
+                # No earnings data available, return all True (no filter)
+                return earnings_ok
+                
+        except Exception as e:
+            # If fetch fails, log warning but don't fail - return all True
+            print(f"Warning: Could not fetch earnings for {ticker}: {e}")
+            return earnings_ok
+    
+    # Mark dates within earnings windows
+    if earnings_dates:
+        for earnings_date in earnings_dates:
+            # Ensure earnings_date is a Timestamp
+            earnings_ts = pd.Timestamp(earnings_date)
+            
+            # Create window around earnings date
+            window_start = earnings_ts - pd.Timedelta(days=window_days)
+            window_end = earnings_ts + pd.Timedelta(days=window_days)
+            
+            # Mark dates in window as not OK
+            in_window = (df.index >= window_start) & (df.index <= window_end)
+            earnings_ok = earnings_ok & ~in_window
+    
+    return earnings_ok
+
+
+def apply_prefilters(ticker: str, df: pd.DataFrame,
+                     min_dollar_volume: float = 5_000_000,
+                     min_price: float = 3.00,
+                     earnings_window_days: int = 3,
+                     earnings_dates: Optional[list] = None) -> pd.DataFrame:
+    """
+    Apply all pre-trade quality filters.
+    
+    This is the master function for Item #11 implementation. It rejects signals
+    on days that fail any filter:
+    - Insufficient liquidity (< $5M average daily dollar volume)
+    - Price too low (< $3.00)
+    - Within earnings window (T-3 to T+3 around earnings dates)
+    
+    These filters prevent wasting analysis on unfilterable signals and ensure
+    trades are only taken on quality setups with realistic execution prospects.
+    
+    Args:
+        ticker (str): Stock symbol
+        df (pd.DataFrame): DataFrame with OHLCV data and DatetimeIndex
+        min_dollar_volume (float): Minimum avg daily dollar volume (default: $5M)
+        min_price (float): Minimum acceptable price (default: $3.00)
+        earnings_window_days (int): Days before/after earnings to exclude (default: 3)
+        earnings_dates (Optional[list]): Optional list of earnings dates
+        
+    Returns:
+        pd.DataFrame: DataFrame with added filter columns:
+            - Liquidity_OK: Boolean for liquidity check
+            - Price_OK: Boolean for price check
+            - Earnings_OK: Boolean for earnings window check
+            - Pre_Filter_OK: Boolean for combined filter (ALL must pass)
+            
+    Example:
+        >>> df = apply_prefilters('AAPL', df)
+        >>> # Use Pre_Filter_OK to filter entry signals
+        >>> df['Strong_Buy_Filtered'] = df['Strong_Buy'] & df['Pre_Filter_OK']
+    """
+    df_filtered = df.copy()
+    
+    # Apply individual filters
+    df_filtered['Liquidity_OK'] = check_liquidity(df_filtered, min_dollar_volume)
+    df_filtered['Price_OK'] = check_price(df_filtered, min_price)
+    df_filtered['Earnings_OK'] = check_earnings_window(ticker, df_filtered, 
+                                                        earnings_window_days, 
+                                                        earnings_dates)
+    
+    # Combined filter: ALL must pass
+    df_filtered['Pre_Filter_OK'] = (
+        df_filtered['Liquidity_OK'] & 
+        df_filtered['Price_OK'] & 
+        df_filtered['Earnings_OK']
+    )
+    
+    return df_filtered
+
+
+def create_filter_summary(df: pd.DataFrame, signal_column: str = 'Strong_Buy') -> dict:
+    """
+    Generate summary of pre-filter rejections for dashboard/reporting.
+    
+    Args:
+        df (pd.DataFrame): DataFrame with filter columns and signals
+        signal_column (str): Name of signal column to analyze (default: 'Strong_Buy')
+        
+    Returns:
+        dict: Summary statistics of filter performance
+        
+    Example:
+        >>> summary = create_filter_summary(df, signal_column='Strong_Buy')
+        >>> print(f"Filter Pass Rate: {summary['Filter Pass Rate']}")
+    """
+    # Check if we have the raw signal column
+    raw_signal_col = f'{signal_column}_raw' if f'{signal_column}_raw' in df.columns else signal_column
+    
+    # Count signals
+    total_signals = df[raw_signal_col].sum() if raw_signal_col in df.columns else 0
+    passed_signals = df[signal_column].sum() if signal_column in df.columns else 0
+    
+    # Count rejections by filter type
+    rejected_liquidity = 0
+    rejected_price = 0
+    rejected_earnings = 0
+    
+    if f'{signal_column}_raw' in df.columns:
+        raw_signals = df[raw_signal_col]
+        rejected_liquidity = (raw_signals & ~df.get('Liquidity_OK', True)).sum()
+        rejected_price = (raw_signals & ~df.get('Price_OK', True)).sum()
+        rejected_earnings = (raw_signals & ~df.get('Earnings_OK', True)).sum()
+    
+    # Calculate pass rate
+    if total_signals > 0:
+        pass_rate = f"{(passed_signals / total_signals * 100):.1f}%"
+    else:
+        pass_rate = "N/A"
+    
+    summary = {
+        'Total Raw Signals': int(total_signals),
+        'Passed All Filters': int(passed_signals),
+        'Rejected - Liquidity': int(rejected_liquidity),
+        'Rejected - Price': int(rejected_price),
+        'Rejected - Earnings': int(rejected_earnings),
+        'Filter Pass Rate': pass_rate
+    }
+    
+    return summary
