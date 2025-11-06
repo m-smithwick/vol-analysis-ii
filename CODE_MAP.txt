@@ -15,14 +15,31 @@
 **`signal_generator.py`** - Entry/exit signal logic
 - Accumulation scoring (Strong Buy, Moderate Buy, Stealth)
 - Exit scoring (Profit Taking, Distribution, Stop Loss)
-- Primary target for Items #5, #10, #12, #13
+- Operates on DataFrame columns (module-agnostic)
 
-**`indicators.py`** - Technical calculations
+**`indicators.py`** - Core technical indicators (REFACTORED - Item #7 ✅)
 - Anchored VWAP (Item #1 ✅)
-- Swing levels (Item #2 ✅)
-- ATR/Event detection (Item #3 ✅)
+- ATR calculation
+- Z-score normalization (Item #12 ✅)
+- Feature standardization
+- Pre-trade quality filters (Item #11 ✅)
 - Next-day references (Item #4 ✅)
-- Primary target for Items #10, #12
+
+**`swing_structure.py`** - Swing analysis module (NEW - Item #7 ✅)
+- Pivot detection (find_pivots)
+- Swing level calculation (Item #2 ✅)
+- Proximity signals (volatility-aware)
+- Swing failure patterns
+- Swing strength analysis
+
+**`volume_features.py`** - Volume analysis module (NEW - Item #7 ✅)
+- CMF calculation (Item #10 ✅)
+- CMF z-score normalization (minimum 40 days data required)
+- Volume surprise/relative volume
+- Event day detection (Item #3 ✅)
+- Volume divergence detection
+- Climax volume detection
+- **BUG FIX (2025-11-06)**: Improved z-score calculation to handle low variance periods
 
 **`chart_builder.py`** - Visualization
 - 3-panel charts with signal markers
@@ -57,12 +74,35 @@
 **`schema_manager.py`** - Cache schema management
 **`error_handler.py`** - Error handling framework
 **`utils.py`** - Utility functions
+**`regime_filter.py`** - Market/sector regime validation (NEW - Item #6 ✅)
+- SPY 200DMA and Sector ETF 50DMA checks
+- Comprehensive sector ETF mapping
+- Signal filtering based on regime
+
 **`risk_manager.py`** - Comprehensive risk management framework (NEW - Item #13 ✅)
 - RiskManager class for unified trade lifecycle management
 - Position sizing (0.5-1% risk per trade)
 - Stop placement: min(swing_low - 0.5*ATR, VWAP - 1*ATR)
 - Time stops, momentum failures, profit scaling at +2R
 - Trade analysis and performance reporting
+
+## Test Modules (Item #7: Refactor/Integration)
+
+**`test_swing_structure.py`** - Unit tests for swing_structure module
+- Tests pivot detection
+- Tests swing level calculation
+- Tests proximity signals (legacy and volatility-aware)
+- Integration tests for complete swing workflow
+
+**`test_volume_features.py`** - Unit tests for volume_features module
+- Tests CMF calculation and z-score normalization
+- Tests volume surprise and event detection
+- Tests volume divergence patterns
+- Integration tests for complete volume workflow
+
+**`test_risk_manager.py`** - Unit tests for risk_manager module (existing)
+**`test_schema_manager.py`** - Unit tests for schema_manager module (existing)
+**`test_error_framework.py`** - Unit tests for error_handler module (existing)
 
 ---
 
@@ -132,6 +172,10 @@ NEW FILES CREATED:
 - regime_filter.py → Item #6 ✅ (market/sector regime checks)
 - risk_manager.py → Item #13 ✅ (comprehensive risk framework)
 - test_risk_manager.py → Item #13 ✅ (risk manager test suite)
+- swing_structure.py → Item #7 ✅ (modular swing/pivot analysis)
+- volume_features.py → Item #7 ✅ (modular volume/CMF analysis)
+- test_swing_structure.py → Item #7 ✅ (swing module unit tests)
+- test_volume_features.py → Item #7 ✅ (volume module unit tests)
 ```
 
 ---

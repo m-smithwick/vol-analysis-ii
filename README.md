@@ -628,27 +628,113 @@ All files are saved to the `results/` directory by default.
 - **Meaning**: Urgent exit signal for risk management
 - **Action**: Immediate exit consideration
 
+## 🏗️ Modular Architecture (Item #7: Refactor/Integration)
+
+The system is built with a clean modular architecture for maintainability and testability:
+
+### **Core Modules**
+
+**`vol_analysis.py`** - Main orchestrator
+- Entry point and CLI interface
+- Coordinates all analysis modules
+- Handles data fetching and caching
+
+**`swing_structure.py`** - Swing analysis (NEW)
+- Pivot high/low detection
+- Swing-based support/resistance
+- Volatility-aware proximity signals
+- Swing failure pattern detection
+
+**`volume_features.py`** - Volume analysis (NEW)
+- Chaikin Money Flow (CMF) calculation
+- Volume spike detection
+- Event day identification (earnings/news)
+- Volume-price divergence analysis
+
+**`indicators.py`** - Core technical indicators (REFACTORED)
+- Anchored VWAP from meaningful pivots
+- ATR (Average True Range) calculation
+- Z-score normalization for features
+- Pre-trade quality filters
+
+**`signal_generator.py`** - Signal logic
+- Entry signal generation (5 types)
+- Exit signal generation (5 types)
+- Accumulation and exit scoring
+- Operates on DataFrame columns (module-agnostic)
+
+**`chart_builder.py`** - Visualization
+- 3-panel analysis charts
+- Signal marker placement
+- Swing level visualization
+
+**`risk_manager.py`** - Risk management
+- Position sizing (0.5-1% risk per trade)
+- Stop placement and trailing stops
+- Profit scaling at +2R
+- Complete trade lifecycle management
+
+**`regime_filter.py`** - Market regime validation
+- SPY 200-day MA checks
+- Sector ETF 50-day MA checks
+- Signal filtering based on market health
+
+### **Testing Framework**
+
+**`test_swing_structure.py`** - Swing module tests
+- Pivot detection validation
+- Swing level accuracy
+- Proximity signal correctness
+
+**`test_volume_features.py`** - Volume module tests
+- CMF calculation validation
+- Event detection accuracy
+- Volume divergence detection
+
+**`test_risk_manager.py`** - Risk management tests
+- Position sizing validation
+- Exit condition testing
+- Trade lifecycle simulation
+
+### **Benefits of Modular Design**
+- ✅ **Maintainability**: Easy to update individual features
+- ✅ **Testability**: Comprehensive unit test coverage
+- ✅ **Reusability**: Modules can be used independently
+- ✅ **Clarity**: Clear separation of concerns
+- ✅ **Scalability**: Easy to add new features without tangling
+
 ## 📊 Technical Indicators Used
 
-### **On-Balance Volume (OBV)**
-- Cumulative volume indicator showing money flow
-- **Bullish**: OBV rising while price flat/declining
-- **Bearish**: OBV falling while price rising
+### **Chaikin Money Flow (CMF)** - Primary Volume Indicator
+- Single unified volume flow indicator (replaces OBV + A/D Line)
+- **Formula**: Weighted by close position within daily range
+- **Range**: -1.0 (selling pressure) to +1.0 (buying pressure)
+- **Z-Score Normalized**: Consistent thresholds across stocks
+- **Usage**: CMF >1.0σ = strong buying, CMF <0 = momentum failure
 
-### **Accumulation/Distribution Line**
-- Measures the cumulative flow of money into/out of security
-- Uses intraday price action relative to close
-- **Formula**: `((Close - Low) - (High - Close)) / (High - Low) * Volume`
+### **Anchored VWAP** - Smart Money Indicator
+- VWAP anchored from most recent swing pivot low
+- Represents institutional cost basis from turning points
+- **Above VWAP**: Price above institutional cost basis (bullish)
+- **Below VWAP**: Price below institutional cost basis (bearish)
+- **Advantage**: More meaningful than arbitrary chart-start VWAP
 
-### **Volume Weighted Average Price (VWAP)**
-- Average price weighted by volume
-- **Above VWAP**: Generally bullish positioning
-- **Below VWAP**: Generally bearish positioning
+### **Swing-Based Support/Resistance**
+- Support = Most recent confirmed pivot low (not rolling min)
+- Resistance = Most recent confirmed pivot high (not rolling max)
+- **Volatility-Aware Proximity**: Within 1 ATR of level (adaptive)
+- **Significance**: Actual defended levels, not arbitrary rolling periods
 
-### **Support Level Detection**
-- 20-day rolling minimum low price
-- **Near Support**: Within 5% of support level
-- **Significance**: Potential bounce/accumulation zone
+### **Average True Range (ATR)**
+- Measures market volatility
+- Used for event detection (ATR spikes >2.5x = news/earnings)
+- Used for stop placement and proximity normalization
+- 20-period rolling average of True Range
+
+### **Feature Standardization**
+- All features converted to z-scores for consistent weighting
+- Volume, CMF, TR, ATR normalized to standard deviations
+- **Benefits**: Cross-stock consistency, balanced scoring, optimization-friendly
 
 ### **Dual Scoring System**
 
@@ -818,6 +904,12 @@ Each cache file now includes comprehensive metadata:
 ```bash
 pip install yfinance
 ```
+
+#### **Flat-lined accumulation scores / All NaN values**
+- **Cause**: Insufficient data for CMF z-score calculation
+- **Solution**: Use minimum 2-month period (`-p 2mo` or longer)
+- **Explanation**: CMF needs 20 days + z-score needs 20 days = 40 days minimum
+- **Recommended**: Use 3mo or longer periods for reliable scores
 
 #### **Charts too small/large**
 - Chart size optimized for 16-inch Mac displays

@@ -10,19 +10,13 @@ def calculate_cmf(df: pd.DataFrame, period: int = 20) -> pd.Series:
     """
     Calculate Chaikin Money Flow (CMF).
     
+    DEPRECATED: This function has been moved to volume_features.py module.
+    Use volume_features.calculate_cmf() instead for new code.
+    This wrapper is kept for backward compatibility only.
+    
     CMF measures buying/selling pressure by comparing close position within 
     the bar's range, weighted by volume. Replaces A/D Line and OBV to eliminate
     redundant volume flow indicators.
-    
-    Formula:
-    Money Flow Multiplier = ((Close - Low) - (High - Close)) / (High - Low)
-    Money Flow Volume = Money Flow Multiplier × Volume
-    CMF = Sum(Money Flow Volume, period) / Sum(Volume, period)
-    
-    Range: -1.0 to +1.0
-    - Values near +1.0: Strong buying pressure
-    - Values near -1.0: Strong selling pressure
-    - Values near 0: Neutral or choppy
     
     Args:
         df (pd.DataFrame): DataFrame with OHLCV columns
@@ -31,21 +25,16 @@ def calculate_cmf(df: pd.DataFrame, period: int = 20) -> pd.Series:
     Returns:
         pd.Series: CMF values
     """
-    # Handle division by zero when High == Low
-    high_low_diff = df['High'] - df['Low']
+    import warnings
+    warnings.warn(
+        "indicators.calculate_cmf() is deprecated. Use volume_features.calculate_cmf() instead.",
+        DeprecationWarning,
+        stacklevel=2
+    )
     
-    # Calculate Money Flow Multiplier
-    mf_multiplier = ((df['Close'] - df['Low']) - (df['High'] - df['Close'])) / high_low_diff
-    mf_multiplier = mf_multiplier.fillna(0)  # Replace NaN with 0
-    mf_multiplier = mf_multiplier.replace([np.inf, -np.inf], 0)  # Replace inf values with 0
-    
-    # Calculate Money Flow Volume
-    mf_volume = mf_multiplier * df['Volume']
-    
-    # Calculate CMF as ratio of sums
-    cmf = mf_volume.rolling(period).sum() / df['Volume'].rolling(period).sum()
-    
-    return cmf
+    # Import and delegate to new module
+    import volume_features
+    return volume_features.calculate_cmf(df, period=period)
 
 
 def calculate_zscore(series: pd.Series, window: int = 20) -> pd.Series:
@@ -385,8 +374,9 @@ def calculate_swing_levels(df: pd.DataFrame, lookback: int = 3) -> Tuple[pd.Seri
     """
     Calculate support and resistance levels based on swing structure.
     
-    Uses actual pivot lows and highs to define meaningful support/resistance levels
-    instead of rolling min/max which can give false signals during crashes or trends.
+    DEPRECATED: This function has been moved to swing_structure.py module.
+    Use swing_structure.calculate_swing_levels() instead for new code.
+    This wrapper is kept for backward compatibility only.
     
     Args:
         df (pd.DataFrame): DataFrame with High and Low columns
@@ -395,38 +385,16 @@ def calculate_swing_levels(df: pd.DataFrame, lookback: int = 3) -> Tuple[pd.Seri
     Returns:
         Tuple[pd.Series, pd.Series]: (Recent_Swing_Low, Recent_Swing_High) forward-filled series
     """
-    # Find pivot points
-    pivot_lows, pivot_highs = find_pivots(df, lookback=lookback)
+    import warnings
+    warnings.warn(
+        "indicators.calculate_swing_levels() is deprecated. Use swing_structure.calculate_swing_levels() instead.",
+        DeprecationWarning,
+        stacklevel=2
+    )
     
-    # Initialize result series
-    recent_swing_low = pd.Series(np.nan, index=df.index)
-    recent_swing_high = pd.Series(np.nan, index=df.index)
-    
-    # Forward fill swing levels from each pivot point
-    for i in range(len(df)):
-        if pivot_lows.iloc[i]:
-            # New swing low found - update from this point forward
-            recent_swing_low.iloc[i:] = df['Low'].iloc[i]
-        
-        if pivot_highs.iloc[i]:
-            # New swing high found - update from this point forward  
-            recent_swing_high.iloc[i:] = df['High'].iloc[i]
-    
-    # Forward fill any remaining NaN values
-    recent_swing_low = recent_swing_low.ffill()
-    recent_swing_high = recent_swing_high.ffill()
-    
-    # If still NaN at the beginning (no pivots found in early data), 
-    # use the actual lows/highs from the early period
-    if recent_swing_low.isna().any():
-        first_valid_low = df['Low'].iloc[0]
-        recent_swing_low = recent_swing_low.fillna(first_valid_low)
-    
-    if recent_swing_high.isna().any():
-        first_valid_high = df['High'].iloc[0] 
-        recent_swing_high = recent_swing_high.fillna(first_valid_high)
-    
-    return recent_swing_low, recent_swing_high
+    # Import and delegate to new module
+    import swing_structure
+    return swing_structure.calculate_swing_levels(df, lookback=lookback)
 
 def calculate_swing_proximity_signals(df: pd.DataFrame, recent_swing_low: pd.Series, recent_swing_high: pd.Series) -> Tuple[pd.Series, pd.Series, pd.Series]:
     """
@@ -592,7 +560,7 @@ def standardize_features(df: pd.DataFrame, window: int = 20) -> pd.DataFrame:
     
     Features normalized:
     - Volume: Replaces raw volume multiples with z-scores
-    - CMF-20: Volume flow indicator (already z-scored separately)
+    - CMF-20: Volume flow indicator (already z-scored separately via calculate_cmf_zscore)
     - True Range: For volatility/event detection
     - ATR: For regime context
     
@@ -612,7 +580,7 @@ def standardize_features(df: pd.DataFrame, window: int = 20) -> pd.DataFrame:
         
     Example:
         >>> df = standardize_features(df)
-        >>> # Now df has Volume_Z, CMF_Z, TR_Z, ATR_Z columns
+        >>> # Now df has Volume_Z, TR_Z, ATR_Z columns
         >>> high_volume_days = df['Volume_Z'] > 1.0  # More than 1σ above average
     """
     df_standardized = df.copy()
@@ -621,9 +589,11 @@ def standardize_features(df: pd.DataFrame, window: int = 20) -> pd.DataFrame:
     if 'Volume' in df.columns:
         df_standardized['Volume_Z'] = calculate_zscore(df['Volume'], window)
     
-    # CMF z-score (volume flow - already calculated by calculate_cmf_zscore)
-    # This is included here for completeness but typically calculated separately
-    if 'CMF_20' in df.columns:
+    # CMF z-score: DO NOT recalculate here - it's already calculated via
+    # volume_features.calculate_cmf_zscore() which uses specialized logic.
+    # Recalculating here causes conflicts and NaN issues when CMF has low variance.
+    # If CMF_Z doesn't exist yet, only then calculate it from CMF_20
+    if 'CMF_20' in df.columns and 'CMF_Z' not in df.columns:
         df_standardized['CMF_Z'] = calculate_zscore(df['CMF_20'], window)
     
     # True Range z-score (for event detection)

@@ -24,8 +24,12 @@ except ImportError:
     logger = get_logger()
     logger.warning("backtest.py not found - backtest functionality disabled")
 
-# Import indicators module for technical calculations
+# Import indicators module for technical calculations (core functions)
 import indicators
+
+# Import modular feature modules (Item #7: Refactor/Integration Plan)
+import swing_structure
+import volume_features
 
 # Import signal generator module for buy/sell signals
 import signal_generator
@@ -655,9 +659,9 @@ def analyze_ticker(ticker: str, period='6mo', save_to_file=False, output_dir='.'
             raise DataDownloadError(f"Failed to get data for {ticker}: {str(e)}")
     
     # --- CMF (Chaikin Money Flow) - Replaces OBV and A/D Line ---
-    # Item #10: Volume Flow Simplification
-    df['CMF_20'] = indicators.calculate_cmf(df, period=20)
-    df['CMF_Z'] = indicators.calculate_cmf_zscore(df, cmf_period=20, zscore_window=20)
+    # Item #10: Volume Flow Simplification (now in volume_features module)
+    df['CMF_20'] = volume_features.calculate_cmf(df, period=20)
+    df['CMF_Z'] = volume_features.calculate_cmf_zscore(df, cmf_period=20, zscore_window=20)
     
     # --- Rolling correlation between price and volume ---
     df['PriceVolumeCorr'] = indicators.calculate_price_volume_correlation(df, window=20)
@@ -675,28 +679,34 @@ def analyze_ticker(ticker: str, period='6mo', save_to_file=False, output_dir='.'
     df['CMF_Strong'] = df['CMF_Z'] > 1.0  # Strong buying pressure (>1 std dev)
     
     # --- Legacy columns for backward compatibility with exit signals ---
-    # These will be removed in future updates when exit signals are refactored
-    # For now, create minimal backward-compatible versions using CMF
-    df['OBV'] = df['CMF_20'] * df['Volume'].cumsum()  # Approximate OBV from CMF
+    # Compute actual OBV and A/D Line values for chart display and legacy logic
+    price_delta = df['Close'].diff().fillna(0)
+    obv_direction = np.sign(price_delta).fillna(0)
+    df['OBV'] = (obv_direction * df['Volume']).fillna(0).cumsum()
     df['OBV_MA'] = df['OBV'].rolling(window=10).mean()
-    df['OBV_Trend'] = df['CMF_Z'] > 0  # CMF positive = OBV trending up
-    df['AD_Line'] = df['CMF_20'] * df['Volume'].cumsum()  # Approximate AD from CMF
+    df['OBV_Trend'] = (df['OBV'] > df['OBV_MA']).fillna(False)
+
+    high_low_range = (df['High'] - df['Low']).replace(0, np.nan)
+    money_flow_multiplier = ((df['Close'] - df['Low']) - (df['High'] - df['Close'])) / high_low_range
+    money_flow_multiplier = money_flow_multiplier.replace([np.inf, -np.inf], 0).fillna(0)
+    money_flow_volume = money_flow_multiplier * df['Volume']
+    df['AD_Line'] = money_flow_volume.cumsum()
     df['AD_MA'] = df['AD_Line'].rolling(window=10).mean()
-    df['AD_Rising'] = df['CMF_Z'] > 0  # CMF positive = AD rising
+    df['AD_Rising'] = df['AD_Line'].diff().fillna(0) > 0
     
-    # 3. Volume Analysis
+    # 3. Volume Analysis (now using volume_features module)
     df['Volume_MA'] = df['Volume'].rolling(window=20).mean()
     df['Volume_Spike'] = df['Volume'] > (df['Volume_MA'] * 1.5)  # 50% above average
-    df['Relative_Volume'] = df['Volume'] / df['Volume_MA']
+    df['Relative_Volume'] = volume_features.calculate_volume_surprise(df, window=20)
     
     # 4. Smart Money Indicators (Anchored VWAP from meaningful pivots)
     df['VWAP'] = indicators.calculate_anchored_vwap(df)
     df['Above_VWAP'] = df['Close'] > df['VWAP']
     
-    # 5. Swing-Based Support/Resistance Analysis (replacing rolling lows with pivot structure)
-    df['Recent_Swing_Low'], df['Recent_Swing_High'] = indicators.calculate_swing_levels(df, lookback=3)
-    df['Near_Support'], df['Lost_Support'], df['Near_Resistance'] = indicators.calculate_swing_proximity_signals(
-        df, df['Recent_Swing_Low'], df['Recent_Swing_High']
+    # 5. Swing-Based Support/Resistance Analysis (now using swing_structure module)
+    df['Recent_Swing_Low'], df['Recent_Swing_High'] = swing_structure.calculate_swing_levels(df, lookback=3)
+    df['Near_Support'], df['Lost_Support'], df['Near_Resistance'] = swing_structure.calculate_swing_proximity_signals(
+        df, df['Recent_Swing_Low'], df['Recent_Swing_High'], atr_series=None, use_volatility_aware=False
     )
     
     # Maintain backward compatibility by creating Support_Level alias
@@ -705,8 +715,8 @@ def analyze_ticker(ticker: str, period='6mo', save_to_file=False, output_dir='.'
     # --- True Range and ATR for Event Day Detection (Item #3: News/Event Spike Filter) ---
     df['TR'], df['ATR20'] = indicators.calculate_atr(df, period=20)
     
-    # --- Event Day Detection (News/Earnings Spikes) ---
-    df['Event_Day'] = indicators.detect_event_days(
+    # --- Event Day Detection (News/Earnings Spikes) - now using volume_features module ---
+    df['Event_Day'] = volume_features.detect_event_days(
         df, 
         atr_multiplier=2.5,  # ATR spike threshold 
         volume_threshold=2.0  # Volume spike threshold
@@ -746,7 +756,10 @@ def analyze_ticker(ticker: str, period='6mo', save_to_file=False, output_dir='.'
     ]
     
     accumulation_choices = ['Strong_Accumulation', 'Moderate_Accumulation', 'Support_Accumulation', 'Distribution']
-    df['Phase'] = pd.Series(pd.Categorical(np.select(accumulation_conditions, accumulation_choices, default='Neutral')))
+    phase_categories = accumulation_choices + ['Neutral']
+    phase_values = np.select(accumulation_conditions, accumulation_choices, default='Neutral')
+    phase_categorical = pd.Categorical(phase_values, categories=phase_categories, ordered=False)
+    df['Phase'] = pd.Series(phase_categorical, index=df.index)
     
     # --- Use Signal Generator for Scoring ---
     df['Accumulation_Score'] = signal_generator.calculate_accumulation_score(df)

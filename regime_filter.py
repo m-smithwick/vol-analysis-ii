@@ -327,7 +327,11 @@ def apply_regime_filter(df: pd.DataFrame, ticker: str, verbose: bool = False) ->
     df['Overall_Regime_OK'] = regime['overall_regime_ok']
     
     # Identify entry signal columns
-    entry_signals = [col for col in df.columns if any(x in col for x in ['Buy', 'Accumulation', 'Breakout', 'Confluence'])]
+    entry_signals = [
+        col for col in df.columns
+        if any(x in col for x in ['Buy', 'Accumulation', 'Breakout', 'Confluence'])
+        and 'Score' not in col  # Skip numeric score columns (e.g., Accumulation_Score)
+    ]
     
     # Preserve raw signals and apply filter
     for signal_col in entry_signals:
