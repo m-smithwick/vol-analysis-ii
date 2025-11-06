@@ -42,6 +42,7 @@ import batch_processor
 
 # Import empirically validated signal thresholds
 import threshold_config
+import threshold_validation
 
 # Import regime filter module for market/sector regime checks (Item #6)
 import regime_filter
@@ -617,7 +618,8 @@ def generate_analysis_text(ticker: str, df: pd.DataFrame, period: str) -> str:
     
     return "\n".join(output)
 
-def analyze_ticker(ticker: str, period='6mo', save_to_file=False, output_dir='.', save_chart=False, force_refresh=False, show_chart=True, show_summary=True):
+def analyze_ticker(ticker: str, period='6mo', save_to_file=False, output_dir='.', save_chart=False,
+                   force_refresh=False, show_chart=True, show_summary=True, debug=False):
     """
     Retrieve and analyze price-volume data for a given ticker symbol.
     
@@ -630,6 +632,7 @@ def analyze_ticker(ticker: str, period='6mo', save_to_file=False, output_dir='.'
         force_refresh (bool): If True, ignore cache and download fresh data
         show_chart (bool): Whether to display chart interactively (default: True)
         show_summary (bool): Whether to print detailed summary output (default: True)
+        debug (bool): Enable additional progress prints when saving artifacts
         
     Raises:
         DataValidationError: If ticker or period is invalid
@@ -820,7 +823,8 @@ def analyze_ticker(ticker: str, period='6mo', save_to_file=False, output_dir='.'
             end_date = df.index[-1].strftime('%Y%m%d')
             chart_filename = f"{ticker}_{period}_{start_date}_{end_date}_chart.png"
             chart_path = os.path.join(output_dir, chart_filename)
-            print(f"📊 Chart saved: {chart_filename}")
+            if debug:
+                print(f"📊 Chart saved: {chart_filename}")
         
         # Use chart_builder module for all visualization
         chart_builder.generate_analysis_chart(
@@ -1234,8 +1238,24 @@ Note: Legacy periods (1y, 2y, 5y, etc.) are automatically converted to month equ
         action='store_true',
         help='Run risk-managed backtest using RiskManager (Item #5: P&L-Aware Exit Logic)'
     )
+
+    parser.add_argument(
+        '--debug',
+        action='store_true',
+        help='Enable verbose logging and progress output'
+    )
+
+    parser.add_argument(
+        '--validate-thresholds',
+        action='store_true',
+        help='Run walk-forward threshold validation (Item #9)'
+    )
     
     args = parser.parse_args()
+
+    # Configure logging verbosity based on debug flag
+    log_level = "DEBUG" if args.debug else "WARNING"
+    setup_logging(log_level=log_level)
     
     try:
         # Handle cache management commands first
@@ -1253,14 +1273,17 @@ Note: Legacy periods (1y, 2y, 5y, etc.) are automatically converted to month equ
         # Regular analysis modes
         if args.file:
             # Batch processing mode - use batch_processor module
-            print(f"🚀 Starting batch processing from file: {args.file}")
+            if args.debug:
+                print(f"🚀 Starting batch processing from file: {args.file}")
             batch_processor.process_batch(
                 ticker_file=args.file,
                 period=args.period,
                 output_dir=args.output_dir,
-                save_charts=args.save_charts
+                save_charts=args.save_charts,
+                verbose=args.debug
             )
-            print(f"\n✅ Batch processing complete!")
+            if args.debug:
+                print(f"\n✅ Batch processing complete!")
         else:
             # Single ticker mode
             ticker = args.ticker.upper()
@@ -1277,7 +1300,8 @@ Note: Legacy periods (1y, 2y, 5y, etc.) are automatically converted to month equ
                     period=args.period, 
                     force_refresh=args.force_refresh,
                     show_chart=not args.backtest,  # Hide chart when backtesting
-                    show_summary=not args.backtest  # Hide verbose summary when backtesting
+                    show_summary=not args.backtest,  # Hide verbose summary when backtesting
+                    debug=args.debug
                 )
                 
                 # Run backtest if requested
@@ -1300,8 +1324,24 @@ Note: Legacy periods (1y, 2y, 5y, etc.) are automatically converted to month equ
                     print(report)
                 elif (args.backtest or args.risk_managed) and not BACKTEST_AVAILABLE:
                     print("\n⚠️  Warning: Backtest module not available. Skipping backtest analysis.")
-                
-            print(f"\n✅ Analysis complete for {ticker}!")
+
+                if args.validate_thresholds:
+                    print(f"\n🧪 Running threshold walk-forward validation for {ticker}...")
+                    try:
+                        validation_config = threshold_validation.ThresholdValidationConfig()
+                        validation_results = threshold_validation.run_walk_forward_validation(df, validation_config)
+                        if not validation_results:
+                            print("⚠️ Not enough data to create walk-forward windows. Try a longer period (e.g., 24mo).")
+                        else:
+                            report = threshold_validation.generate_validation_report(validation_results)
+                            print("\n" + report)
+                    except DataValidationError as err:
+                        print(f"⚠️ Threshold validation failed: {err}")
+                    except Exception as err:
+                        print(f"⚠️ Unexpected error during validation: {err}")
+            
+            if args.debug:
+                print(f"\n✅ Analysis complete for {ticker}!")
             
     except Exception as e:
         print(f"\n❌ Error: {str(e)}")

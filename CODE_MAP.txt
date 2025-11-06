@@ -86,6 +86,11 @@
 - Time stops, momentum failures, profit scaling at +2R
 - Trade analysis and performance reporting
 
+**`threshold_validation.py`** - Walk-forward threshold validation (Item #9 🚧)
+- Generates rolling train/test windows
+- Reuses optimization pipeline to evaluate thresholds out-of-sample
+- Flags degradation and produces summary reports
+
 ## Test Modules (Item #7: Refactor/Integration)
 
 **`test_swing_structure.py`** - Unit tests for swing_structure module
@@ -99,6 +104,10 @@
 - Tests volume surprise and event detection
 - Tests volume divergence patterns
 - Integration tests for complete volume workflow
+
+**`test_threshold_validation.py`** - Unit tests for Item #9 prototype
+- Validates walk-forward window creation
+- Confirms validation metrics/report generation
 
 **`test_risk_manager.py`** - Unit tests for risk_manager module (existing)
 **`test_schema_manager.py`** - Unit tests for schema_manager module (existing)

@@ -561,7 +561,7 @@ def read_ticker_file(filepath: str) -> List[str]:
         return tickers
 
 def process_batch(ticker_file: str, period='12mo', output_dir='results_volume', 
-                 save_charts=False, generate_html=True):
+                 save_charts=False, generate_html=True, verbose=True):
     """
     Process multiple tickers from a file and save individual analysis reports.
     
@@ -571,6 +571,7 @@ def process_batch(ticker_file: str, period='12mo', output_dir='results_volume',
         output_dir (str): Directory to save output files
         save_charts (bool): Whether to save chart images
         generate_html (bool): Whether to generate interactive HTML summary
+        verbose (bool): Print progress output during batch processing
         
     Raises:
         DataValidationError: If input parameters are invalid
@@ -604,7 +605,8 @@ def process_batch(ticker_file: str, period='12mo', output_dir='results_volume',
             if not os.path.exists(output_dir):
                 os.makedirs(output_dir)
                 logger.info(f"Created output directory: {output_dir}")
-                print(f"📁 Created output directory: {output_dir}")
+                if verbose:
+                    print(f"📁 Created output directory: {output_dir}")
             
             # Validate output directory is writable
             validate_file_path(output_dir, check_exists=True, check_writable=True)
@@ -612,19 +614,21 @@ def process_batch(ticker_file: str, period='12mo', output_dir='results_volume',
         except Exception as e:
             raise FileOperationError(f"Failed to create or access output directory '{output_dir}': {str(e)}")
     
-    print(f"\n🚀 BATCH PROCESSING {len(tickers)} TICKERS")
-    print("="*50)
-    print(f"📁 Output directory: {output_dir}")
-    print(f"📅 Period: {period}")
-    print(f"📊 Save charts: {'Yes' if save_charts else 'No'}")
-    print("="*50)
+    if verbose:
+        print(f"\n🚀 BATCH PROCESSING {len(tickers)} TICKERS")
+        print("="*50)
+        print(f"📁 Output directory: {output_dir}")
+        print(f"📅 Period: {period}")
+        print(f"📊 Save charts: {'Yes' if save_charts else 'No'}")
+        print("="*50)
     
     # Track results for summary
     results = []
     errors = []
     
     for i, ticker in enumerate(tickers, 1):
-        print(f"\n[{i}/{len(tickers)}] Processing {ticker}...")
+        if verbose:
+            print(f"\n[{i}/{len(tickers)}] Processing {ticker}...")
         
         try:
             # Use error context for individual ticker processing
@@ -637,14 +641,16 @@ def process_batch(ticker_file: str, period='12mo', output_dir='results_volume',
                     output_dir=output_dir,
                     save_chart=True,  # Always save charts in batch mode (can't display interactively)
                     show_chart=False,  # Don't display charts interactively in batch mode
-                    show_summary=False  # Don't print verbose summaries in batch mode
+                    show_summary=False,  # Don't print verbose summaries in batch mode
+                    debug=verbose
                 )
                 
                 if isinstance(result, tuple):
                     df, filepath = result
                     filename = os.path.basename(filepath)
                     logger.info(f"Successfully processed {ticker}: {filename}")
-                    print(f"✅ {ticker}: Analysis saved to {filename}")
+                    if verbose:
+                        print(f"✅ {ticker}: Analysis saved to {filename}")
                     
                     # Calculate metrics using empirically validated thresholds
                     batch_metrics = calculate_batch_metrics(df)
@@ -684,102 +690,89 @@ def process_batch(ticker_file: str, period='12mo', output_dir='results_volume',
     
     # Generate summary report
     if results:
-        print(f"\n📋 BATCH PROCESSING SUMMARY")
-        print("="*60)
-        print(f"✅ Successfully processed: {len(results)}/{len(tickers)} tickers")
-        
-        if errors:
-            print(f"❌ Errors: {len(errors)}")
-            for error in errors:
-                print(f"   • {error['ticker']}: {error['error']}")
-        
-        # Display results using OPTIMAL indicators from backtest results with empirically validated thresholds
-        print(f"\n🟡 ACTIVE MODERATE BUY SIGNALS (EMPIRICALLY VALIDATED - ≥6.5 threshold for 64.3% win rate):")
-        # Filter for stocks with ACTIVE Moderate Buy signals RIGHT NOW
         active_moderate = [r for r in results if r['moderate_signal_active']]
         sorted_moderate_results = sorted(active_moderate, key=lambda x: x['moderate_buy_score'], reverse=True)
-        
-        if not sorted_moderate_results:
-            print("  No active Moderate Buy signals at this time.")
-        
-        for i, result in enumerate(sorted_moderate_results[:10], 1):  # Top 10
-            moderate_score = result['moderate_buy_score']
-            recent_count = result['recent_moderate_count']
-            total_moderate = result['total_moderate_signals']
-            exceeds_threshold = result['moderate_exceeds_threshold']
-            threshold = result['moderate_threshold']
-            
-            # Check for any active entry signal (Strong, Moderate, or Confluence)
-            moderate_active = result['moderate_signal_active']
-            strong_active = result['strong_signal_active']
-            confluence_active = result['confluence_signal_active']
-            
-            score_emoji = "🎯" if moderate_score >= 8 else "🟡" if moderate_score >= 6.5 else "👀" if moderate_score >= 4 else "💤"
-            threshold_emoji = "✅" if exceeds_threshold else "❌"
-            
-            # Show current signal status
-            if strong_active:
-                signal_status = "🟢 STRONG NOW"
-            elif confluence_active:
-                signal_status = "⭐ CONFLUENCE"
-            elif moderate_active:
-                signal_status = "🟡 ACTIVE NOW"
-            else:
-                signal_status = "⚪ No Signal"
-            
-            print(f"  {i:2d}. {result['ticker']:5s} - ModBuy: {moderate_score:4.1f}/10 {score_emoji} {threshold_emoji} "
-                  f"(≥{threshold} threshold, Status: {signal_status:13s}, Rec5d: {recent_count}, Total: {total_moderate})")
-
-        print(f"\n🟠 ACTIVE PROFIT TAKING SIGNALS (EMPIRICALLY VALIDATED - ≥7.0 threshold for 96.1% win rate):")
-        # Filter for stocks with ACTIVE Profit Taking signals RIGHT NOW
         active_profit = [r for r in results if r['profit_signal_active']]
         sorted_profit_results = sorted(active_profit, key=lambda x: x['profit_taking_score'], reverse=True)
-        
-        if not sorted_profit_results:
-            print("  No active Profit Taking signals at this time.")
-        
-        for i, result in enumerate(sorted_profit_results[:10], 1):  # Top 10
-            profit_score = result['profit_taking_score']
-            profit_active = result['profit_signal_active']
-            recent_count = result['recent_profit_count']
-            exceeds_threshold = result['profit_exceeds_threshold']
-            threshold = result['profit_threshold']
-            
-            score_emoji = "🔥" if profit_score >= 8 else "🟠" if profit_score >= 7.0 else "📈" if profit_score >= 4 else "💤"
-            threshold_emoji = "✅" if exceeds_threshold else "❌"
-            
-            # Show current signal status
-            signal_status = "🔴 EXIT NOW!" if profit_active else "⚪ No Signal"
-            
-            print(f"  {i:2d}. {result['ticker']:5s} - Profit: {profit_score:4.1f}/10 {score_emoji} {threshold_emoji} "
-                  f"(≥{threshold} threshold, Status: {signal_status:13s}, Rec5d: {recent_count})")
-
-        print(f"\n💎 ACTIVE STEALTH ACCUMULATION SIGNALS (EMPIRICALLY VALIDATED - ≥4.5 threshold for 58.7% win rate):")
-        # Filter for stocks with ACTIVE Stealth Accumulation signals RIGHT NOW
         active_stealth = [r for r in results if r['stealth_signal_active']]
         sorted_stealth_results = sorted(active_stealth, key=lambda x: x['stealth_score'], reverse=True)
         
-        if not sorted_stealth_results:
-            print("  No active Stealth Accumulation signals at this time.")
+        if verbose:
+            print(f"\n📋 BATCH PROCESSING SUMMARY")
+            print("="*60)
+            print(f"✅ Successfully processed: {len(results)}/{len(tickers)} tickers")
+            
+            if errors:
+                print(f"❌ Errors: {len(errors)}")
+                for error in errors:
+                    print(f"   • {error['ticker']}: {error['error']}")
+            
+            print(f"\n🟡 ACTIVE MODERATE BUY SIGNALS (EMPIRICALLY VALIDATED - ≥6.5 threshold for 64.3% win rate):")
+            if not sorted_moderate_results:
+                print("  No active Moderate Buy signals at this time.")
+            else:
+                for i, result in enumerate(sorted_moderate_results[:10], 1):
+                    moderate_score = result['moderate_buy_score']
+                    recent_count = result['recent_moderate_count']
+                    total_moderate = result['total_moderate_signals']
+                    exceeds_threshold = result['moderate_exceeds_threshold']
+                    threshold = result['moderate_threshold']
+                    moderate_active = result['moderate_signal_active']
+                    strong_active = result['strong_signal_active']
+                    confluence_active = result['confluence_signal_active']
+                    
+                    score_emoji = "🎯" if moderate_score >= 8 else "🟡" if moderate_score >= 6.5 else "👀" if moderate_score >= 4 else "💤"
+                    threshold_emoji = "✅" if exceeds_threshold else "❌"
+                    
+                    if strong_active:
+                        signal_status = "🟢 STRONG NOW"
+                    elif confluence_active:
+                        signal_status = "⭐ CONFLUENCE"
+                    elif moderate_active:
+                        signal_status = "🟡 ACTIVE NOW"
+                    else:
+                        signal_status = "⚪ No Signal"
+                    
+                    print(f"  {i:2d}. {result['ticker']:5s} - ModBuy: {moderate_score:4.1f}/10 {score_emoji} {threshold_emoji} "
+                          f"(≥{threshold} threshold, Status: {signal_status:13s}, Rec5d: {recent_count}, Total: {total_moderate})")
+            
+            print(f"\n🟠 ACTIVE PROFIT TAKING SIGNALS (EMPIRICALLY VALIDATED - ≥7.0 threshold for 96.1% win rate):")
+            if not sorted_profit_results:
+                print("  No active Profit Taking signals at this time.")
+            else:
+                for i, result in enumerate(sorted_profit_results[:10], 1):
+                    profit_score = result['profit_taking_score']
+                    profit_active = result['profit_signal_active']
+                    recent_count = result['recent_profit_count']
+                    exceeds_threshold = result['profit_exceeds_threshold']
+                    threshold = result['profit_threshold']
+                    
+                    score_emoji = "🔥" if profit_score >= 8 else "🟠" if profit_score >= 7.0 else "📈" if profit_score >= 4 else "💤"
+                    threshold_emoji = "✅" if exceeds_threshold else "❌"
+                    signal_status = "🔴 EXIT NOW!" if profit_active else "⚪ No Signal"
+                    
+                    print(f"  {i:2d}. {result['ticker']:5s} - Profit: {profit_score:4.1f}/10 {score_emoji} {threshold_emoji} "
+                          f"(≥{threshold} threshold, Status: {signal_status:13s}, Rec5d: {recent_count})")
+            
+            print(f"\n💎 ACTIVE STEALTH ACCUMULATION SIGNALS (EMPIRICALLY VALIDATED - ≥4.5 threshold for 58.7% win rate):")
+            if not sorted_stealth_results:
+                print("  No active Stealth Accumulation signals at this time.")
+            else:
+                for i, result in enumerate(sorted_stealth_results[:5], 1):
+                    stealth_score = result['stealth_score']
+                    stealth_active = result['stealth_signal_active']
+                    recent_count = result['recent_stealth_count']
+                    price_change = result['price_change_pct']
+                    exceeds_threshold = result['stealth_exceeds_threshold']
+                    threshold = result['stealth_threshold']
+                    
+                    score_emoji = "💎" if stealth_score >= 5 else "👁️" if stealth_score >= 4.5 else "💤"
+                    threshold_emoji = "✅" if exceeds_threshold else "❌"
+                    signal_status = "💎 ACTIVE NOW" if stealth_active else "⚪ No Signal"
+                    
+                    print(f"  {i:2d}. {result['ticker']:5s} - Stealth: {stealth_score:4.1f}/10 {score_emoji} {threshold_emoji} "
+                          f"(≥{threshold} threshold, Status: {signal_status:13s}, Rec5d: {recent_count}, Price: {price_change:+4.1f}%)")
         
-        for i, result in enumerate(sorted_stealth_results[:5], 1):  # Top 5 only (secondary)
-            stealth_score = result['stealth_score']
-            stealth_active = result['stealth_signal_active']
-            recent_count = result['recent_stealth_count']
-            price_change = result['price_change_pct']
-            exceeds_threshold = result['stealth_exceeds_threshold']
-            threshold = result['stealth_threshold']
-            
-            score_emoji = "💎" if stealth_score >= 5 else "👁️" if stealth_score >= 4.5 else "💤"
-            threshold_emoji = "✅" if exceeds_threshold else "❌"
-            
-            # Show current signal status
-            signal_status = "💎 ACTIVE NOW" if stealth_active else "⚪ No Signal"
-            
-            print(f"  {i:2d}. {result['ticker']:5s} - Stealth: {stealth_score:4.1f}/10 {score_emoji} {threshold_emoji} "
-                  f"(≥{threshold} threshold, Status: {signal_status:13s}, Rec5d: {recent_count}, Price: {price_change:+4.1f}%)")
-        
-        # Generate consolidated summary file with error handling
         summary_filename = f"batch_summary_{period}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt"
         summary_filepath = os.path.join(output_dir, summary_filename)
         
@@ -799,7 +792,6 @@ def process_batch(ticker_file: str, period='12mo', output_dir='results_volume',
                         f.write(f"  • {error['ticker']}: {error['error']}\n")
                     f.write("\n")
                 
-                # Write results using EMPIRICALLY VALIDATED indicators based on backtest performance
                 f.write("🟡 ACTIVE MODERATE BUY SIGNALS (EMPIRICALLY VALIDATED - ≥6.5 threshold for 64.3% win rate):\n")
                 f.write("-" * 120 + "\n")
                 
@@ -808,9 +800,7 @@ def process_batch(ticker_file: str, period='12mo', output_dir='results_volume',
                 else:
                     f.write(f"{'Rank':<4} {'Ticker':<6} {'ModBuy':<7} {'Threshold':<9} {'Status':<13} {'Rec5d':<5} {'Total':<5} {'File'}\n")
                     f.write("-" * 120 + "\n")
-                    
                     for i, result in enumerate(active_moderate, 1):
-                        # Check for any active entry signal
                         if result['strong_signal_active']:
                             signal_status = "STRONG NOW"
                         elif result['confluence_signal_active']:
@@ -824,7 +814,7 @@ def process_batch(ticker_file: str, period='12mo', output_dir='results_volume',
                         f.write(f"{i:<4} {result['ticker']:<6} {result['moderate_buy_score']:<7.1f} "
                                f"{threshold_status}≥{result['moderate_threshold']:<6.1f} {signal_status:<13} {result['recent_moderate_count']:<5} "
                                f"{result['total_moderate_signals']:<5} {result['filename']}\n")
-
+                
                 f.write(f"\n🟠 ACTIVE PROFIT TAKING SIGNALS (EMPIRICALLY VALIDATED - ≥7.0 threshold for 96.1% win rate):\n")
                 f.write("-" * 110 + "\n")
                 
@@ -833,14 +823,13 @@ def process_batch(ticker_file: str, period='12mo', output_dir='results_volume',
                 else:
                     f.write(f"{'Rank':<4} {'Ticker':<6} {'Profit':<7} {'Threshold':<9} {'Status':<13} {'Rec5d':<5} {'File'}\n")
                     f.write("-" * 110 + "\n")
-                    
                     for i, result in enumerate(active_profit, 1):
                         signal_status = "EXIT NOW!" if result['profit_signal_active'] else "No Signal"
                         threshold_status = "✅" if result['profit_exceeds_threshold'] else "❌"
                         f.write(f"{i:<4} {result['ticker']:<6} {result['profit_taking_score']:<7.1f} "
                                f"{threshold_status}≥{result['profit_threshold']:<6.1f} {signal_status:<13} {result['recent_profit_count']:<5} "
                                f"{result['filename']}\n")
-
+                
                 f.write(f"\n💎 ACTIVE STEALTH ACCUMULATION SIGNALS (EMPIRICALLY VALIDATED - ≥4.5 threshold for 58.7% win rate):\n")
                 f.write("-" * 110 + "\n")
                 
@@ -849,50 +838,50 @@ def process_batch(ticker_file: str, period='12mo', output_dir='results_volume',
                 else:
                     f.write(f"{'Rank':<4} {'Ticker':<6} {'Stealth':<7} {'Threshold':<9} {'Status':<13} {'Rec5d':<5} {'Price%':<7} {'Total':<5} {'File'}\n")
                     f.write("-" * 110 + "\n")
-                    
                     for i, result in enumerate(active_stealth, 1):
                         signal_status = "ACTIVE NOW" if result['stealth_signal_active'] else "No Signal"
                         threshold_status = "✅" if result['stealth_exceeds_threshold'] else "❌"
                         f.write(f"{i:<4} {result['ticker']:<6} {result['stealth_score']:<7.1f} "
                                f"{threshold_status}≥{result['stealth_threshold']:<6.1f} {signal_status:<13} {result['recent_stealth_count']:<5} "
                                f"{result['price_change_pct']:<+7.1f} {result['total_stealth_signals']:<5} {result['filename']}\n")
-                    
-                logger.info(f"Batch summary saved to {summary_filename}")
                 
+                logger.info(f"Batch summary saved to {summary_filename}")
+        
         except Exception as e:
             logger.error(f"Failed to write batch summary file: {str(e)}")
             print(f"⚠️ Warning: Could not save summary file: {str(e)}")
         
-        # Generate interactive HTML summary if requested and charts exist
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
         if generate_html:
-            # Force chart generation if HTML is requested but charts weren't generated
             if not save_charts:
-                print(f"\n📊 HTML requested - generating charts for interactive summary...")
-                # Re-process with chart generation for HTML
-                for i, ticker in enumerate([r['ticker'] for r in results[:5]], 1):  # Top 5 for charts
-                    print(f"  Generating chart {i}/5: {ticker}...")
+                if verbose:
+                    print(f"\n📊 HTML requested - generating charts for interactive summary...")
+                for i, ticker in enumerate([r['ticker'] for r in results[:5]], 1):
+                    if verbose:
+                        print(f"  Generating chart {i}/5: {ticker}...")
                     try:
                         analyze_ticker(
                             ticker=ticker,
                             period=period,
-                            save_to_file=False,  # Don't overwrite analysis files
+                            save_to_file=False,
                             output_dir=output_dir,
-                            save_chart=True,  # Force chart generation
+                            save_chart=True,
                             force_refresh=False,
-                            show_chart=False,  # Don't display charts interactively
-                            show_summary=False  # Don't print verbose summaries
+                            show_chart=False,
+                            show_summary=False,
+                            debug=verbose
                         )
                     except Exception as e:
                         print(f"    ⚠️ Chart generation failed for {ticker}: {str(e)}")
             
-            # Generate HTML summary
             html_filename = generate_html_summary(results, errors, period, output_dir, timestamp)
-            print(f"\n🌐 Interactive HTML summary generated: {html_filename}")
-            print(f"   📂 Open in VS Code for clickable charts and analysis links")
+            if verbose:
+                print(f"\n🌐 Interactive HTML summary generated: {html_filename}")
+                print(f"   📂 Open in VS Code for clickable charts and analysis links")
         
-        print(f"\n📄 Summary report saved: {summary_filename}")
-        print(f"📁 All files saved to: {os.path.abspath(output_dir)}")
+        if verbose:
+            print(f"\n📄 Summary report saved: {summary_filename}")
+            print(f"📁 All files saved to: {os.path.abspath(output_dir)}")
     
     else:
         print(f"\n❌ No tickers were successfully processed.")

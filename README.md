@@ -151,6 +151,16 @@ python vol_analysis.py TSLA -p 6mo --backtest
 
 # Backtest saves report to file automatically
 python vol_analysis.py NVDA --backtest  # Creates NVDA_12mo_backtest_report.txt
+
+# Walk-forward threshold validation (Item #9 prototype)
+python vol_analysis.py AAPL -p 24mo --validate-thresholds
+```
+
+> ℹ️ Threshold validation requires enough history to cover the configured walk-forward windows (default: 12-month training + 3-month validation slices).
+
+```bash
+# Show per-ticker progress/log output
+python vol_analysis.py -f stocks.txt --debug
 ```
 
 ### Risk-Managed Backtesting (Item #5 - NEW)

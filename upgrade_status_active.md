@@ -44,6 +44,11 @@
 4. Performance degradation detection
 5. Validation reporting
 
+**Recent Progress (2025-11-07):**
+- Added `threshold_validation.py` with walk-forward slicing, training optimization, and validation metrics
+- New CLI flag `--validate-thresholds` runs Item #9 prototype directly from `vol_analysis.py`
+- Reporting helper outputs window-by-window degradation checks for documentation
+
 **Risk Mitigation:**
 - Current thresholds (6.5, 8.0) validated on same data used for optimization
 - Need separate validation dataset to confirm edge is real
