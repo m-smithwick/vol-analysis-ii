@@ -55,14 +55,53 @@ The intent is to move from "decent scanner with heuristics" to "swing process th
 - ⏸️ **Items #10-13: tweaks.txt Integration** - IN PROGRESS  
   - ✅ **Item #10:** Volume Flow Simplification (CMF Replacement) - COMPLETED 2025-11-05
   - ✅ **Item #11:** Pre-Trade Quality Filters - COMPLETED 2025-11-05
-  - ✅ **Item #12:** Feature Standardization (Z-Score Normalization) - COMPLETED 2025-11-05
-  - ⏸️ **Item #13:** Comprehensive Risk Framework - PLANNED
-  - **INTEGRATION COMPLETED:** 2025-11-05 - All tweaks.txt enhancements integrated into upgrade_spec.md
-  - Status: Items #10, #11, #12 implemented; Item #13 pending
+- ✅ **Item #12:** Feature Standardization (Z-Score Normalization) - COMPLETED 2025-11-05
+- ⏸️ **Item #13:** Comprehensive Risk Framework - PLANNED
+- **INTEGRATION COMPLETED:** 2025-11-05 - All tweaks.txt enhancements integrated into upgrade_spec.md
+- Status: Items #10, #11, #12 implemented; Item #13 pending
 
-- ⏸️ **Item #5: P&L-Aware Exit Logic** - NOT STARTED (Enhanced with tweaks.txt)
+- ✅ **Item #5: P&L-Aware Exit Logic** - COMPLETED (RiskManager default path)
 - ✅ **Item #6: Market / Sector Regime Filter** - COMPLETED 2025-11-05
 - ⏸️ **Item #7: Refactor / Integration Plan** - PARTIAL (Item #1 complete)
+
+---
+
+## Strategy Simplification Initiative (Focused Backlog)
+
+1. **Concentrated Entry Set**  
+   - Scope: `signal_generator.py`, `backtest.py`  
+   - Action: Default to `Confluence_Signal` and `Stealth_Accumulation`; gate secondary entries behind stricter checks.  
+   - Goal: Immediate reduction in trade count with minimal expectancy loss.
+
+2. **Mandatory Regime & Liquidity Filter**  
+   - Scope: `regime_filter.py`, prefilter hooks in `signal_generator.py`  
+   - Action: Require bullish market/sector regime plus ATR/volume floors before entries fire.  
+   - Goal: Avoid churn during weak environments.
+
+3. **Score Threshold Raise**  
+   - Scope: `threshold_config.py`  
+   - Action: Increase accumulation thresholds (Strong/Moderate) by ~0.5 points.  
+   - Goal: Remove marginal setups while keeping elite signals.
+
+4. **Risk-Managed Default Path**  
+   - Scope: `batch_backtest.py`, `backtest.py::run_risk_managed_backtest`  
+   - Action: Make RiskManager the default execution path; sunset legacy entry/exit pairing.  
+   - Goal: Unified exit logic and clearer analytics.
+
+5. **Time-Stop Tightening**  
+   - Scope: `risk_manager.py`  
+   - Action: Cut time-stop window to 8–10 bars if trade < +1R.  
+   - Goal: Recycle capital from slow movers.
+
+6. **Position Sizing Tiers**  
+   - Scope: `risk_manager.py`  
+   - Action: Tier signals (Tier 1 full risk; Tier 2 50% or skip).  
+   - Goal: Reduce exposure to lower-conviction setups.
+
+7. **Exit Rule Pruning**  
+   - Scope: `backtest.py::compare_exit_strategies`, aggregate reporting  
+   - Action: Use expectancy stats to retire underperforming exits and map entries to the best performer.  
+   - Goal: Simplify exit menu without losing edge.
 
 ---
 

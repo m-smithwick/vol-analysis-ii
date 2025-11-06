@@ -524,12 +524,16 @@ def analyze_strategy_performance(paired_trades: List[Dict],
     filtered_trades = paired_trades
     
     if entry_filter:
-        filtered_trades = [t for t in filtered_trades 
-                          if entry_filter in t['entry_signals']]
+        filtered_trades = [
+            t for t in filtered_trades 
+            if entry_filter in t.get('entry_signals', [])
+        ]
     
     if exit_filter:
-        filtered_trades = [t for t in filtered_trades 
-                          if exit_filter in t['exit_signals']]
+        filtered_trades = [
+            t for t in filtered_trades 
+            if exit_filter in t.get('exit_signals', [])
+        ]
     
     if len(filtered_trades) == 0:
         return {
@@ -1197,7 +1201,353 @@ def run_full_threshold_optimization(df: pd.DataFrame, ticker: str, period: str,
     return full_report
 
 
+def run_risk_managed_backtest(
+    df: pd.DataFrame, 
+    ticker: str, 
+    account_value: float = 100000,
+    risk_pct: float = 0.75,
+    save_to_file: bool = True,
+    output_dir: str = 'backtest_results'
+) -> Dict:
+    """
+    Run backtest using RiskManager for position management and exit logic.
+    
+    This implements Item #5: P&L-Aware Exit Logic by using the RiskManager class
+    to handle:
+    - Risk-based position sizing (0.5-1% per trade)
+    - Initial stop placement: min(swing_low - 0.5*ATR, VWAP - 1*ATR)
+    - Time stops after 12 bars if <+1R
+    - Momentum failure exits (CMF <0 OR close < VWAP)
+    - Profit scaling at +2R with trailing stops
+    
+    Args:
+        df: DataFrame with signals and indicators from vol_analysis.py
+        ticker: Stock symbol
+        account_value: Starting account value for position sizing
+        risk_pct: Risk percentage per trade (0.5-1.0% recommended)
+        save_to_file: Whether to save report to file
+        output_dir: Directory to save reports
+        
+    Returns:
+        Dict with trades, risk_manager, and performance summary
+        
+    Raises:
+        ImportError: If risk_manager module not available
+    """
+    import os
+    try:
+        from risk_manager import RiskManager, analyze_risk_managed_trades
+    except ImportError:
+        raise ImportError("risk_manager module required for risk-managed backtesting")
+    
+    # Initialize RiskManager
+    risk_mgr = RiskManager(account_value=account_value, risk_pct_per_trade=risk_pct)
+    
+    print(f"\n🎯 RISK-MANAGED BACKTEST: {ticker}")
+    print(f"   Account Value: ${account_value:,.0f}")
+    print(f"   Risk Per Trade: {risk_pct}%")
+    print("="*70)
+    
+    # Entry signal columns to monitor
+    entry_signals = ['Strong_Buy', 'Moderate_Buy', 'Stealth_Accumulation', 
+                     'Confluence_Signal', 'Volume_Breakout']
+    
+    # Track all trades
+    all_trades = []
+    
+    # Iterate through DataFrame
+    for idx in range(len(df)):
+        current_date = df.index[idx]
+        current_price = df.iloc[idx]['Close']
+        
+        # Update active positions FIRST (before checking for new entries)
+        if ticker in risk_mgr.active_positions:
+            exit_check = risk_mgr.update_position(
+                ticker=ticker,
+                current_date=current_date,
+                current_price=current_price,
+                df=df,
+                current_idx=idx
+            )
+            
+            if exit_check['should_exit']:
+                # Close position
+                exit_date = current_date
+                exit_price = exit_check['exit_price']
+                
+                # For partial exits, just record the trade but keep position open
+                trade = risk_mgr.close_position(
+                    ticker=ticker,
+                    exit_price=exit_price,
+                    exit_type=exit_check['exit_type'],
+                    exit_date=exit_date,
+                    partial_exit_pct=exit_check.get('exit_pct', 1.0)
+                )
+                
+                if trade:
+                    all_trades.append(trade)
+                    
+                    if exit_check.get('partial_exit', False):
+                        print(f"📊 PARTIAL EXIT ({int(exit_check['exit_pct']*100)}%): {exit_date.strftime('%Y-%m-%d')} @ ${exit_price:.2f} - {exit_check['exit_type']} - {exit_check['reason']}")
+                    else:
+                        print(f"🚪 EXIT: {exit_date.strftime('%Y-%m-%d')} @ ${exit_price:.2f} - {exit_check['exit_type']} - {exit_check['reason']}")
+                        print(f"   Return: {trade['profit_pct']:.2f}%, R-Multiple: {trade['r_multiple']:.2f}R, Held: {trade['bars_held']} days")
+        
+        # Check for entry signals on this bar (only if no active position)
+        if ticker not in risk_mgr.active_positions:
+            has_entry_signal = any(df.iloc[idx][sig] for sig in entry_signals)
+            
+            if has_entry_signal:
+                # Entry signal fired - check if we can enter next day
+                if idx + 1 >= len(df):
+                    continue  # No next day data
+                
+                # Entry price = next day's open (realistic execution)
+                entry_price = df.iloc[idx + 1]['Open']
+                entry_date = df.index[idx + 1]
+                
+                # Calculate initial stop using RiskManager
+                try:
+                    stop_price = risk_mgr.calculate_initial_stop(df, idx)
+                    
+                    # Open position
+                    position = risk_mgr.open_position(
+                        ticker=ticker,
+                        entry_date=entry_date,
+                        entry_price=entry_price,
+                        stop_price=stop_price,
+                        entry_idx=idx + 1,  # Entry happens next day
+                        df=df
+                    )
+                    
+                    print(f"✅ ENTRY: {entry_date.strftime('%Y-%m-%d')} @ ${entry_price:.2f}, Stop: ${stop_price:.2f}, Size: {position['position_size']} shares")
+                    
+                except (KeyError, ValueError) as e:
+                    print(f"⚠️ Could not open position on {current_date.strftime('%Y-%m-%d')}: {e}")
+                    continue
+    
+    # Close any remaining open positions at last price
+    if ticker in risk_mgr.active_positions:
+        last_price = df.iloc[-1]['Close']
+        last_date = df.index[-1]
+        
+        trade = risk_mgr.close_position(
+            ticker=ticker,
+            exit_price=last_price,
+            exit_type='END_OF_DATA',
+            exit_date=last_date
+        )
+        
+        if trade:
+            all_trades.append(trade)
+            print(f"⏸️ Position closed at end of data: {last_date.strftime('%Y-%m-%d')} @ ${last_price:.2f}")
+    
+    # Generate comprehensive analysis
+    if all_trades:
+        analysis = analyze_risk_managed_trades(all_trades)
+        report = generate_risk_managed_report(ticker, all_trades, analysis, account_value, risk_pct)
+        
+        print("\n" + report)
+        
+        # Save to file if requested
+        if save_to_file:
+            os.makedirs(output_dir, exist_ok=True)
+            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+            filename = f"{ticker}_risk_managed_backtest_{timestamp}.txt"
+            filepath = os.path.join(output_dir, filename)
+            
+            with open(filepath, 'w') as f:
+                f.write(report)
+            
+            print(f"\n💾 Risk-managed backtest report saved: {filename}")
+        
+        return {
+            'trades': all_trades,
+            'risk_manager': risk_mgr,
+            'analysis': analysis,
+            'report': report
+        }
+    else:
+        print("\n⚠️ No trades generated in this analysis period")
+        return {
+            'trades': [],
+            'risk_manager': risk_mgr,
+            'analysis': {},
+            'report': "No trades generated"
+        }
+
+
+def generate_risk_managed_report(
+    ticker: str,
+    trades: List[Dict],
+    analysis: Dict,
+    account_value: float,
+    risk_pct: float
+) -> str:
+    """
+    Generate comprehensive risk-managed backtest report.
+    
+    Args:
+        ticker: Stock symbol
+        trades: List of trade dictionaries
+        analysis: Analysis results from analyze_risk_managed_trades()
+        account_value: Account value used
+        risk_pct: Risk percentage used
+        
+    Returns:
+        str: Formatted report
+    """
+    report_lines = []
+    
+    report_lines.append("=" * 70)
+    report_lines.append(f"🎯 RISK-MANAGED BACKTEST REPORT: {ticker.upper()}")
+    report_lines.append(f"Item #5: P&L-Aware Exit Logic Implementation")
+    report_lines.append("=" * 70)
+    report_lines.append("")
+    
+    # Configuration
+    report_lines.append("⚙️ RISK MANAGEMENT CONFIGURATION:")
+    report_lines.append(f"  Account Value: ${account_value:,.0f}")
+    report_lines.append(f"  Risk Per Trade: {risk_pct}%")
+    report_lines.append(f"  Max $ Risk Per Trade: ${account_value * (risk_pct/100):,.0f}")
+    report_lines.append("")
+    
+    # Overall Performance
+    report_lines.append("📊 OVERALL PERFORMANCE:")
+    report_lines.append(f"  Total Trades: {analysis['Total Trades']}")
+    report_lines.append(f"  Win Rate: {analysis['Win Rate']}")
+    report_lines.append(f"  Average R-Multiple: {analysis['Average R-Multiple']}")
+    report_lines.append(f"  Average Profit %: {analysis['Average Profit %']}")
+    report_lines.append(f"  Average Holding Period: {analysis['Average Bars Held']}")
+    report_lines.append(f"  Profit Scaling Used: {analysis['Profit Scaling Used']} trades")
+    report_lines.append("")
+    
+    # Exit Type Breakdown
+    report_lines.append("🚪 EXIT TYPE DISTRIBUTION:")
+    exit_breakdown = analysis['Exit Type Breakdown']
+    for exit_type, count in exit_breakdown.items():
+        emoji = {
+            'Time Stops': '⏰',
+            'Hard Stops': '🛑',
+            'Momentum Fails': '💨',
+            'Profit Targets': '🎯',
+            'Trailing Stops': '📈'
+        }.get(exit_type, '•')
+        report_lines.append(f"  {emoji} {exit_type}: {count}")
+    report_lines.append("")
+    
+    # R-Multiple Distribution
+    report_lines.append("📈 R-MULTIPLE DISTRIBUTION:")
+    r_dist = analysis['R-Multiple Distribution']
+    report_lines.append(f"  🚀 Trades > +2R: {r_dist['Trades > +2R']} (home runs)")
+    report_lines.append(f"  ✅ Trades +1R to +2R: {r_dist['Trades +1R to +2R']} (solid wins)")
+    report_lines.append(f"  💡 Trades 0 to +1R: {r_dist['Trades 0 to +1R']} (small wins)")
+    report_lines.append(f"  ❌ Losing Trades: {r_dist['Losing Trades']} (losses)")
+    report_lines.append("")
+    
+    # Best/Worst Trades
+    report_lines.append("🏆 BEST & WORST TRADES:")
+    report_lines.append(f"  Best Trade: {analysis['Best Trade']}")
+    report_lines.append(f"  Worst Trade: {analysis['Worst Trade']}")
+    report_lines.append(f"  Peak R-Multiple Avg: {analysis['Peak R-Multiple Avg']} (best unrealized P&L)")
+    report_lines.append("")
+    
+    # Detailed Trade Log
+    report_lines.append("📋 DETAILED TRADE LOG:")
+    report_lines.append("-" * 70)
+    
+    for i, trade in enumerate(trades, 1):
+        entry_date = trade['entry_date'].strftime('%Y-%m-%d')
+        exit_date = trade['exit_date'].strftime('%Y-%m-%d') if trade.get('exit_date') else 'OPEN'
+        
+        report_lines.append(f"\nTrade #{i}:")
+        report_lines.append(f"  Entry: {entry_date} @ ${trade['entry_price']:.2f}")
+        report_lines.append(f"  Exit:  {exit_date} @ ${trade['exit_price']:.2f} ({trade['exit_type']})")
+        report_lines.append(f"  Result: {trade['profit_pct']:+.2f}% | {trade['r_multiple']:+.2f}R")
+        report_lines.append(f"  Held: {trade['bars_held']} days")
+        report_lines.append(f"  Position: {trade['position_size']} shares")
+        
+        if trade.get('partial_exit', False):
+            report_lines.append(f"  Note: Partial exit ({int(trade.get('exit_pct', 1.0)*100)}%)")
+        
+        if trade.get('profit_taken_50pct', False):
+            report_lines.append(f"  Profit Scaling: 50% taken at +2R, remainder trailed")
+        
+        if 'peak_r_multiple' in trade and trade['peak_r_multiple'] > trade['r_multiple']:
+            report_lines.append(f"  Peak: {trade['peak_r_multiple']:.2f}R (gave back {trade['peak_r_multiple'] - trade['r_multiple']:.2f}R)")
+    
+    report_lines.append("")
+    report_lines.append("=" * 70)
+    report_lines.append("")
+    
+    # Key Insights
+    report_lines.append("💡 KEY INSIGHTS:")
+    report_lines.append("")
+    
+    # Parse win rate
+    win_rate_str = analysis['Win Rate']
+    win_rate = float(win_rate_str.rstrip('%'))
+    
+    if win_rate >= 60:
+        report_lines.append("  ✅ System shows strong positive edge (>60% win rate)")
+    elif win_rate >= 50:
+        report_lines.append("  ✓ System is profitable but could be improved (50-60% win rate)")
+    else:
+        report_lines.append("  ⚠️ System needs refinement (<50% win rate)")
+    
+    # Parse R-multiple
+    avg_r_str = analysis['Average R-Multiple']
+    avg_r = float(avg_r_str.rstrip('R'))
+    
+    if avg_r >= 1.5:
+        report_lines.append("  ✅ Excellent risk-reward ratio (>1.5R average)")
+    elif avg_r >= 1.0:
+        report_lines.append("  ✓ Good risk-reward ratio (1.0-1.5R average)")
+    elif avg_r > 0:
+        report_lines.append("  ⚠️ Risk-reward ratio could be improved (<1.0R average)")
+    else:
+        report_lines.append("  ❌ Negative expectancy - losing system")
+    
+    # Profit scaling effectiveness
+    profit_scaled = analysis['Profit Scaling Used']
+    total_trades = analysis['Total Trades']
+    
+    if profit_scaled > 0:
+        scaling_pct = (profit_scaled / total_trades) * 100
+        report_lines.append(f"  📊 Profit scaling used in {scaling_pct:.0f}% of trades")
+        
+        if scaling_pct >= 20:
+            report_lines.append("  ✅ Good mix of winners reaching +2R target")
+        else:
+            report_lines.append("  💡 Few trades reaching +2R - consider wider targets or better entries")
+    
+    # Exit type analysis
+    time_stops = exit_breakdown.get('Time Stops', 0)
+    if time_stops > total_trades * 0.3:
+        report_lines.append(f"  ⚠️ High time stop rate ({time_stops}/{total_trades}) - many trades going nowhere")
+    
+    momentum_fails = exit_breakdown.get('Momentum Fails', 0)
+    if momentum_fails > total_trades * 0.2:
+        report_lines.append(f"  👀 Watch momentum failures ({momentum_fails}/{total_trades}) - trend reversing quickly")
+    
+    hard_stops = exit_breakdown.get('Hard Stops', 0)
+    if hard_stops > total_trades * 0.3:
+        report_lines.append(f"  🛑 High hard stop rate ({hard_stops}/{total_trades}) - consider tighter entries or better setups")
+    
+    report_lines.append("")
+    report_lines.append("📝 RISK MANAGEMENT RULES IN USE:")
+    report_lines.append("  • Initial Stop: min(swing_low - 0.5*ATR, VWAP - 1*ATR)")
+    report_lines.append("  • Time Stop: Exit after 12 bars if <+1R")
+    report_lines.append("  • Momentum Fail: Exit if CMF <0 OR close < VWAP")
+    report_lines.append("  • Profit Target: Scale 50% at +2R")
+    report_lines.append("  • Trailing Stop: 10-day low after +2R achieved")
+    report_lines.append("")
+    
+    return "\n".join(report_lines)
+
+
 if __name__ == "__main__":
     print("This module is designed to be imported by vol_analysis.py")
     print("Use: python vol_analysis.py TICKER --backtest")
+    print("Use: python vol_analysis.py TICKER --risk-managed")
     print("Use: python vol_analysis.py TICKER --optimize-thresholds")

@@ -26,7 +26,10 @@ setup_logging()
 
 
 def run_batch_backtest(ticker_file: str, period: str = '12mo', 
-                      output_dir: str = 'backtest_results') -> Dict:
+                      output_dir: str = 'backtest_results',
+                      risk_managed: bool = False,
+                      account_value: float = 100000,
+                      risk_pct: float = 0.75) -> Dict:
     """
     Run backtests on all tickers in a file and aggregate results.
     
@@ -34,6 +37,9 @@ def run_batch_backtest(ticker_file: str, period: str = '12mo',
         ticker_file (str): Path to file containing ticker symbols
         period (str): Analysis period (default: 12mo)
         output_dir (str): Directory to save backtest reports
+        risk_managed (bool): Use RiskManager for P&L-aware exits (default: False)
+        account_value (float): Account value for position sizing (risk-managed only)
+        risk_pct (float): Risk percentage per trade (risk-managed only)
         
     Returns:
         Dict: Aggregated backtest results across all tickers
@@ -103,51 +109,82 @@ def run_batch_backtest(ticker_file: str, period: str = '12mo',
                         show_summary=False
                     )
                     
-                    # Generate paired trades for this ticker
-                    paired_trades = backtest.pair_entry_exit_signals(
-                        df, 
-                        list(entry_signals.keys()), 
-                        list(exit_signals.keys())
-                    )
-                    
-                    # Add ticker identifier to each trade
-                    for trade in paired_trades:
-                        trade['ticker'] = ticker
-                    
-                    # Aggregate all trades
-                    aggregated_results['all_paired_trades'].extend(paired_trades)
-                    
-                    # Analyze this ticker's performance
-                    entry_comparison = backtest.compare_entry_strategies(paired_trades, entry_signals)
-                    exit_comparison = backtest.compare_exit_strategies(paired_trades, exit_signals)
-                    
-                    # Store ticker-specific results
-                    aggregated_results['ticker_specific_results'][ticker] = {
-                        'total_trades': len(paired_trades),
-                        'closed_trades': len([t for t in paired_trades if not t.get('is_open', False)]),
-                        'entry_performance': entry_comparison,
-                        'exit_performance': exit_comparison
-                    }
-                    
-                    # Generate and save individual backtest report
-                    strategy_report = backtest.generate_strategy_comparison_report(
-                        paired_trades, 
-                        entry_signals, 
-                        exit_signals
-                    )
-                    
-                    # Save individual report
-                    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-                    filename = f"{ticker}_{period}_backtest_{timestamp}.txt"
-                    filepath = os.path.join(output_dir, filename)
-                    
-                    def _save_report():
-                        with open(filepath, 'w') as f:
-                            f.write(f"📊 BACKTEST REPORT: {ticker} ({period})\n")
-                            f.write("="*70 + "\n\n")
-                            f.write(strategy_report)
-                    
-                    safe_operation(f"saving backtest report for {ticker}", _save_report)
+                    if risk_managed:
+                        # Use RiskManager for position management and exits
+                        risk_result = backtest.run_risk_managed_backtest(
+                            df=df,
+                            ticker=ticker,
+                            account_value=account_value,
+                            risk_pct=risk_pct,
+                            save_to_file=True,
+                            output_dir=output_dir
+                        )
+                        
+                        # Extract trades from risk manager
+                        paired_trades = risk_result['trades']
+                        
+                        # Add ticker identifier if not already present
+                        for trade in paired_trades:
+                            if 'ticker' not in trade:
+                                trade['ticker'] = ticker
+                        
+                        # Aggregate all trades
+                        aggregated_results['all_paired_trades'].extend(paired_trades)
+                        
+                        # Store ticker-specific results
+                        aggregated_results['ticker_specific_results'][ticker] = {
+                            'total_trades': len(paired_trades),
+                            'closed_trades': len([t for t in paired_trades if not t.get('partial_exit', False)]),
+                            'risk_managed': True,
+                            'analysis': risk_result.get('analysis', {})
+                        }
+                    else:
+                        # Traditional entry/exit signal pairing
+                        paired_trades = backtest.pair_entry_exit_signals(
+                            df, 
+                            list(entry_signals.keys()), 
+                            list(exit_signals.keys())
+                        )
+                        
+                        # Add ticker identifier to each trade
+                        for trade in paired_trades:
+                            trade['ticker'] = ticker
+                        
+                        # Aggregate all trades
+                        aggregated_results['all_paired_trades'].extend(paired_trades)
+                        
+                        # Analyze this ticker's performance
+                        entry_comparison = backtest.compare_entry_strategies(paired_trades, entry_signals)
+                        exit_comparison = backtest.compare_exit_strategies(paired_trades, exit_signals)
+                        
+                        # Store ticker-specific results
+                        aggregated_results['ticker_specific_results'][ticker] = {
+                            'total_trades': len(paired_trades),
+                            'closed_trades': len([t for t in paired_trades if not t.get('is_open', False)]),
+                            'risk_managed': False,
+                            'entry_performance': entry_comparison,
+                            'exit_performance': exit_comparison
+                        }
+                        
+                        # Generate and save individual backtest report
+                        strategy_report = backtest.generate_strategy_comparison_report(
+                            paired_trades, 
+                            entry_signals, 
+                            exit_signals
+                        )
+                        
+                        # Save individual report
+                        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+                        filename = f"{ticker}_{period}_backtest_{timestamp}.txt"
+                        filepath = os.path.join(output_dir, filename)
+                        
+                        def _save_report():
+                            with open(filepath, 'w') as f:
+                                f.write(f"📊 BACKTEST REPORT: {ticker} ({period})\n")
+                                f.write("="*70 + "\n\n")
+                                f.write(strategy_report)
+                        
+                        safe_operation(f"saving backtest report for {ticker}", _save_report)
                     
                     aggregated_results['tickers_processed'].append(ticker)
                     logger.info(f"Completed {ticker}: {len(paired_trades)} trades generated")
@@ -164,104 +201,259 @@ def run_batch_backtest(ticker_file: str, period: str = '12mo',
         if aggregated_results['all_paired_trades']:
             logger.info(f"Aggregating results across {len(aggregated_results['tickers_processed'])} tickers")
             
-            # Aggregate entry signal performance
-            for signal_col, signal_name in entry_signals.items():
-                metrics = backtest.analyze_strategy_performance(
-                    aggregated_results['all_paired_trades'],
-                    entry_filter=signal_col
-                )
+            if not risk_managed:
+                # Traditional backtest: Aggregate entry and exit signal performance
+                standard_trades = [
+                    t for t in aggregated_results['all_paired_trades']
+                    if 'entry_signals' in t and 'exit_signals' in t
+                ]
                 
-                if metrics['closed_trades'] > 0:
-                    aggregated_results['entry_signal_stats'][signal_col] = {
-                        'name': signal_name,
-                        **metrics
-                    }
-            
-            # Aggregate exit signal performance
-            for signal_col, signal_name in exit_signals.items():
-                metrics = backtest.analyze_strategy_performance(
-                    aggregated_results['all_paired_trades'],
-                    exit_filter=signal_col
-                )
-                
-                if metrics['closed_trades'] > 0:
-                    aggregated_results['exit_signal_stats'][signal_col] = {
-                        'name': signal_name,
-                        **metrics
-                    }
+                if not standard_trades:
+                    logger.warning("No standard trades with entry/exit signals available for aggregate analysis.")
+                else:
+                    for signal_col, signal_name in entry_signals.items():
+                        metrics = backtest.analyze_strategy_performance(
+                            standard_trades,
+                            entry_filter=signal_col
+                        )
+                        
+                        if metrics['closed_trades'] > 0:
+                            aggregated_results['entry_signal_stats'][signal_col] = {
+                                'name': signal_name,
+                                **metrics
+                            }
+                    
+                    # Aggregate exit signal performance
+                    for signal_col, signal_name in exit_signals.items():
+                        metrics = backtest.analyze_strategy_performance(
+                            standard_trades,
+                            exit_filter=signal_col
+                        )
+                        
+                        if metrics['closed_trades'] > 0:
+                            aggregated_results['exit_signal_stats'][signal_col] = {
+                                'name': signal_name,
+                                **metrics
+                            }
+            else:
+                # Risk-managed: Aggregate R-multiples and exit types
+                try:
+                    from risk_manager import analyze_risk_managed_trades
+                    
+                    # Analyze all trades together
+                    all_trades_analysis = analyze_risk_managed_trades(aggregated_results['all_paired_trades'])
+                    aggregated_results['risk_analysis'] = all_trades_analysis
+                    
+                except ImportError:
+                    logger.error("risk_manager module not available for aggregation")
         
         return aggregated_results
 
 
-def generate_aggregate_report(results: Dict, period: str, output_dir: str) -> str:
-    """
-    Generate comprehensive aggregate backtest report.
-    
-    Args:
-        results (Dict): Aggregated backtest results
-        period (str): Analysis period
-        output_dir (str): Output directory
-        
-    Returns:
-        str: Formatted aggregate report
-    """
-    report_lines = []
-    
-    # Header
-    report_lines.append("="*80)
-    report_lines.append("🎯 COLLECTIVE STRATEGY OPTIMIZATION REPORT")
-    report_lines.append("="*80)
+def generate_risk_managed_aggregate_report(results: Dict, period: str, output_dir: str) -> str:
+    """Generate aggregate report for risk-managed backtests."""
+    try:
+        from risk_manager import analyze_risk_managed_trades
+    except ImportError:
+        logger.error("risk_manager module not available for risk-managed aggregate reporting")
+        return "Error: risk_manager module not available"
+
+    trades = results.get("all_paired_trades", [])
+    tickers_processed = results.get("tickers_processed", [])
+    tickers_failed = results.get("tickers_failed", [])
+    partial_trades = [t for t in trades if t.get("partial_exit", False)]
+    full_exits = [t for t in trades if not t.get("partial_exit", False)]
+
+    risk_analysis = results.get("risk_analysis")
+    if not risk_analysis:
+        risk_analysis = analyze_risk_managed_trades(trades)
+
+    def _fmt_date(value):
+        if isinstance(value, (pd.Timestamp, datetime)):
+            return value.strftime("%Y-%m-%d")
+        return value.strftime("%Y-%m-%d") if hasattr(value, "strftime") else (str(value) if value else "N/A")
+
+    report_lines: List[str] = []
+    report_lines.append("=" * 80)
+    report_lines.append("🎯 RISK-MANAGED BATCH BACKTEST REPORT")
+    report_lines.append("Item #5: P&L-Aware Exit Logic - Aggregate Analysis")
+    report_lines.append("=" * 80)
     report_lines.append("")
     report_lines.append(f"Analysis Period: {period}")
     report_lines.append(f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     report_lines.append("")
-    
-    # Summary statistics
+
     report_lines.append("📊 BATCH PROCESSING SUMMARY:")
-    report_lines.append(f"  Tickers Analyzed: {len(results['tickers_processed'])}")
-    report_lines.append(f"  Tickers Failed: {len(results['tickers_failed'])}")
-    report_lines.append(f"  Total Trades Generated: {len(results['all_paired_trades'])}")
-    
-    closed_trades = [t for t in results['all_paired_trades'] if not t.get('is_open', False)]
-    open_trades = len(results['all_paired_trades']) - len(closed_trades)
-    
+    report_lines.append(f"  Tickers Analyzed: {len(tickers_processed)}")
+    report_lines.append(f"  Tickers Failed: {len(tickers_failed)}")
+    report_lines.append(f"  Total Trades Recorded: {len(trades)}")
+    report_lines.append(f"  Full Exits Logged: {len(full_exits)}")
+    report_lines.append(f"  Partial Exits Logged: {len(partial_trades)}")
+    report_lines.append("")
+
+    if tickers_failed:
+        report_lines.append("⚠️  FAILED TICKERS:")
+        for failure in tickers_failed:
+            report_lines.append(f"  • {failure['ticker']}: {failure['error']}")
+        report_lines.append("")
+
+    if tickers_processed:
+        report_lines.append("✅ Successfully Analyzed:")
+        report_lines.append(f"  {', '.join(tickers_processed)}")
+        report_lines.append("")
+    else:
+        report_lines.append("⚠️  No tickers were successfully processed.")
+        return "\n".join(report_lines)
+
+    if not trades:
+        report_lines.append("⚠️  No trades captured by the RiskManager.")
+        report_lines.append("   Verify signal configuration or extend the analysis window.")
+        return "\n".join(report_lines)
+
+    report_lines.append("=" * 80)
+    report_lines.append("📈 R-MULTIPLE PERFORMANCE")
+    report_lines.append("=" * 80)
+    report_lines.append("")
+
+    key_metrics = [
+        ("Win Rate", "Win Rate"),
+        ("Average R-Multiple", "Average R-Multiple"),
+        ("Average Profit %", "Average Profit %"),
+        ("Average Bars Held", "Average Bars Held"),
+        ("Profit Scaling Used", "Profit Scaling Used"),
+        ("Peak R-Multiple Avg", "Peak R-Multiple Avg"),
+        ("Best Trade", "Best Trade"),
+        ("Worst Trade", "Worst Trade"),
+    ]
+
+    if isinstance(risk_analysis, dict):
+        for label, key in key_metrics:
+            report_lines.append(f"  {label}: {risk_analysis.get(key, 'N/A')}")
+        report_lines.append("")
+
+        exit_breakdown = risk_analysis.get("Exit Type Breakdown", {})
+        if exit_breakdown:
+            report_lines.append("🛑 Exit Type Distribution:")
+            for exit_type, count in exit_breakdown.items():
+                pretty = exit_type.replace('_', ' ').title() if isinstance(exit_type, str) else str(exit_type)
+                report_lines.append(f"  • {pretty}: {count}")
+            report_lines.append("")
+
+        r_distribution = risk_analysis.get("R-Multiple Distribution", {})
+        if r_distribution:
+            report_lines.append("📊 R-Multiple Distribution:")
+            for bucket, count in r_distribution.items():
+                report_lines.append(f"  • {bucket}: {count}")
+            report_lines.append("")
+    else:
+        report_lines.append("  Unable to compute aggregate risk analysis.")
+        report_lines.append("")
+
+    sorted_all_trades = sorted(trades, key=lambda t: t.get("r_multiple", 0), reverse=True)
+    if sorted_all_trades:
+        best_trade = sorted_all_trades[0]
+        worst_trade = sorted(trades, key=lambda t: t.get("r_multiple", 0))[0]
+        report_lines.append("🏆 Highlight Trades:")
+        report_lines.append(
+            f"  Best Trade: {best_trade.get('ticker', 'N/A')} "
+            f"({ _fmt_date(best_trade.get('exit_date')) }) "
+            f"{best_trade.get('r_multiple', 0):+.2f}R / {best_trade.get('profit_pct', 0):+.2f}%"
+        )
+        report_lines.append(
+            f"  Toughest Trade: {worst_trade.get('ticker', 'N/A')} "
+            f"({ _fmt_date(worst_trade.get('exit_date')) }) "
+            f"{worst_trade.get('r_multiple', 0):+.2f}R / {worst_trade.get('profit_pct', 0):+.2f}%"
+        )
+        report_lines.append("")
+
+    ticker_results = results.get("ticker_specific_results", {})
+    if ticker_results:
+        report_lines.append("🗂️  Ticker Breakdown:")
+        for ticker, info in sorted(
+            ticker_results.items(), key=lambda item: item[1].get("total_trades", 0), reverse=True
+        ):
+            report_lines.append(
+                f"  • {ticker}: {info.get('total_trades', 0)} trades "
+                f"({info.get('closed_trades', 0)} fully closed)"
+            )
+        report_lines.append("")
+
+    report_lines.append("=" * 80)
+    report_lines.append("⚠️  DISCLAIMER")
+    report_lines.append("=" * 80)
+    report_lines.append("")
+    report_lines.append("This analysis is based on historical data managed with the RiskManager framework.")
+    report_lines.append("Past performance is not indicative of future returns. Validate assumptions before trading.")
+    report_lines.append("")
+    report_lines.append("=" * 80)
+
+    return "\n".join(report_lines)
+
+
+def generate_aggregate_report(results: Dict, period: str, output_dir: str) -> str:
+    """Generate aggregate report for traditional entry/exit backtests."""
+    report_lines: List[str] = []
+
+    tickers_processed = results.get("tickers_processed", [])
+    tickers_failed = results.get("tickers_failed", [])
+    all_trades = results.get("all_paired_trades", [])
+    entry_stats = results.get("entry_signal_stats", {})
+    exit_stats = results.get("exit_signal_stats", {})
+
+    report_lines.append("=" * 80)
+    report_lines.append("🎯 COLLECTIVE STRATEGY OPTIMIZATION REPORT")
+    report_lines.append("=" * 80)
+    report_lines.append("")
+    report_lines.append(f"Analysis Period: {period}")
+    report_lines.append(f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    report_lines.append("")
+
+    report_lines.append("📊 BATCH PROCESSING SUMMARY:")
+    report_lines.append(f"  Tickers Analyzed: {len(tickers_processed)}")
+    report_lines.append(f"  Tickers Failed: {len(tickers_failed)}")
+    report_lines.append(f"  Total Trades Generated: {len(all_trades)}")
+
+    closed_trades = [t for t in all_trades if not t.get("is_open", False)]
+    open_trades = len(all_trades) - len(closed_trades)
+
     report_lines.append(f"  Closed Trades: {len(closed_trades)}")
     report_lines.append(f"  Open Positions: {open_trades}")
     report_lines.append("")
-    
-    if results['tickers_failed']:
+
+    if tickers_failed:
         report_lines.append("⚠️  FAILED TICKERS:")
-        for failure in results['tickers_failed']:
+        for failure in tickers_failed:
             report_lines.append(f"  • {failure['ticker']}: {failure['error']}")
         report_lines.append("")
-    
-    report_lines.append("✅ Successfully Analyzed:")
-    report_lines.append(f"  {', '.join(results['tickers_processed'])}")
-    report_lines.append("")
-    
+
+    if tickers_processed:
+        report_lines.append("✅ Successfully Analyzed:")
+        report_lines.append(f"  {', '.join(tickers_processed)}")
+        report_lines.append("")
+    else:
+        report_lines.append("⚠️  No tickers were successfully processed.")
+        return "\n".join(report_lines)
+
     if len(closed_trades) == 0:
         report_lines.append("⚠️  No closed trades available for analysis.")
         report_lines.append("   Try a longer time period to generate more signals.")
         return "\n".join(report_lines)
-    
-    # Aggregate entry strategy analysis
-    report_lines.append("="*80)
+
+    report_lines.append("=" * 80)
     report_lines.append("🚀 COLLECTIVE ENTRY STRATEGY ANALYSIS")
-    report_lines.append("="*80)
+    report_lines.append("=" * 80)
     report_lines.append("")
-    
-    if results['entry_signal_stats']:
-        # Sort by expectancy (most important metric)
+
+    sorted_entries = []
+    if entry_stats:
         sorted_entries = sorted(
-            results['entry_signal_stats'].items(),
-            key=lambda x: (x[1]['expectancy'], x[1]['win_rate']),
+            entry_stats.items(),
+            key=lambda item: (item[1]["expectancy"], item[1]["win_rate"]),
             reverse=True
         )
-        
         report_lines.append("Ranked by Expected Value per Trade:")
         report_lines.append("")
-        
-        for rank, (signal_col, metrics) in enumerate(sorted_entries, 1):
+        for rank, (_, metrics) in enumerate(sorted_entries, 1):
             report_lines.append(f"{rank}. {metrics['name']}")
             report_lines.append(f"   {'─'*70}")
             report_lines.append(f"   Total Trades: {metrics['total_trades']} ({metrics['closed_trades']} closed, {metrics['open_trades']} open)")
@@ -269,239 +461,185 @@ def generate_aggregate_report(results: Dict, period: str, output_dir: str) -> st
             report_lines.append(f"   Average Return: {metrics['avg_return']:+.2f}%")
             report_lines.append(f"   Median Return: {metrics['median_return']:+.2f}%")
             report_lines.append(f"   Avg Win: {metrics['avg_win']:+.2f}% | Avg Loss: {metrics['avg_loss']:+.2f}%")
-            report_lines.append(f"   Best Trade: {metrics['best_trade_ticker']} on {metrics['best_trade_date']} ({metrics['best_return']:+.2f}%)")
-            report_lines.append(f"   Worst Trade: {metrics['worst_trade_ticker']} on {metrics['worst_trade_date']} ({metrics['worst_return']:+.2f}%)")
+            
+            # Get best/worst trades with ticker information
+            best_trade_ticker = metrics.get('best_trade_ticker', 'N/A')
+            worst_trade_ticker = metrics.get('worst_trade_ticker', 'N/A')
+            report_lines.append(f"   Best Trade: {best_trade_ticker} {metrics['best_trade_date']} ({metrics['best_return']:+.2f}%)")
+            report_lines.append(f"   Worst Trade: {worst_trade_ticker} {metrics['worst_trade_date']} ({metrics['worst_return']:+.2f}%)")
             report_lines.append(f"   Avg Holding: {metrics['avg_holding_days']:.1f} days")
             report_lines.append(f"   Profit Factor: {metrics['profit_factor']:.2f}")
             report_lines.append(f"   Expectancy: {metrics['expectancy']:+.2f}%")
-            
-            # Quality rating
-            if metrics['expectancy'] >= 2.0 and metrics['win_rate'] >= 65:
+
+            if metrics['win_rate'] >= 70 and metrics['expectancy'] > 2.0:
                 rating = "⭐⭐⭐ EXCELLENT - Top tier strategy"
-            elif metrics['expectancy'] >= 1.0 and metrics['win_rate'] >= 55:
+            elif metrics['win_rate'] >= 60 and metrics['expectancy'] > 1.0:
                 rating = "⭐⭐ GOOD - Strong positive edge"
-            elif metrics['expectancy'] >= 0.5 and metrics['win_rate'] >= 50:
-                rating = "⭐ FAIR - Marginal profitability"
+            elif metrics['win_rate'] >= 50 and metrics['expectancy'] > 0:
+                rating = "⭐ FAIR - Marginal edge, monitor risk"
             else:
-                rating = "❌ POOR - Avoid this strategy"
-            
+                rating = "⚠️ Needs improvement - Refine filters or exits"
             report_lines.append(f"   Rating: {rating}")
             report_lines.append("")
-    
-    # Aggregate exit strategy analysis
-    report_lines.append("="*80)
-    report_lines.append("🚪 COLLECTIVE EXIT STRATEGY ANALYSIS")
-    report_lines.append("="*80)
+    else:
+        report_lines.append("No entry signal performance data available.")
+        report_lines.append("Ensure trades were recorded with entry signal metadata.")
+        report_lines.append("")
+
+    report_lines.append("=" * 80)
+    report_lines.append("🛑 EXIT STRATEGY EFFECTIVENESS")
+    report_lines.append("=" * 80)
     report_lines.append("")
-    
-    if results['exit_signal_stats']:
-        # Sort by win rate
+
+    sorted_exits = []
+    if exit_stats:
         sorted_exits = sorted(
-            results['exit_signal_stats'].items(),
-            key=lambda x: (x[1]['win_rate'], x[1]['avg_return']),
+            exit_stats.items(),
+            key=lambda item: (item[1]["win_rate"], item[1]["avg_return"]),
             reverse=True
         )
-        
-        report_lines.append("Ranked by Win Rate:")
+        report_lines.append("Ranked by Win Rate and Return Preservation:")
         report_lines.append("")
-        
-        for rank, (signal_col, metrics) in enumerate(sorted_exits, 1):
+        for rank, (_, metrics) in enumerate(sorted_exits, 1):
             report_lines.append(f"{rank}. {metrics['name']}")
             report_lines.append(f"   {'─'*70}")
-            report_lines.append(f"   Times Used: {metrics['closed_trades']} (across {metrics['total_trades']} total)")
+            report_lines.append(f"   Total Trades: {metrics['total_trades']} ({metrics['closed_trades']} closed, {metrics['open_trades']} open)")
             report_lines.append(f"   Win Rate: {metrics['win_rate']:.1f}% ({metrics['wins']} wins, {metrics['losses']} losses)")
             report_lines.append(f"   Average Return: {metrics['avg_return']:+.2f}%")
             report_lines.append(f"   Median Return: {metrics['median_return']:+.2f}%")
+            report_lines.append(f"   Avg Win: {metrics['avg_win']:+.2f}% | Avg Loss: {metrics['avg_loss']:+.2f}%")
+            
+            # Get best/worst trades with ticker information
+            best_trade_ticker = metrics.get('best_trade_ticker', 'N/A')
+            worst_trade_ticker = metrics.get('worst_trade_ticker', 'N/A')
+            report_lines.append(f"   Best Trade: {best_trade_ticker} {metrics['best_trade_date']} ({metrics['best_return']:+.2f}%)")
+            report_lines.append(f"   Worst Trade: {worst_trade_ticker} {metrics['worst_trade_date']} ({metrics['worst_return']:+.2f}%)")
             report_lines.append(f"   Avg Holding: {metrics['avg_holding_days']:.1f} days")
             report_lines.append(f"   Profit Factor: {metrics['profit_factor']:.2f}")
-            
-            # Exit quality rating
-            if metrics['win_rate'] >= 70 and metrics['profit_factor'] >= 2.0:
-                rating = "⭐⭐⭐ EXCELLENT - Highly reliable exit"
-            elif metrics['win_rate'] >= 60 and metrics['profit_factor'] >= 1.5:
-                rating = "⭐⭐ GOOD - Reliable exit timing"
-            elif metrics['win_rate'] >= 50:
-                rating = "⭐ FAIR - Use with caution"
-            else:
-                rating = "❌ POOR - Unreliable exit signal"
-            
-            report_lines.append(f"   Rating: {rating}")
+            report_lines.append(f"   Expectancy: {metrics['expectancy']:+.2f}%")
             report_lines.append("")
-    
-    # Optimal strategy recommendation
-    report_lines.append("="*80)
-    report_lines.append("💡 OPTIMAL STRATEGY RECOMMENDATION")
-    report_lines.append("="*80)
-    report_lines.append("")
-    
-    if results['entry_signal_stats'] and results['exit_signal_stats']:
-        # Best entry by expectancy
-        best_entry = max(results['entry_signal_stats'].items(),
-                        key=lambda x: (x[1]['expectancy'], x[1]['win_rate']))
-        
-        # Best exit by win rate
-        best_exit = max(results['exit_signal_stats'].items(),
-                       key=lambda x: (x[1]['win_rate'], x[1]['avg_return']))
-        
-        report_lines.append("🎯 RECOMMENDED ENTRY SIGNAL:")
-        report_lines.append(f"   {best_entry[1]['name']}")
-        report_lines.append(f"   • Win Rate: {best_entry[1]['win_rate']:.1f}%")
-        report_lines.append(f"   • Expectancy: {best_entry[1]['expectancy']:+.2f}% per trade")
-        report_lines.append(f"   • Average Return: {best_entry[1]['avg_return']:+.2f}%")
-        report_lines.append(f"   • Profit Factor: {best_entry[1]['profit_factor']:.2f}")
-        report_lines.append(f"   • Based on {best_entry[1]['closed_trades']} closed trades")
-        report_lines.append("")
-        
-        report_lines.append("🎯 RECOMMENDED EXIT SIGNAL:")
-        report_lines.append(f"   {best_exit[1]['name']}")
-        report_lines.append(f"   • Win Rate: {best_exit[1]['win_rate']:.1f}%")
-        report_lines.append(f"   • Average Return: {best_exit[1]['avg_return']:+.2f}%")
-        report_lines.append(f"   • Profit Factor: {best_exit[1]['profit_factor']:.2f}")
-        report_lines.append(f"   • Based on {best_exit[1]['closed_trades']} closed trades")
-        report_lines.append("")
-        
-        # Test combined strategy
-        combined_metrics = backtest.analyze_strategy_performance(
-            results['all_paired_trades'],
-            entry_filter=best_entry[0],
-            exit_filter=best_exit[0]
-        )
-        
-        report_lines.append("📊 COMBINED STRATEGY PERFORMANCE:")
-        if combined_metrics['closed_trades'] > 0:
-            report_lines.append(f"   Trades: {combined_metrics['closed_trades']} closed")
-            report_lines.append(f"   Win Rate: {combined_metrics['win_rate']:.1f}%")
-            report_lines.append(f"   Average Return: {combined_metrics['avg_return']:+.2f}%")
-            report_lines.append(f"   Expectancy: {combined_metrics['expectancy']:+.2f}%")
-            report_lines.append(f"   Profit Factor: {combined_metrics['profit_factor']:.2f}")
-            report_lines.append(f"   Avg Holding: {combined_metrics['avg_holding_days']:.1f} days")
-            
-            if combined_metrics['expectancy'] >= 2.0 and combined_metrics['win_rate'] >= 65:
-                report_lines.append(f"   ⭐⭐⭐ EXCEPTIONAL combined performance!")
-            elif combined_metrics['expectancy'] >= 1.0 and combined_metrics['win_rate'] >= 55:
-                report_lines.append(f"   ⭐⭐ STRONG combined performance")
-            else:
-                report_lines.append(f"   ⭐ Moderate combined performance")
-        else:
-            report_lines.append(f"   ⚠️  No closed trades with this exact combination")
-            report_lines.append(f"   Consider using signals independently")
-        
-        report_lines.append("")
-    
-    # Per-ticker breakdown
-    report_lines.append("="*80)
-    report_lines.append("📋 PER-TICKER PERFORMANCE BREAKDOWN")
-    report_lines.append("="*80)
-    report_lines.append("")
-    
-    for ticker in sorted(results['ticker_specific_results'].keys()):
-        ticker_data = results['ticker_specific_results'][ticker]
-        report_lines.append(f"  {ticker}:")
-        report_lines.append(f"    Total Trades: {ticker_data['total_trades']} ({ticker_data['closed_trades']} closed)")
-        
-        # Show best entry for this ticker
-        if ticker_data['entry_performance']:
-            best_ticker_entry = max(ticker_data['entry_performance'].items(),
-                                   key=lambda x: x[1]['expectancy'])
-            report_lines.append(f"    Best Entry: {best_ticker_entry[1]['name']} (Exp: {best_ticker_entry[1]['expectancy']:+.2f}%)")
-        
-        # Show best exit for this ticker
-        if ticker_data['exit_performance']:
-            best_ticker_exit = max(ticker_data['exit_performance'].items(),
-                                  key=lambda x: x[1]['win_rate'])
-            report_lines.append(f"    Best Exit: {best_ticker_exit[1]['name']} (WR: {best_ticker_exit[1]['win_rate']:.1f}%)")
-        
-        report_lines.append("")
-    
-    # Statistical significance note
-    report_lines.append("="*80)
-    report_lines.append("📈 STATISTICAL SIGNIFICANCE")
-    report_lines.append("="*80)
-    report_lines.append("")
-    report_lines.append(f"  Total Sample Size: {len(closed_trades)} closed trades")
-    
-    if len(closed_trades) >= 100:
-        report_lines.append(f"  ✅ Large sample - results are statistically robust")
-    elif len(closed_trades) >= 50:
-        report_lines.append(f"  ✓ Moderate sample - results are reasonably reliable")
-    elif len(closed_trades) >= 20:
-        report_lines.append(f"  ⚠️  Small sample - use caution, may not be representative")
     else:
-        report_lines.append(f"  ❌ Very small sample - results may not be reliable")
-        report_lines.append(f"     Consider longer time period for more data")
-    
+        report_lines.append("No exit signal performance data available.")
+        report_lines.append("Ensure trades were recorded with exit signal metadata.")
+        report_lines.append("")
+
+    report_lines.append("=" * 80)
+    report_lines.append("💡 OPTIMAL STRATEGY RECOMMENDATION")
+    report_lines.append("=" * 80)
     report_lines.append("")
-    
-    # Key insights
-    report_lines.append("="*80)
+
+    if entry_stats:
+        top_entry = max(
+            entry_stats.items(), key=lambda item: (item[1]["expectancy"], item[1]["win_rate"])
+        )[1]
+        report_lines.append("🎯 RECOMMENDED ENTRY SIGNAL:")
+        report_lines.append(f"   {top_entry['name']}")
+        report_lines.append(f"   • Win Rate: {top_entry['win_rate']:.1f}%")
+        report_lines.append(f"   • Expectancy: {top_entry['expectancy']:+.2f}% per trade")
+        report_lines.append(f"   • Average Return: {top_entry['avg_return']:+.2f}%")
+        report_lines.append(f"   • Profit Factor: {top_entry['profit_factor']:.2f}")
+        report_lines.append(f"   • Based on {top_entry['closed_trades']} closed trades")
+        report_lines.append("")
+
+    if exit_stats:
+        top_exit = max(
+            exit_stats.items(), key=lambda item: (item[1]['win_rate'], item[1]['avg_return'])
+        )[1]
+        report_lines.append("🎯 RECOMMENDED EXIT SIGNAL:")
+        report_lines.append(f"   {top_exit['name']}")
+        report_lines.append(f"   • Win Rate: {top_exit['win_rate']:.1f}%")
+        report_lines.append(f"   • Expectancy: {top_exit['expectancy']:+.2f}%")
+        report_lines.append(f"   • Average Return: {top_exit['avg_return']:+.2f}%")
+        report_lines.append(f"   • Profit Factor: {top_exit['profit_factor']:.2f}")
+        report_lines.append(f"   • Based on {top_exit['closed_trades']} closed trades")
+        report_lines.append("")
+
+    if len(closed_trades) >= 100:
+        report_lines.append("📈 SAMPLE SIZE: ✅ Robust dataset (100+ closed trades). Findings statistically significant.")
+    elif len(closed_trades) >= 40:
+        report_lines.append("📈 SAMPLE SIZE: ⚠️ Moderate dataset (40-99 closed trades). Findings directional; monitor for consistency.")
+    else:
+        report_lines.append("📈 SAMPLE SIZE: ❗ Limited dataset (<40 closed trades). Treat results as exploratory.")
+    report_lines.append("")
+
+    report_lines.append("KEY NEXT STEPS:")
+    report_lines.append("  • Validate recommended strategies with forward testing")
+    report_lines.append("  • Stress test exits under different volatility regimes")
+    report_lines.append("  • Incorporate position sizing rules before production use")
+    report_lines.append("")
+
+    report_lines.append("=" * 80)
     report_lines.append("💡 KEY INSIGHTS & RECOMMENDATIONS")
-    report_lines.append("="*80)
+    report_lines.append("=" * 80)
     report_lines.append("")
-    
-    if results['entry_signal_stats']:
-        # Find most consistent entry
-        consistent_entries = [(k, v) for k, v in results['entry_signal_stats'].items()
-                             if v['closed_trades'] >= 5]
+
+    if entry_stats:
+        consistent_entries = [
+            (name, metrics) for name, metrics in entry_stats.items() if metrics['closed_trades'] >= 5
+        ]
         if consistent_entries:
-            most_consistent = max(consistent_entries, key=lambda x: x[1]['win_rate'])
+            most_consistent = max(consistent_entries, key=lambda item: item[1]['win_rate'])
             report_lines.append(f"✓ Most Consistent Entry: {most_consistent[1]['name']}")
-            report_lines.append(f"  ({most_consistent[1]['win_rate']:.1f}% win rate over {most_consistent[1]['closed_trades']} trades)")
+            report_lines.append(
+                f"  ({most_consistent[1]['win_rate']:.1f}% win rate over {most_consistent[1]['closed_trades']} trades)"
+            )
             report_lines.append("")
-        
-        # Find highest expectancy
+
         if sorted_entries:
             highest_exp = sorted_entries[0]
             report_lines.append(f"✓ Highest Expected Value: {highest_exp[1]['name']}")
-            report_lines.append(f"  (Expectancy: {highest_exp[1]['expectancy']:+.2f}% per trade)")
+            report_lines.append(
+                f"  (Expectancy: {highest_exp[1]['expectancy']:+.2f}% per trade)"
+            )
             report_lines.append("")
-    
-    if results['exit_signal_stats']:
-        # Find safest exit
-        if sorted_exits:
-            safest = sorted_exits[0]
-            report_lines.append(f"✓ Most Reliable Exit: {safest[1]['name']}")
-            report_lines.append(f"  ({safest[1]['win_rate']:.1f}% win rate)")
-            report_lines.append("")
-    
+
+    if exit_stats and sorted_exits:
+        safest_exit = sorted_exits[0][1]
+        report_lines.append(f"✓ Most Reliable Exit: {safest_exit['name']}")
+        report_lines.append(f"  ({safest_exit['win_rate']:.1f}% win rate)")
+        report_lines.append("")
+
     report_lines.append("📝 TRADING RECOMMENDATIONS:")
     report_lines.append("")
     report_lines.append("  1. ENTRY STRATEGY:")
-    if results['entry_signal_stats']:
-        top_3_entries = sorted_entries[:3]
-        for i, (_, metrics) in enumerate(top_3_entries, 1):
-            report_lines.append(f"     {i}. {metrics['name']} (Exp: {metrics['expectancy']:+.2f}%, WR: {metrics['win_rate']:.1f}%)")
-    
+    if sorted_entries:
+        for idx, (_, metrics) in enumerate(sorted_entries[:3], 1):
+            report_lines.append(
+                f"     {idx}. {metrics['name']} (Exp: {metrics['expectancy']:+.2f}%, WR: {metrics['win_rate']:.1f}%)"
+            )
     report_lines.append("")
+
     report_lines.append("  2. EXIT STRATEGY:")
-    if results['exit_signal_stats']:
-        top_3_exits = sorted_exits[:3]
-        for i, (_, metrics) in enumerate(top_3_exits, 1):
-            report_lines.append(f"     {i}. {metrics['name']} (WR: {metrics['win_rate']:.1f}%, Ret: {metrics['avg_return']:+.2f}%)")
-    
+    if sorted_exits:
+        for idx, (_, metrics) in enumerate(sorted_exits[:3], 1):
+            report_lines.append(
+                f"     {idx}. {metrics['name']} (WR: {metrics['win_rate']:.1f}%, Ret: {metrics['avg_return']:+.2f}%)"
+            )
     report_lines.append("")
+
     report_lines.append("  3. POSITION SIZING:")
     report_lines.append("     • Increase size on highest expectancy signals")
     report_lines.append("     • Reduce size on lower win rate signals")
     report_lines.append("     • Never risk more than 2% of capital per trade")
     report_lines.append("")
-    
+
     report_lines.append("  4. RISK MANAGEMENT:")
     report_lines.append("     • Set stop losses at support levels")
     report_lines.append("     • Take partial profits on profit-taking signals")
     report_lines.append("     • Act immediately on stop loss triggers")
     report_lines.append("")
-    
-    report_lines.append("="*80)
+
+    report_lines.append("=" * 80)
     report_lines.append("⚠️  DISCLAIMER")
-    report_lines.append("="*80)
+    report_lines.append("=" * 80)
     report_lines.append("")
-    report_lines.append("This analysis is based on historical data and does not guarantee future")
-    report_lines.append("performance. Past results are not indicative of future returns. Always")
-    report_lines.append("perform your own due diligence and consider your risk tolerance before trading.")
+    report_lines.append("This analysis is based on historical data and does not guarantee future performance.")
+    report_lines.append("Past results are not indicative of future returns. Always perform your own due diligence and consider your risk tolerance before trading.")
     report_lines.append("")
-    report_lines.append("="*80)
-    
+    report_lines.append("=" * 80)
+
     return "\n".join(report_lines)
+
 
 
 def main():
@@ -531,22 +669,32 @@ def main():
         help='Output directory for backtest reports (default: backtest_results)'
     )
     
+    parser.add_argument(
+        '--risk-managed',
+        action='store_true',
+        help='Use RiskManager for P&L-aware exits (Item #5)'
+    )
+    
     args = parser.parse_args()
     
     # Run batch backtest
     results = run_batch_backtest(
         ticker_file=args.ticker_file,
         period=args.period,
-        output_dir=args.output_dir
+        output_dir=args.output_dir,
+        risk_managed=args.risk_managed
     )
     
     if not results or not results['all_paired_trades']:
         print("\n❌ No results generated. Check for errors above.")
         sys.exit(1)
     
-    # Generate aggregate report
+    # Generate aggregate report tailored to run mode
     print(f"\n📊 Generating aggregate optimization report...")
-    aggregate_report = generate_aggregate_report(results, args.period, args.output_dir)
+    if args.risk_managed:
+        aggregate_report = generate_risk_managed_aggregate_report(results, args.period, args.output_dir)
+    else:
+        aggregate_report = generate_aggregate_report(results, args.period, args.output_dir)
     
     # Save aggregate report
     timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')

@@ -47,6 +47,24 @@ A sophisticated Python tool for analyzing stock accumulation and distribution pa
 - **Chart Export**: Optional PNG chart generation for batch processing
 - **Summary Reports**: Consolidated rankings with stealth activity scores
 
+## 📚 Development & Upgrade Documentation
+
+The system is under active development with a comprehensive upgrade roadmap. Documentation is organized for efficient context management:
+
+### **Quick Reference Documents**
+- **`upgrade_summary.md`** (~2K tokens) - Progress overview and next priorities
+- **`upgrade_status_active.md`** (~5K tokens) - Pending items and implementation details
+- **`upgrade_status_completed.md`** (~50K tokens) - Historical archive of completed items
+- **`upgrade_spec.md`** (~70K tokens) - Complete technical specifications for all upgrade items
+- **`CODE_MAP.txt`** (~15K tokens) - File organization, dependencies, and implementation matrix
+
+### **Current Development Status**
+- **Progress**: 10/13 items complete (77%)
+- **Latest**: Item #13 (RiskManager Framework) completed with full test coverage
+- **Next**: Item #5 (P&L-Aware Exit Logic) ready for implementation
+
+For developers contributing or extending the system, start with `upgrade_summary.md` for orientation, then consult `upgrade_status_active.md` for current work priorities.
+
 ##  Installation
 
 ### Requirements
@@ -135,6 +153,26 @@ python vol_analysis.py TSLA -p 6mo --backtest
 python vol_analysis.py NVDA --backtest  # Creates NVDA_12mo_backtest_report.txt
 ```
 
+### Risk-Managed Backtesting (Item #5 - NEW)
+```bash
+# Run risk-managed backtest with RiskManager
+python vol_analysis.py AAPL --risk-managed
+
+# Risk-managed backtest with longer period
+python vol_analysis.py TSLA -p 12mo --risk-managed
+
+# Test risk management rules on historical data
+python vol_analysis.py NVDA -p 6mo --risk-managed
+```
+
+**Risk Management Features:**
+- **Position Sizing**: Risk 0.75% per trade (configurable)
+- **Initial Stop**: `min(swing_low - 0.5*ATR, VWAP - 1*ATR)`
+- **Time Stop**: Exit after 12 bars if <+1R
+- **Momentum Failure**: Exit if CMF <0 OR close < VWAP
+- **Profit Scaling**: Take 50% at +2R, trail remainder
+- **Trailing Stop**: 10-day low after +2R achieved
+
 ### Batch Backtesting - Strategy Optimization (NEW)
 ```bash
 # Run backtests across multiple tickers from a file
@@ -146,9 +184,19 @@ python batch_backtest.py watchlist.txt -p 6mo
 # Custom output directory
 python batch_backtest.py stocks.txt -p 12mo -o optimization_results
 
+# Risk-managed batch backtesting (Item #5)
+python batch_backtest.py stocks.txt --risk-managed
+
 # Full example with all options
-python batch_backtest.py watchlist.txt --period 12mo --output-dir backtest_analysis
+python batch_backtest.py watchlist.txt --period 12mo --output-dir backtest_analysis --risk-managed
 ```
+
+**Risk-Managed Batch Features:**
+- Runs RiskManager on each ticker in the batch
+- Generates individual risk-managed reports per ticker
+- Aggregates R-multiples and exit type distributions
+- Shows system-wide risk management effectiveness
+- Identifies which tickers work best with risk management
 
 ### Advanced Options
 ```bash

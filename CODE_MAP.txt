@@ -66,6 +66,18 @@
 
 ---
 
+## Simplification Touchpoints (Priority Order)
+
+1. Limit entries to `Confluence_Signal` + `Stealth_Accumulation` (`signal_generator.py`, `backtest.py`)
+2. Enforce bullish regime + liquidity minimums (`regime_filter.py`, signal prefilters)
+3. Raise accumulation thresholds (`threshold_config.py`)
+4. Make RiskManager path default for batch/CLI (`batch_backtest.py`, `backtest.py`)
+5. Tighten time-stop window (`risk_manager.py`)
+6. Tier position sizing by signal quality (`risk_manager.py`)
+7. Retire weak exit rules via aggregate stats (`backtest.py`)
+
+---
+
 ## Upgrade Status Matrix
 
 ### Completed
@@ -95,15 +107,14 @@
   - Risk-based position sizing, stop placement, exit conditions
   - Profit scaling at +2R with trailing stops
   - All tests passed ✓
+- ✅ Item #5: P&L-Aware Exit Logic (signal_generator.py, backtest.py, risk_manager.py)
+  - Implemented: 2025-11-05
+  - Batch and CLI backtests routed through RiskManager for execution realism
 
 ### Ready to Implement (Specs Complete)
-- ⏸️ Item #5: P&L-Aware Exits
-  - Files: signal_generator.py, backtest.py
-  - Integration: Use RiskManager for unified exit logic
-  - Status: Can now be implemented using completed RiskManager (Item #13)
+- ⏸️ Item #9: Validation Framework (prevent overfitting)
 
 ### Planned
-- ⏸️ Item #9: Validation Framework (prevent overfitting)
 - ⏸️ Item #7: Further modularization (optional)
 
 ---
@@ -149,13 +160,13 @@ backtest.py
 
 Based on upgrade spec pragmatic sequence:
 
-1. ✅ **Item #10** (CMF) - Foundation for scoring - COMPLETED
-2. ✅ **Item #12** (Z-scores) - Standardization enables optimization - COMPLETED
-3. ✅ **Item #11** (Pre-filters) - Quality gate before signals - COMPLETED
-4. ✅ **Item #6** (Regime) - Market context validation - COMPLETED
-5. ✅ **Item #13** (RiskManager) - Unified risk management - COMPLETED
-6. **Item #5** (P&L Exits) - Integrates with RiskManager - NEXT
-7. **Item #9** (Validation) - Prevent overfitting
+1. ✅ **Item #10** (CMF) – Completed
+2. ✅ **Item #12** (Z-scores) – Completed
+3. ✅ **Item #11** (Pre-filters) – Completed
+4. ✅ **Item #6** (Regime) – Completed
+5. ✅ **Item #13** (RiskManager) – Completed
+6. ✅ **Item #5** (P&L Exits) – Completed
+7. **Item #9** (Validation) – Next major workstream alongside simplification backlog above
 
 ---
 

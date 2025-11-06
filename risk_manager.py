@@ -85,7 +85,7 @@ class RiskManager:
         
         Args:
             df: DataFrame with price data and indicators
-            entry_idx: Index of entry bar
+            entry_idx: Integer position in DataFrame (use .iloc)
             
         Returns:
             Stop loss price
@@ -93,13 +93,14 @@ class RiskManager:
         Raises:
             KeyError: If required columns missing
         """
-        required_cols = ['Recent_Swing_Low', 'ATR20', 'Anchored_VWAP']
+        required_cols = ['Recent_Swing_Low', 'ATR20', 'VWAP']
         missing_cols = [col for col in required_cols if col not in df.columns]
         if missing_cols:
             raise KeyError(f"Missing required columns: {missing_cols}")
         
-        swing_stop = df.loc[entry_idx, 'Recent_Swing_Low'] - (0.5 * df.loc[entry_idx, 'ATR20'])
-        vwap_stop = df.loc[entry_idx, 'Anchored_VWAP'] - (1.0 * df.loc[entry_idx, 'ATR20'])
+        # Use .iloc for integer positions
+        swing_stop = df.iloc[entry_idx]['Recent_Swing_Low'] - (0.5 * df.iloc[entry_idx]['ATR20'])
+        vwap_stop = df.iloc[entry_idx]['VWAP'] - (1.0 * df.iloc[entry_idx]['ATR20'])
         
         initial_stop = min(swing_stop, vwap_stop)
         
@@ -214,15 +215,15 @@ class RiskManager:
             exit_signals['reason'] = f"Time stop: {pos['bars_in_trade']} bars, {r_multiple:.2f}R"
             return exit_signals
         
-        # 3. MOMENTUM FAILURE: CMF <0 OR price < anchored VWAP
-        if 'CMF_Z' in df.columns and 'Anchored_VWAP' in df.columns:
+        # 3. MOMENTUM FAILURE: CMF <0 OR price < VWAP
+        if 'CMF_Z' in df.columns and 'VWAP' in df.columns:
             cmf_z = df.iloc[current_idx]['CMF_Z']
-            anchored_vwap = df.iloc[current_idx]['Anchored_VWAP']
+            vwap = df.iloc[current_idx]['VWAP']
             
-            if cmf_z < 0 or current_price < anchored_vwap:
+            if cmf_z < 0 or current_price < vwap:
                 exit_signals['should_exit'] = True
                 exit_signals['exit_type'] = 'MOMENTUM_FAIL'
-                exit_signals['reason'] = f"Momentum fail: CMF_Z={cmf_z:.2f}, Price vs VWAP={current_price:.2f} vs {anchored_vwap:.2f}"
+                exit_signals['reason'] = f"Momentum fail: CMF_Z={cmf_z:.2f}, Price vs VWAP={current_price:.2f} vs {vwap:.2f}"
                 return exit_signals
         
         # 4. PROFIT TARGET: Take 50% at +2R

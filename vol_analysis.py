@@ -1216,6 +1216,12 @@ Note: Legacy periods (1y, 2y, 5y, etc.) are automatically converted to month equ
         help='Run backtest analysis on generated signals (validates historical performance)'
     )
     
+    parser.add_argument(
+        '--risk-managed',
+        action='store_true',
+        help='Run risk-managed backtest using RiskManager (Item #5: P&L-Aware Exit Logic)'
+    )
+    
     args = parser.parse_args()
     
     try:
@@ -1262,11 +1268,24 @@ Note: Legacy periods (1y, 2y, 5y, etc.) are automatically converted to month equ
                 )
                 
                 # Run backtest if requested
-                if args.backtest and BACKTEST_AVAILABLE:
+                if args.risk_managed and BACKTEST_AVAILABLE:
+                    print(f"\n🎯 Running risk-managed backtest for {ticker}...")
+                    try:
+                        result = backtest.run_risk_managed_backtest(
+                            df=df,
+                            ticker=ticker,
+                            account_value=100000,
+                            risk_pct=0.75,
+                            save_to_file=True
+                        )
+                    except ImportError as e:
+                        print(f"\n⚠️  Error: {e}")
+                        print("Make sure risk_manager.py is available in the current directory.")
+                elif args.backtest and BACKTEST_AVAILABLE:
                     print(f"\n📊 Running backtest analysis for {ticker}...")
                     report = backtest.run_backtest(df, ticker, args.period, save_to_file=True)
                     print(report)
-                elif args.backtest and not BACKTEST_AVAILABLE:
+                elif (args.backtest or args.risk_managed) and not BACKTEST_AVAILABLE:
                     print("\n⚠️  Warning: Backtest module not available. Skipping backtest analysis.")
                 
             print(f"\n✅ Analysis complete for {ticker}!")
