@@ -30,6 +30,11 @@ from error_handler import (
 # Import empirically validated thresholds
 from threshold_config import OPTIMAL_THRESHOLDS, get_threshold_summary, get_threshold_quality
 import signal_generator
+from signal_metadata import get_display_name
+
+STEALTH_DISPLAY = get_display_name('Stealth_Accumulation')
+MODERATE_DISPLAY = get_display_name('Moderate_Buy')
+PROFIT_DISPLAY = get_display_name('Profit_Taking')
 
 def calculate_batch_metrics(df: pd.DataFrame) -> Dict[str, Any]:
     """
@@ -127,7 +132,8 @@ def calculate_batch_metrics(df: pd.DataFrame) -> Dict[str, Any]:
 
 
 def generate_html_summary(results: List[Dict], errors: List[Dict], period: str, 
-                         output_dir: str, timestamp: str) -> str:
+                         output_dir: str, timestamp: str,
+                         chart_backend: str = 'matplotlib') -> str:
     """
     Generate interactive HTML summary with clickable charts focused on optimal strategies.
     
@@ -137,10 +143,15 @@ def generate_html_summary(results: List[Dict], errors: List[Dict], period: str,
         period (str): Analysis period
         output_dir (str): Output directory path
         timestamp (str): Timestamp for filename
+        chart_backend (str): Chart engine to determine embed type/extension
         
     Returns:
         str: HTML filename
     """
+    normalized_backend = (chart_backend or 'matplotlib').lower()
+    is_plotly_backend = normalized_backend == 'plotly'
+    chart_extension = 'html' if is_plotly_backend else 'png'
+    
     # Filter for ACTIVE signals only, then sort by score
     active_moderate = [r for r in results if r['moderate_signal_active']]
     active_profit = [r for r in results if r['profit_signal_active']]
@@ -150,6 +161,17 @@ def generate_html_summary(results: List[Dict], errors: List[Dict], period: str,
     sorted_profit_taking_results = sorted(active_profit, key=lambda x: x['profit_taking_score'], reverse=True)
     sorted_stealth_results = sorted(active_stealth, key=lambda x: x['stealth_score'], reverse=True)
     
+    def build_chart_filename(result_entry: Dict[str, Any]) -> Optional[str]:
+        """Construct the expected chart filename (PNG or HTML) from the analysis filename."""
+        parts = result_entry['filename'].split('_')
+        if len(parts) < 4:
+            return None
+        return f"{result_entry['ticker']}_{period}_{parts[2]}_{parts[3]}_chart.{chart_extension}"
+    
+    stealth_display = STEALTH_DISPLAY
+    moderate_display = MODERATE_DISPLAY
+    profit_display = PROFIT_DISPLAY
+
     html_content = f"""<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -282,6 +304,14 @@ def generate_html_summary(results: List[Dict], errors: List[Dict], period: str,
             box-shadow: 0 2px 8px rgba(0,0,0,0.1);
         }}
         
+        .chart-iframe {{
+            width: 100%;
+            height: 550px;
+            border: none;
+            border-radius: 6px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }}
+        
         .chart-controls {{
             margin-bottom: 15px;
             text-align: center;
@@ -347,21 +377,21 @@ def generate_html_summary(results: List[Dict], errors: List[Dict], period: str,
             </div>
             <div class="stat-card">
                 <h3>{len(active_moderate)}</h3>
-                <p>Active Moderate Buy Signals</p>
+                <p>Active {moderate_display} Signals</p>
             </div>
             <div class="stat-card">
                 <h3>{len(active_profit)}</h3>
-                <p>Active Profit Taking Signals</p>
+                <p>Active {profit_display} Signals</p>
             </div>
             <div class="stat-card">
                 <h3>{len(active_stealth)}</h3>
-                <p>Active Stealth Signals</p>
+                <p>Active {stealth_display} Signals</p>
             </div>
         </div>
         
         <div class="rankings">
             <div class="ranking-section">
-                <h2>🎯 Active Stealth Accumulation Signals</h2>"""
+                <h2>{stealth_display} Signals</h2>"""
     
     # Add stealth candidates
     for i, result in enumerate(sorted_stealth_results[:15], 1):
@@ -374,8 +404,8 @@ def generate_html_summary(results: List[Dict], errors: List[Dict], period: str,
         signal_status = "💎 ACTIVE NOW" if stealth_active else "⚪ No Signal"
         
         # Check if chart exists
-        chart_filename = f"{result['ticker']}_{period}_{result['filename'].split('_')[2]}_{result['filename'].split('_')[3]}_chart.png"
-        chart_exists = os.path.exists(os.path.join(output_dir, chart_filename))
+        chart_filename = build_chart_filename(result)
+        chart_exists = chart_filename is not None and os.path.exists(os.path.join(output_dir, chart_filename))
         
         html_content += f"""
                 <div class="ticker-row" onclick="toggleChart('stealth_{result['ticker']}')">
@@ -388,20 +418,25 @@ def generate_html_summary(results: List[Dict], errors: List[Dict], period: str,
                 </div>"""
         
         if chart_exists:
+            chart_embed = (
+                f'<iframe src="{chart_filename}" title="{result["ticker"]} Chart" class="chart-iframe"></iframe>'
+                if is_plotly_backend
+                else f'<img src="{chart_filename}" alt="{result["ticker"]} Chart" class="chart-image">'
+            )
             html_content += f"""
                 <div id="stealth_{result['ticker']}" class="chart-container">
                     <div class="chart-controls">
                         <button class="btn" onclick="openChart('{chart_filename}')">📊 Open Full Size</button>
                         <button class="btn" onclick="openAnalysis('{result['filename']}')">📋 View Analysis</button>
                     </div>
-                    <img src="{chart_filename}" alt="{result['ticker']} Chart" class="chart-image">
+                    {chart_embed}
                 </div>"""
     
-    html_content += """
+    html_content += f"""
             </div>
             
             <div class="ranking-section">
-                <h2>🚀 Active Moderate Buy Signals (Empirically Validated)</h2>"""
+                <h2>🚀 {moderate_display} Signals (Empirically Validated)</h2>"""
     
     # Add moderate buy candidates using empirically validated thresholds
     for i, result in enumerate(sorted_moderate_buy_results[:15], 1):
@@ -429,27 +464,32 @@ def generate_html_summary(results: List[Dict], errors: List[Dict], period: str,
             signal_status = "⚪ No Signal"
         
         # Check if chart exists
-        chart_filename = f"{result['ticker']}_{period}_{result['filename'].split('_')[2]}_{result['filename'].split('_')[3]}_chart.png"
-        chart_exists = os.path.exists(os.path.join(output_dir, chart_filename))
+        chart_filename = build_chart_filename(result)
+        chart_exists = chart_filename is not None and os.path.exists(os.path.join(output_dir, chart_filename))
         
         html_content += f"""
                 <div class="ticker-row" onclick="toggleChart('moderate_{result['ticker']}')">
                     <div class="rank">#{i}</div>
                     <div class="ticker-symbol">{result['ticker']}</div>
                     <div class="ticker-details">
-                        <div><span class="emoji">{score_emoji}</span>Moderate Buy: <strong>{moderate_score:.1f}/10</strong></div>
+                        <div><span class="emoji">{score_emoji}</span>{moderate_display}: <strong>{moderate_score:.1f}/10</strong></div>
                         <div>{threshold_status} | Status: {signal_status} | Recent (5d): {recent_count}</div>
                     </div>
                 </div>"""
         
         if chart_exists:
+            chart_embed = (
+                f'<iframe src="{chart_filename}" title="{result["ticker"]} Chart" class="chart-iframe"></iframe>'
+                if is_plotly_backend
+                else f'<img src="{chart_filename}" alt="{result["ticker"]} Chart" class="chart-image">'
+            )
             html_content += f"""
                 <div id="moderate_{result['ticker']}" class="chart-container">
                     <div class="chart-controls">
                         <button class="btn" onclick="openChart('{chart_filename}')">📊 Open Full Size</button>
                         <button class="btn" onclick="openAnalysis('{result['filename']}')">📋 View Analysis</button>
                     </div>
-                    <img src="{chart_filename}" alt="{result['ticker']} Chart" class="chart-image">
+                    {chart_embed}
                 </div>"""
     
     html_content += """
@@ -561,7 +601,8 @@ def read_ticker_file(filepath: str) -> List[str]:
         return tickers
 
 def process_batch(ticker_file: str, period='12mo', output_dir='results_volume', 
-                 save_charts=False, generate_html=True, verbose=True):
+                 save_charts=False, generate_html=True, verbose=True,
+                 chart_backend: str = 'matplotlib'):
     """
     Process multiple tickers from a file and save individual analysis reports.
     
@@ -572,6 +613,7 @@ def process_batch(ticker_file: str, period='12mo', output_dir='results_volume',
         save_charts (bool): Whether to save chart images
         generate_html (bool): Whether to generate interactive HTML summary
         verbose (bool): Print progress output during batch processing
+        chart_backend (str): Chart engine ('matplotlib' PNG or 'plotly' HTML) passed to analyze_ticker
         
     Raises:
         DataValidationError: If input parameters are invalid
@@ -620,6 +662,7 @@ def process_batch(ticker_file: str, period='12mo', output_dir='results_volume',
         print(f"📁 Output directory: {output_dir}")
         print(f"📅 Period: {period}")
         print(f"📊 Save charts: {'Yes' if save_charts else 'No'}")
+        print(f"🎨 Chart backend: {chart_backend}")
         print("="*50)
     
     # Track results for summary
@@ -642,7 +685,8 @@ def process_batch(ticker_file: str, period='12mo', output_dir='results_volume',
                     save_chart=True,  # Always save charts in batch mode (can't display interactively)
                     show_chart=False,  # Don't display charts interactively in batch mode
                     show_summary=False,  # Don't print verbose summaries in batch mode
-                    debug=verbose
+                    debug=verbose,
+                    chart_backend=chart_backend
                 )
                 
                 if isinstance(result, tuple):
@@ -707,9 +751,9 @@ def process_batch(ticker_file: str, period='12mo', output_dir='results_volume',
                 for error in errors:
                     print(f"   • {error['ticker']}: {error['error']}")
             
-            print(f"\n🟡 ACTIVE MODERATE BUY SIGNALS (EMPIRICALLY VALIDATED - ≥6.5 threshold for 64.3% win rate):")
+            print(f"\n{MODERATE_DISPLAY} SIGNALS (Empirically validated - ≥6.5 threshold for 64.3% win rate):")
             if not sorted_moderate_results:
-                print("  No active Moderate Buy signals at this time.")
+                print(f"  No active {MODERATE_DISPLAY} signals at this time.")
             else:
                 for i, result in enumerate(sorted_moderate_results[:10], 1):
                     moderate_score = result['moderate_buy_score']
@@ -733,12 +777,12 @@ def process_batch(ticker_file: str, period='12mo', output_dir='results_volume',
                     else:
                         signal_status = "⚪ No Signal"
                     
-                    print(f"  {i:2d}. {result['ticker']:5s} - ModBuy: {moderate_score:4.1f}/10 {score_emoji} {threshold_emoji} "
+                    print(f"  {i:2d}. {result['ticker']:5s} - {MODERATE_DISPLAY}: {moderate_score:4.1f}/10 {score_emoji} {threshold_emoji} "
                           f"(≥{threshold} threshold, Status: {signal_status:13s}, Rec5d: {recent_count}, Total: {total_moderate})")
             
-            print(f"\n🟠 ACTIVE PROFIT TAKING SIGNALS (EMPIRICALLY VALIDATED - ≥7.0 threshold for 96.1% win rate):")
+            print(f"\n{PROFIT_DISPLAY} SIGNALS (Empirically validated - ≥7.0 threshold for 96.1% win rate):")
             if not sorted_profit_results:
-                print("  No active Profit Taking signals at this time.")
+                print(f"  No active {PROFIT_DISPLAY} signals at this time.")
             else:
                 for i, result in enumerate(sorted_profit_results[:10], 1):
                     profit_score = result['profit_taking_score']
@@ -751,12 +795,12 @@ def process_batch(ticker_file: str, period='12mo', output_dir='results_volume',
                     threshold_emoji = "✅" if exceeds_threshold else "❌"
                     signal_status = "🔴 EXIT NOW!" if profit_active else "⚪ No Signal"
                     
-                    print(f"  {i:2d}. {result['ticker']:5s} - Profit: {profit_score:4.1f}/10 {score_emoji} {threshold_emoji} "
+                    print(f"  {i:2d}. {result['ticker']:5s} - {PROFIT_DISPLAY}: {profit_score:4.1f}/10 {score_emoji} {threshold_emoji} "
                           f"(≥{threshold} threshold, Status: {signal_status:13s}, Rec5d: {recent_count})")
             
-            print(f"\n💎 ACTIVE STEALTH ACCUMULATION SIGNALS (EMPIRICALLY VALIDATED - ≥4.5 threshold for 58.7% win rate):")
+            print(f"\n{STEALTH_DISPLAY} SIGNALS (Empirically validated - ≥4.5 threshold for 58.7% win rate):")
             if not sorted_stealth_results:
-                print("  No active Stealth Accumulation signals at this time.")
+                print(f"  No active {STEALTH_DISPLAY} signals at this time.")
             else:
                 for i, result in enumerate(sorted_stealth_results[:5], 1):
                     stealth_score = result['stealth_score']
@@ -770,7 +814,7 @@ def process_batch(ticker_file: str, period='12mo', output_dir='results_volume',
                     threshold_emoji = "✅" if exceeds_threshold else "❌"
                     signal_status = "💎 ACTIVE NOW" if stealth_active else "⚪ No Signal"
                     
-                    print(f"  {i:2d}. {result['ticker']:5s} - Stealth: {stealth_score:4.1f}/10 {score_emoji} {threshold_emoji} "
+                    print(f"  {i:2d}. {result['ticker']:5s} - {STEALTH_DISPLAY}: {stealth_score:4.1f}/10 {score_emoji} {threshold_emoji} "
                           f"(≥{threshold} threshold, Status: {signal_status:13s}, Rec5d: {recent_count}, Price: {price_change:+4.1f}%)")
         
         summary_filename = f"batch_summary_{period}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt"
@@ -792,13 +836,13 @@ def process_batch(ticker_file: str, period='12mo', output_dir='results_volume',
                         f.write(f"  • {error['ticker']}: {error['error']}\n")
                     f.write("\n")
                 
-                f.write("🟡 ACTIVE MODERATE BUY SIGNALS (EMPIRICALLY VALIDATED - ≥6.5 threshold for 64.3% win rate):\n")
+                f.write(f"{MODERATE_DISPLAY} SIGNALS (Empirically validated - ≥6.5 threshold for 64.3% win rate):\n")
                 f.write("-" * 120 + "\n")
                 
                 if not active_moderate:
-                    f.write("  No active Moderate Buy signals at this time.\n\n")
+                    f.write(f"  No active {MODERATE_DISPLAY} signals at this time.\n\n")
                 else:
-                    f.write(f"{'Rank':<4} {'Ticker':<6} {'ModBuy':<7} {'Threshold':<9} {'Status':<13} {'Rec5d':<5} {'Total':<5} {'File'}\n")
+                    f.write(f"{'Rank':<4} {'Ticker':<6} {MODERATE_DISPLAY:<15} {'Threshold':<9} {'Status':<13} {'Rec5d':<5} {'Total':<5} {'File'}\n")
                     f.write("-" * 120 + "\n")
                     for i, result in enumerate(active_moderate, 1):
                         if result['strong_signal_active']:
@@ -815,13 +859,13 @@ def process_batch(ticker_file: str, period='12mo', output_dir='results_volume',
                                f"{threshold_status}≥{result['moderate_threshold']:<6.1f} {signal_status:<13} {result['recent_moderate_count']:<5} "
                                f"{result['total_moderate_signals']:<5} {result['filename']}\n")
                 
-                f.write(f"\n🟠 ACTIVE PROFIT TAKING SIGNALS (EMPIRICALLY VALIDATED - ≥7.0 threshold for 96.1% win rate):\n")
+                f.write(f"\n{PROFIT_DISPLAY} SIGNALS (Empirically validated - ≥7.0 threshold for 96.1% win rate):\n")
                 f.write("-" * 110 + "\n")
                 
                 if not active_profit:
-                    f.write("  No active Profit Taking signals at this time.\n\n")
+                    f.write(f"  No active {PROFIT_DISPLAY} signals at this time.\n\n")
                 else:
-                    f.write(f"{'Rank':<4} {'Ticker':<6} {'Profit':<7} {'Threshold':<9} {'Status':<13} {'Rec5d':<5} {'File'}\n")
+                    f.write(f"{'Rank':<4} {'Ticker':<6} {PROFIT_DISPLAY:<15} {'Threshold':<9} {'Status':<13} {'Rec5d':<5} {'File'}\n")
                     f.write("-" * 110 + "\n")
                     for i, result in enumerate(active_profit, 1):
                         signal_status = "EXIT NOW!" if result['profit_signal_active'] else "No Signal"
@@ -830,13 +874,13 @@ def process_batch(ticker_file: str, period='12mo', output_dir='results_volume',
                                f"{threshold_status}≥{result['profit_threshold']:<6.1f} {signal_status:<13} {result['recent_profit_count']:<5} "
                                f"{result['filename']}\n")
                 
-                f.write(f"\n💎 ACTIVE STEALTH ACCUMULATION SIGNALS (EMPIRICALLY VALIDATED - ≥4.5 threshold for 58.7% win rate):\n")
+                f.write(f"\n{STEALTH_DISPLAY} SIGNALS (Empirically validated - ≥4.5 threshold for 58.7% win rate):\n")
                 f.write("-" * 110 + "\n")
                 
                 if not active_stealth:
-                    f.write("  No active Stealth Accumulation signals at this time.\n\n")
+                    f.write(f"  No active {STEALTH_DISPLAY} signals at this time.\n\n")
                 else:
-                    f.write(f"{'Rank':<4} {'Ticker':<6} {'Stealth':<7} {'Threshold':<9} {'Status':<13} {'Rec5d':<5} {'Price%':<7} {'Total':<5} {'File'}\n")
+                    f.write(f"{'Rank':<4} {'Ticker':<6} {STEALTH_DISPLAY:<15} {'Threshold':<9} {'Status':<13} {'Rec5d':<5} {'Price%':<7} {'Total':<5} {'File'}\n")
                     f.write("-" * 110 + "\n")
                     for i, result in enumerate(active_stealth, 1):
                         signal_status = "ACTIVE NOW" if result['stealth_signal_active'] else "No Signal"
@@ -869,12 +913,15 @@ def process_batch(ticker_file: str, period='12mo', output_dir='results_volume',
                             force_refresh=False,
                             show_chart=False,
                             show_summary=False,
-                            debug=verbose
+                            debug=verbose,
+                            chart_backend=chart_backend
                         )
                     except Exception as e:
                         print(f"    ⚠️ Chart generation failed for {ticker}: {str(e)}")
             
-            html_filename = generate_html_summary(results, errors, period, output_dir, timestamp)
+            html_filename = generate_html_summary(
+                results, errors, period, output_dir, timestamp, chart_backend=chart_backend
+            )
             if verbose:
                 print(f"\n🌐 Interactive HTML summary generated: {html_filename}")
                 print(f"   📂 Open in VS Code for clickable charts and analysis links")

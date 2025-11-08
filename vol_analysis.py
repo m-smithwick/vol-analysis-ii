@@ -5,8 +5,10 @@ import matplotlib.pyplot as plt
 import argparse
 import sys
 import os
+import importlib
+from pathlib import Path
 from datetime import datetime, timedelta
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict, Any, Tuple
 
 # Import error handling framework
 from error_handler import (
@@ -14,6 +16,14 @@ from error_handler import (
     FileOperationError, validate_ticker, validate_period, validate_dataframe,
     validate_file_path, safe_operation, get_logger, setup_logging
 )
+
+# Allow imports from the sibling charts project (../charts) if it exists.
+PROJECT_ROOT = Path(__file__).resolve().parent
+EXTERNAL_CHARTS_DIR = PROJECT_ROOT.parent / "charts"
+if EXTERNAL_CHARTS_DIR.exists():
+    charts_path = str(EXTERNAL_CHARTS_DIR)
+    if charts_path not in sys.path:
+        sys.path.append(charts_path)
 
 # Import backtest module if available
 try:
@@ -33,6 +43,7 @@ import volume_features
 
 # Import signal generator module for buy/sell signals
 import signal_generator
+from signal_metadata import get_signal_meta
 
 # Import chart builder module for visualization
 import chart_builder
@@ -46,6 +57,37 @@ import threshold_validation
 
 # Import regime filter module for market/sector regime checks (Item #6)
 import regime_filter
+
+
+def resolve_chart_engine(chart_backend: str = 'matplotlib'):
+    """
+    Resolve the requested chart backend to a generator function and file extension.
+    
+    Args:
+        chart_backend (str): Requested backend ('matplotlib' or 'plotly').
+        
+    Returns:
+        Tuple[callable, str]: Chart generator function and file extension without dot.
+        
+    Raises:
+        ValueError: If an unsupported backend is requested.
+        ImportError: If the Plotly backend is requested but not available.
+    """
+    backend = (chart_backend or 'matplotlib').lower()
+    if backend not in {'matplotlib', 'plotly'}:
+        raise ValueError(f"Unsupported chart backend '{chart_backend}'. Choose 'matplotlib' or 'plotly'.")
+    
+    if backend == 'plotly':
+        try:
+            plotly_module = importlib.import_module('chart_builder_plotly')
+            return plotly_module.generate_analysis_chart, 'html'
+        except ModuleNotFoundError as exc:
+            raise ImportError(
+                "Plotly chart backend not available. "
+                "Ensure ../charts is accessible and Plotly dependencies are installed."
+            ) from exc
+    
+    return chart_builder.generate_analysis_chart, 'png'
 
 def read_ticker_file(ticker_file: str) -> List[str]:
     """
@@ -582,35 +624,31 @@ def generate_analysis_text(ticker: str, df: pd.DataFrame, period: str) -> str:
             output.append(f"  That was {days_ago} trading days ago")
     
     # Signal counts - Entry and Exit
-    entry_signals = {
-        'Strong_Buy': df['Strong_Buy'].sum(),
-        'Moderate_Buy': df['Moderate_Buy'].sum(), 
-        'Stealth_Accumulation': df['Stealth_Accumulation'].sum(),
-        'Confluence_Signal': df['Confluence_Signal'].sum(),
-        'Volume_Breakout': df['Volume_Breakout'].sum()
-    }
-    
-    exit_signals = {
-        'Profit_Taking': df['Profit_Taking'].sum(),
-        'Distribution_Warning': df['Distribution_Warning'].sum(),
-        'Sell_Signal': df['Sell_Signal'].sum(),
-        'Momentum_Exhaustion': df['Momentum_Exhaustion'].sum(),
-        'Stop_Loss': df['Stop_Loss'].sum()
-    }
+    entry_signal_keys = [
+        'Strong_Buy', 'Moderate_Buy', 'Stealth_Accumulation',
+        'Confluence_Signal', 'Volume_Breakout'
+    ]
+    exit_signal_keys = [
+        'Profit_Taking', 'Distribution_Warning', 'Sell_Signal',
+        'Momentum_Exhaustion', 'Stop_Loss'
+    ]
     
     output.append(f"\n🎯 ENTRY SIGNAL SUMMARY:")
-    output.append("  🟢 Strong Buy Signals: {} (Large green dots - Score ≥7, near support, above VWAP)".format(entry_signals['Strong_Buy']))
-    output.append("  🟡 Moderate Buy Signals: {} (Medium yellow dots - Score 5-7, divergence signals)".format(entry_signals['Moderate_Buy']))
-    output.append("  � Stealth Accumulation: {} (Cyan diamonds - High score, low volume)".format(entry_signals['Stealth_Accumulation']))
-    output.append("  ⭐ Multi-Signal Confluence: {} (Magenta stars - All indicators aligned)".format(entry_signals['Confluence_Signal']))
-    output.append("  � Volume Breakouts: {} (Orange triangles - 2.5x+ volume)".format(entry_signals['Volume_Breakout']))
+    for key in entry_signal_keys:
+        count = int(df[key].sum())
+        meta = get_signal_meta(key)
+        marker = meta.chart_marker
+        detail = f"{marker} - {meta.description}" if marker else meta.description
+        output.append(f"  {meta.display} Signals: {count} ({detail})")
     
     output.append(f"\n🚪 EXIT SIGNAL SUMMARY:")
-    output.append("  🟠 Profit Taking: {} (Orange dots - New highs with waning accumulation)".format(exit_signals['Profit_Taking']))
-    output.append("  ⚠️ Distribution Warning: {} (Gold squares - Early distribution signs)".format(exit_signals['Distribution_Warning']))
-    output.append("  🔴 Sell Signals: {} (Red dots - Strong distribution below VWAP)".format(exit_signals['Sell_Signal']))
-    output.append("  � Momentum Exhaustion: {} (Purple X's - Rising price, declining volume)".format(exit_signals['Momentum_Exhaustion']))
-    output.append("  🛑 Stop Loss Triggers: {} (Dark red triangles - Support breakdown)".format(exit_signals['Stop_Loss']))
+    for key in exit_signal_keys:
+        count = int(df[key].sum())
+        meta = get_signal_meta(key)
+        marker = meta.chart_marker
+        detail = f"{marker} - {meta.description}" if marker else meta.description
+        suffix = "Triggers" if key == 'Stop_Loss' else "Signals"
+        output.append(f"  {meta.display} {suffix}: {count} ({detail})")
     
     output.append(f"\n📋 ANALYSIS PERIOD: {period}")
     output.append(f"📅 DATE RANGE: {df.index[0].strftime('%Y-%m-%d')} to {df.index[-1].strftime('%Y-%m-%d')}")
@@ -619,7 +657,8 @@ def generate_analysis_text(ticker: str, df: pd.DataFrame, period: str) -> str:
     return "\n".join(output)
 
 def analyze_ticker(ticker: str, period='6mo', save_to_file=False, output_dir='.', save_chart=False,
-                   force_refresh=False, show_chart=True, show_summary=True, debug=False):
+                   force_refresh=False, show_chart=True, show_summary=True, debug=False,
+                   chart_backend: str = 'matplotlib'):
     """
     Retrieve and analyze price-volume data for a given ticker symbol.
     
@@ -633,6 +672,7 @@ def analyze_ticker(ticker: str, period='6mo', save_to_file=False, output_dir='.'
         show_chart (bool): Whether to display chart interactively (default: True)
         show_summary (bool): Whether to print detailed summary output (default: True)
         debug (bool): Enable additional progress prints when saving artifacts
+        chart_backend (str): Chart engine to use ('matplotlib' for PNG, 'plotly' for interactive HTML)
         
     Raises:
         DataValidationError: If ticker or period is invalid
@@ -814,20 +854,22 @@ def analyze_ticker(ticker: str, period='6mo', save_to_file=False, output_dir='.'
         # Shift signals by +1 day for chart display (marker shows on action day)
         df[f'{col}_display'] = df[col].shift(1)
     
-    # --- Generate Chart using Chart Builder Module ---
+    # --- Generate Chart using selected Chart Builder Module ---
     if save_chart or show_chart:
+        selected_backend = (chart_backend or 'matplotlib').lower()
+        chart_generator, chart_extension = resolve_chart_engine(selected_backend)
+        
         # Create chart filename with date range for save operations
         chart_path = None
         if save_chart:
             start_date = df.index[0].strftime('%Y%m%d')
             end_date = df.index[-1].strftime('%Y%m%d')
-            chart_filename = f"{ticker}_{period}_{start_date}_{end_date}_chart.png"
+            chart_filename = f"{ticker}_{period}_{start_date}_{end_date}_chart.{chart_extension}"
             chart_path = os.path.join(output_dir, chart_filename)
             if debug:
-                print(f"📊 Chart saved: {chart_filename}")
+                print(f"📊 Chart saved ({selected_backend}): {chart_filename}")
         
-        # Use chart_builder module for all visualization
-        chart_builder.generate_analysis_chart(
+        chart_generator(
             df=df,
             ticker=ticker,
             period=period,
@@ -1101,9 +1143,14 @@ def analyze_ticker(ticker: str, period='6mo', save_to_file=False, output_dir='.'
         
         return df
 
-def multi_timeframe_analysis(ticker: str, periods=['1mo', '3mo', '6mo', '12mo']):
+def multi_timeframe_analysis(ticker: str, periods=['1mo', '3mo', '6mo', '12mo'], chart_backend: str = 'matplotlib'):
     """
     Analyze accumulation signals across multiple timeframes for stronger confirmation.
+    
+    Args:
+        ticker (str): Stock symbol to analyze.
+        periods (List[str]): Collection of timeframe strings to process.
+        chart_backend (str): Chart engine passed through to analyze_ticker.
     """
     print(f"\n🔍 MULTI-TIMEFRAME ACCUMULATION ANALYSIS FOR {ticker.upper()}")
     print("="*70)
@@ -1111,7 +1158,7 @@ def multi_timeframe_analysis(ticker: str, periods=['1mo', '3mo', '6mo', '12mo'])
     results = {}
     for period in periods:
         print(f"\n📅 Analyzing {period} timeframe...")
-        df_temp = analyze_ticker(ticker, period=period)
+        df_temp = analyze_ticker(ticker, period=period, chart_backend=chart_backend)
         
         # Get recent accumulation metrics
         recent_score = df_temp['Accumulation_Score'].tail(5).mean()
@@ -1201,7 +1248,14 @@ Note: Legacy periods (1y, 2y, 5y, etc.) are automatically converted to month equ
     parser.add_argument(
         '--save-charts',
         action='store_true',
-        help='Save chart images as PNG files (batch mode only)'
+        help='Save chart files (PNG for matplotlib, HTML for Plotly) during batch mode'
+    )
+    
+    parser.add_argument(
+        '--chart-backend',
+        choices=['matplotlib', 'plotly'],
+        default='matplotlib',
+        help='Select chart renderer: matplotlib (PNG) or plotly (interactive HTML in ../charts)'
     )
     
     parser.add_argument(
@@ -1280,6 +1334,7 @@ Note: Legacy periods (1y, 2y, 5y, etc.) are automatically converted to month equ
                 period=args.period,
                 output_dir=args.output_dir,
                 save_charts=args.save_charts,
+                chart_backend=args.chart_backend,
                 verbose=args.debug
             )
             if args.debug:
@@ -1291,7 +1346,7 @@ Note: Legacy periods (1y, 2y, 5y, etc.) are automatically converted to month equ
             
             if args.multi:
                 # Run multi-timeframe analysis
-                results = multi_timeframe_analysis(ticker)
+                results = multi_timeframe_analysis(ticker, chart_backend=args.chart_backend)
             else:
                 # Run single period analysis with force refresh option
                 # Don't show chart or detailed summary if backtesting
@@ -1301,7 +1356,8 @@ Note: Legacy periods (1y, 2y, 5y, etc.) are automatically converted to month equ
                     force_refresh=args.force_refresh,
                     show_chart=not args.backtest,  # Hide chart when backtesting
                     show_summary=not args.backtest,  # Hide verbose summary when backtesting
-                    debug=args.debug
+                    debug=args.debug,
+                    chart_backend=args.chart_backend
                 )
                 
                 # Run backtest if requested

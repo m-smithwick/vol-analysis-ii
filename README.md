@@ -101,6 +101,9 @@ python vol_analysis.py --file stocks.txt
 # Batch processing with custom period and output directory
 python vol_analysis.py -f stocks.txt --period 3mo --output-dir results
 
+# Batch with charts saved including plotly
+python vol_analysis.py --file ibd.txt -p 12mo --save-charts --chart-backend plotly
+
 # Include chart images for all tickers
 python vol_analysis.py -f stocks.txt --save-charts
 
@@ -178,10 +181,17 @@ python vol_analysis.py NVDA -p 6mo --risk-managed
 **Risk Management Features:**
 - **Position Sizing**: Risk 0.75% per trade (configurable)
 - **Initial Stop**: `min(swing_low - 0.5*ATR, VWAP - 1*ATR)`
-- **Time Stop**: Exit after 12 bars if <+1R
-- **Momentum Failure**: Exit if CMF <0 OR close < VWAP
+- **Hard Stop**: Exit if price falls below initial stop
+- **Time Stop**: Exit after 12 bars if <+1R (dead position management)
+- **Regular Exit Signals**: Uses proven exit system (Distribution Warning, Momentum Exhaustion, Sell Signal, etc.)
 - **Profit Scaling**: Take 50% at +2R, trail remainder
 - **Trailing Stop**: 10-day low after +2R achieved
+
+**Critical Fixes (Nov 2025):**
+- ✅ **End-of-Day Signal Timing**: Fixed execution bug where exit checks were running on the same bar as entry, causing immediate (0-day) exits
+- ✅ **Exit Logic Optimization**: Removed aggressive momentum check (CMF<0/price<VWAP) that caused 93% immediate exits; now uses proven exit signals
+- **Proper Implementation**: Entry signals fire at close of day T, execution at open of day T+1, exit checks start on day T+2 or later
+- **Result**: Realistic holding periods (9.7 days avg) with positive expectancy (+0.26R vs -0.05R)
 
 ### Batch Backtesting - Strategy Optimization (NEW)
 ```bash
@@ -199,6 +209,9 @@ python batch_backtest.py stocks.txt --risk-managed
 
 # Full example with all options
 python batch_backtest.py watchlist.txt --period 12mo --output-dir backtest_analysis --risk-managed
+
+# Often Run
+python batch_backtest.py ibd.txt --period 12mo
 ```
 
 **Risk-Managed Batch Features:**
@@ -551,8 +564,10 @@ All files are saved to the `results/` directory by default.
 **Individual Analysis Files**: `{TICKER}_{PERIOD}_{STARTDATE}_{ENDDATE}_analysis.txt`
 - Example: `results/AAPL_6mo_20240404_20241003_analysis.txt`
 
-**Chart Files** (when `--save-charts` used): `{TICKER}_{PERIOD}_{STARTDATE}_{ENDDATE}_chart.png`
-- Example: `results/AAPL_6mo_20240404_20241003_chart.png`
+**Chart Files** (when `--save-charts` used): `{TICKER}_{PERIOD}_{STARTDATE}_{ENDDATE}_chart.<ext>`
+- `ext = png` when `--chart-backend matplotlib` (static image)
+- `ext = html` when `--chart-backend plotly` (interactive chart from `../charts`)
+- Example: `results/AAPL_6mo_20240404_20241003_chart.html`
 
 **Summary Report**: `batch_summary_{PERIOD}_{TIMESTAMP}.txt`
 - Example: `results/batch_summary_6mo_20241004_122312.txt`

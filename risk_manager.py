@@ -5,10 +5,12 @@ Provides unified risk management across all trades:
 - Position sizing based on risk percentage
 - Initial stop placement using swing/VWAP logic
 - Time-based exits for dead positions
-- Momentum failure detection
+- Hard stops for capital protection
 - Profit scaling at +2R with trailing stops
+- Integrates with regular exit signals for optimal exits
 
 Part of upgrade_spec.md Item #13
+Updated Nov 2025: Removed aggressive momentum checks, uses regular exit signals
 """
 
 import pandas as pd
@@ -23,9 +25,13 @@ class RiskManager:
     Handles complete trade lifecycle from sizing to exit:
     - Risk-based position sizing (0.5-1% per trade)
     - Initial stop: min(swing_low - 0.5*ATR, VWAP - 1*ATR)
-    - Time stops: Exit after 10-15 bars if <+1R
-    - Momentum failures: CMF <0 OR close < VWAP
+    - Hard stops: Exit below initial stop price
+    - Time stops: Exit after 12 bars if <+1R (dead positions)
+    - Regular exit signals: Integrates with proven exit system
     - Profit scaling: 50% at +2R, trail rest by 10-day low
+    
+    Note: Aggressive momentum checks (CMF<0/price<VWAP) removed Nov 2025.
+    System now relies on proven exit signals for optimal exit timing.
     """
     
     def __init__(self, account_value: float, risk_pct_per_trade: float = 0.75):
@@ -159,14 +165,19 @@ class RiskManager:
         current_idx: int
     ) -> Dict:
         """
-        Update position status and check exit conditions.
+        Update position status and check risk management exit conditions.
         
-        Checks (in order):
-        1. Hard stop hit (below initial stop)
-        2. Time stop (10-15 bars if <+1R)
-        3. Momentum failure (CMF <0 OR price < VWAP)
-        4. Profit target (+2R for 50% exit)
-        5. Trailing stop (after +2R achieved)
+        Risk management exits (in order):
+        1. Hard stop hit (below initial stop) - Capital protection
+        2. Time stop (12 bars if <+1R) - Dead position management
+        3. Profit target (+2R for 50% exit) - Lock in gains
+        4. Trailing stop (10-day low after +2R) - Let winners run
+        
+        Note: Regular exit signals (Distribution Warning, Momentum Exhaustion, etc.)
+        are checked separately in the backtest loop and integrated with these rules.
+        
+        CRITICAL: Exit checks only run on bars AFTER entry bar to ensure
+        end-of-day signals have at least 1 full bar to develop.
         
         Args:
             ticker: Stock symbol
@@ -201,6 +212,15 @@ class RiskManager:
             'reason': None
         }
         
+        # CRITICAL FIX: Do not check exits on entry bar (bars_in_trade = 0)
+        # This ensures end-of-day signals have at least 1 full bar before exit checks
+        # Entry happens at open of bar N, we don't check exits until bar N+1
+        if pos['bars_in_trade'] == 0:
+            return exit_signals
+        
+        # Exit checks only run when bars_in_trade >= 1
+        # This prevents same-day exits for end-of-day signal systems
+        
         # 1. HARD STOP: Below initial stop
         if current_price < pos['stop_price']:
             exit_signals['should_exit'] = True
@@ -208,25 +228,18 @@ class RiskManager:
             exit_signals['reason'] = f"Hard stop hit at {pos['stop_price']:.2f}"
             return exit_signals
         
-        # 2. TIME STOP: Exit after 10-15 bars if <+1R
+        # 2. TIME STOP: Exit after 12 bars if <+1R
         if pos['bars_in_trade'] >= 12 and r_multiple < 1.0:
             exit_signals['should_exit'] = True
             exit_signals['exit_type'] = 'TIME_STOP'
             exit_signals['reason'] = f"Time stop: {pos['bars_in_trade']} bars, {r_multiple:.2f}R"
             return exit_signals
         
-        # 3. MOMENTUM FAILURE: CMF <0 OR price < VWAP
-        if 'CMF_Z' in df.columns and 'VWAP' in df.columns:
-            cmf_z = df.iloc[current_idx]['CMF_Z']
-            vwap = df.iloc[current_idx]['VWAP']
-            
-            if cmf_z < 0 or current_price < vwap:
-                exit_signals['should_exit'] = True
-                exit_signals['exit_type'] = 'MOMENTUM_FAIL'
-                exit_signals['reason'] = f"Momentum fail: CMF_Z={cmf_z:.2f}, Price vs VWAP={current_price:.2f} vs {vwap:.2f}"
-                return exit_signals
+        # NOTE: Momentum failure check removed - use regular exit signals instead
+        # Regular exit signals (Distribution Warning, Momentum Exhaustion, etc.)
+        # are more reliable for end-of-day trading and should be checked separately
         
-        # 4. PROFIT TARGET: Take 50% at +2R
+        # 3. PROFIT TARGET: Take 50% at +2R
         if r_multiple >= 2.0 and not pos['profit_taken_50pct']:
             exit_signals['should_exit'] = True
             exit_signals['partial_exit'] = True
@@ -248,7 +261,7 @@ class RiskManager:
             
             return exit_signals
         
-        # 5. TRAILING STOP: 10-day low after +2R
+        # 4. TRAILING STOP: 10-day low after +2R
         if pos['trail_stop_active'] and pos['trail_stop_price'] is not None:
             # Update trailing stop to 10-day low
             if current_idx >= 10:

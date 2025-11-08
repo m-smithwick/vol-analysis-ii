@@ -10,6 +10,8 @@ import numpy as np
 from datetime import datetime
 from typing import Dict, List, Tuple, Optional
 
+from signal_metadata import get_display_name
+
 
 def calculate_forward_returns(df: pd.DataFrame, periods: List[int] = [1, 10]) -> pd.DataFrame:
     """
@@ -124,13 +126,11 @@ def analyze_exit_signals(df: pd.DataFrame) -> Dict:
     Returns:
         Dict: Exit signal performance metrics
     """
-    exit_signals = {
-        'Profit_Taking': '🟠 Profit Taking',
-        'Distribution_Warning': '⚠️ Distribution Warning',
-        'Sell_Signal': '🔴 Sell Signal',
-        'Momentum_Exhaustion': '💜 Momentum Exhaustion',
-        'Stop_Loss': '🛑 Stop Loss'
-    }
+    exit_signal_keys = [
+        'Profit_Taking', 'Distribution_Warning', 'Sell_Signal',
+        'Momentum_Exhaustion', 'Stop_Loss'
+    ]
+    exit_signals = {key: get_display_name(key) for key in exit_signal_keys}
     
     results = {}
     
@@ -239,13 +239,11 @@ def generate_backtest_report(df: pd.DataFrame, ticker: str, period: str) -> str:
     report_lines.append("")
     
     # Entry signal definitions
-    entry_signals = {
-        'Strong_Buy': '🟢 Strong Buy',
-        'Moderate_Buy': '🟡 Moderate Buy',
-        'Stealth_Accumulation': '💎 Stealth Accumulation',
-        'Confluence_Signal': '⭐ Multi-Signal Confluence',
-        'Volume_Breakout': '🔥 Volume Breakout'
-    }
+    entry_signal_keys = [
+        'Strong_Buy', 'Moderate_Buy', 'Stealth_Accumulation',
+        'Confluence_Signal', 'Volume_Breakout'
+    ]
+    entry_signals = {key: get_display_name(key) for key in entry_signal_keys}
     
     # Analyze each entry signal type
     report_lines.append("🎯 ENTRY SIGNAL PERFORMANCE:")
@@ -854,21 +852,14 @@ def run_backtest(df: pd.DataFrame, ticker: str, period: str,
     import os
     
     # Define signal mappings
-    entry_signals = {
-        'Strong_Buy': '🟢 Strong Buy',
-        'Moderate_Buy': '🟡 Moderate Buy',
-        'Stealth_Accumulation': '💎 Stealth Accumulation',
-        'Confluence_Signal': '⭐ Multi-Signal Confluence',
-        'Volume_Breakout': '🔥 Volume Breakout'
-    }
-    
-    exit_signals = {
-        'Profit_Taking': '🟠 Profit Taking',
-        'Distribution_Warning': '⚠️ Distribution Warning',
-        'Sell_Signal': '🔴 Sell Signal',
-        'Momentum_Exhaustion': '💜 Momentum Exhaustion',
-        'Stop_Loss': '🛑 Stop Loss'
-    }
+    entry_signal_keys = [
+        'Strong_Buy', 'Moderate_Buy', 'Stealth_Accumulation', 'Confluence_Signal', 'Volume_Breakout'
+    ]
+    exit_signal_keys = [
+        'Profit_Taking', 'Distribution_Warning', 'Sell_Signal', 'Momentum_Exhaustion', 'Stop_Loss'
+    ]
+    entry_signals = {key: get_display_name(key) for key in entry_signal_keys}
+    exit_signals = {key: get_display_name(key) for key in exit_signal_keys}
     
     # Generate entry-to-exit paired analysis
     paired_trades = pair_entry_exit_signals(
@@ -1248,9 +1239,12 @@ def run_risk_managed_backtest(
     print(f"   Risk Per Trade: {risk_pct}%")
     print("="*70)
     
-    # Entry signal columns to monitor
+    # Entry and exit signal columns to monitor
     entry_signals = ['Strong_Buy', 'Moderate_Buy', 'Stealth_Accumulation', 
                      'Confluence_Signal', 'Volume_Breakout']
+    
+    exit_signals = ['Profit_Taking', 'Distribution_Warning', 'Sell_Signal',
+                    'Momentum_Exhaustion', 'Stop_Loss']
     
     # Track all trades
     all_trades = []
@@ -1262,6 +1256,7 @@ def run_risk_managed_backtest(
         
         # Update active positions FIRST (before checking for new entries)
         if ticker in risk_mgr.active_positions:
+            # Check risk management rules (hard stops, time stops, profit scaling)
             exit_check = risk_mgr.update_position(
                 ticker=ticker,
                 current_date=current_date,
@@ -1270,10 +1265,29 @@ def run_risk_managed_backtest(
                 current_idx=idx
             )
             
-            if exit_check['should_exit']:
-                # Close position
+            # Check for regular exit signals (proven exit system)
+            has_exit_signal = any(df.iloc[idx][sig] for sig in exit_signals)
+            triggered_exits = [sig for sig in exit_signals if df.iloc[idx][sig]]
+            
+            # Exit if EITHER risk management OR regular exit signal triggers
+            should_exit_risk_mgmt = exit_check['should_exit']
+            should_exit_signal = has_exit_signal
+            
+            if should_exit_risk_mgmt or should_exit_signal:
+                # Determine exit type and reason
+                if should_exit_risk_mgmt:
+                    exit_type = exit_check['exit_type']
+                    exit_reason = exit_check['reason']
+                else:
+                    # Regular exit signal - use the first one that triggered
+                    exit_type = 'SIGNAL_EXIT'
+                    exit_reason = f"Exit signal: {', '.join(triggered_exits)}"
+                    exit_check['exit_type'] = exit_type
+                    exit_check['reason'] = exit_reason
+                    exit_check['should_exit'] = True
+                # Close position (use current price for signal exits)
                 exit_date = current_date
-                exit_price = exit_check['exit_price']
+                exit_price = current_price if should_exit_signal else exit_check['exit_price']
                 
                 # For partial exits, just record the trade but keep position open
                 trade = risk_mgr.close_position(
@@ -1537,10 +1551,15 @@ def generate_risk_managed_report(
     report_lines.append("")
     report_lines.append("📝 RISK MANAGEMENT RULES IN USE:")
     report_lines.append("  • Initial Stop: min(swing_low - 0.5*ATR, VWAP - 1*ATR)")
-    report_lines.append("  • Time Stop: Exit after 12 bars if <+1R")
-    report_lines.append("  • Momentum Fail: Exit if CMF <0 OR close < VWAP")
+    report_lines.append("  • Hard Stop: Exit below initial stop (capital protection)")
+    report_lines.append("  • Time Stop: Exit after 12 bars if <+1R (dead positions)")
+    report_lines.append("  • Regular Exit Signals: Distribution Warning, Momentum Exhaustion, Sell Signal, etc.")
     report_lines.append("  • Profit Target: Scale 50% at +2R")
     report_lines.append("  • Trailing Stop: 10-day low after +2R achieved")
+    report_lines.append("")
+    report_lines.append("💡 EXIT LOGIC UPDATE (Nov 2025):")
+    report_lines.append("  Removed aggressive momentum check (CMF<0/price<VWAP) that caused 93% immediate exits.")
+    report_lines.append("  Now uses proven exit signals + risk management stops for optimal trade management.")
     report_lines.append("")
     
     return "\n".join(report_lines)

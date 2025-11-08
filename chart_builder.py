@@ -20,6 +20,7 @@ from error_handler import (
     ErrorContext, FileOperationError, DataValidationError,
     validate_dataframe, validate_file_path, get_logger
 )
+from signal_metadata import get_chart_label
 
 
 def create_price_chart(ax, df: pd.DataFrame, ticker: str, period: str) -> None:
@@ -48,31 +49,31 @@ def create_price_chart(ax, df: pd.DataFrame, ticker: str, period: str) -> None:
     strong_buys = df[df['Strong_Buy_display'] == True]
     if not strong_buys.empty:
         ax.scatter(strong_buys.index, strong_buys['Close'], color='lime', marker='o', 
-                   s=150, label='Strong Buy', zorder=10, edgecolors='darkgreen', linewidth=2)
+                   s=150, label=get_chart_label('Strong_Buy'), zorder=10, edgecolors='darkgreen', linewidth=2)
     
     # MODERATE BUY SIGNALS (Medium Yellow Dots) - Now shows on action day
     moderate_buys = df[df['Moderate_Buy_display'] == True]
     if not moderate_buys.empty:
         ax.scatter(moderate_buys.index, moderate_buys['Close'], color='gold', marker='o', 
-                   s=100, label='Moderate Buy', zorder=9, edgecolors='orange', linewidth=1.5)
+                   s=100, label=get_chart_label('Moderate_Buy'), zorder=9, edgecolors='orange', linewidth=1.5)
     
     # STEALTH ACCUMULATION (Diamond Symbols) - Now shows on action day
     stealth = df[df['Stealth_Accumulation_display'] == True]
     if not stealth.empty:
         ax.scatter(stealth.index, stealth['Close'], color='cyan', marker='D', 
-                   s=80, label='Stealth Accumulation', zorder=8, alpha=0.8)
+                   s=80, label=get_chart_label('Stealth_Accumulation'), zorder=8, alpha=0.8)
     
     # CONFLUENCE SIGNALS (Star Symbols) - Now shows on action day
     confluence = df[df['Confluence_Signal_display'] == True]
     if not confluence.empty:
         ax.scatter(confluence.index, confluence['Close'], color='magenta', marker='*', 
-                   s=200, label='Multi-Signal Confluence', zorder=11)
+                   s=200, label=get_chart_label('Confluence_Signal'), zorder=11)
     
     # VOLUME BREAKOUT (Triangle Symbols) - Now shows on action day
     breakouts = df[df['Volume_Breakout_display'] == True]
     if not breakouts.empty:
         ax.scatter(breakouts.index, breakouts['Close'], color='orangered', marker='^', 
-                   s=120, label='Volume Breakout', zorder=9, edgecolors='darkred')
+                   s=120, label=get_chart_label('Volume_Breakout'), zorder=9, edgecolors='darkred')
     
     # === EXIT SIGNALS (Using *_display columns for T+1 visualization) ===
     
@@ -80,31 +81,31 @@ def create_price_chart(ax, df: pd.DataFrame, ticker: str, period: str) -> None:
     profit_takes = df[df['Profit_Taking_display'] == True]
     if not profit_takes.empty:
         ax.scatter(profit_takes.index, profit_takes['Close'], color='orange', marker='o', 
-                   s=120, label='Profit Taking', zorder=10, edgecolors='darkorange', linewidth=2)
+                   s=120, label=get_chart_label('Profit_Taking'), zorder=10, edgecolors='darkorange', linewidth=2)
     
     # DISTRIBUTION WARNING (Gold Squares) - Now shows on action day
     dist_warnings = df[df['Distribution_Warning_display'] == True]
     if not dist_warnings.empty:
         ax.scatter(dist_warnings.index, dist_warnings['Close'], color='gold', marker='s', 
-                   s=100, label='Distribution Warning', zorder=9, edgecolors='darkgoldenrod', linewidth=2)
+                   s=100, label=get_chart_label('Distribution_Warning'), zorder=9, edgecolors='darkgoldenrod', linewidth=2)
     
     # SELL SIGNALS (Red Dots) - Now shows on action day
     sells = df[df['Sell_Signal_display'] == True]
     if not sells.empty:
         ax.scatter(sells.index, sells['Close'], color='red', marker='o', 
-                   s=120, label='Sell Signal', zorder=10, edgecolors='darkred', linewidth=2)
+                   s=120, label=get_chart_label('Sell_Signal'), zorder=10, edgecolors='darkred', linewidth=2)
     
     # MOMENTUM EXHAUSTION (Purple X's) - Now shows on action day
     momentum_exhausts = df[df['Momentum_Exhaustion_display'] == True]
     if not momentum_exhausts.empty:
         ax.scatter(momentum_exhausts.index, momentum_exhausts['Close'], color='purple', marker='x', 
-                   s=120, label='Momentum Exhaustion', zorder=9, linewidth=3)
+                   s=120, label=get_chart_label('Momentum_Exhaustion'), zorder=9, linewidth=3)
     
     # STOP LOSS TRIGGERS (Dark Red Triangles Down) - Now shows on action day
     stop_losses = df[df['Stop_Loss_display'] == True]
     if not stop_losses.empty:
         ax.scatter(stop_losses.index, stop_losses['Close'], color='darkred', marker='v', 
-                   s=130, label='Stop Loss Trigger', zorder=11, edgecolors='black', linewidth=2)
+                   s=130, label=get_chart_label('Stop_Loss'), zorder=11, edgecolors='black', linewidth=2)
     
     # === EVENT DAY MARKERS (Item #3: News/Event Spike Filter) ===
     
@@ -212,7 +213,7 @@ def create_volume_bars_chart(ax, ax_twin, df: pd.DataFrame) -> None:
     if not actual_strong_buys.empty:
         ax_twin.scatter(actual_strong_buys.index, actual_strong_buys['Accumulation_Score'], 
                         color='lime', marker='o', s=50, zorder=10, alpha=0.8, 
-                        label='Strong Buy Signals')
+                        label=f"{get_chart_label('Strong_Buy')} Signals")
     
     # Mark high exit score points
     high_exit_points = df[df['Exit_Score'] >= 6]
@@ -348,12 +349,12 @@ def create_multi_timeframe_chart(results_dict: dict, ticker: str,
             strong_buys = df[df['Strong_Buy_display'] == True]
             if not strong_buys.empty:
                 ax.scatter(strong_buys.index, strong_buys['Close'], color='lime', marker='o', 
-                           s=100, label='Strong Buy', zorder=10, edgecolors='darkgreen')
+                           s=100, label=get_chart_label('Strong_Buy'), zorder=10, edgecolors='darkgreen')
             
             sells = df[df['Sell_Signal_display'] == True]
             if not sells.empty:
                 ax.scatter(sells.index, sells['Close'], color='red', marker='o', 
-                           s=100, label='Sell Signal', zorder=10, edgecolors='darkred')
+                           s=100, label=get_chart_label('Sell_Signal'), zorder=10, edgecolors='darkred')
             
             ax.set_title(f'{ticker} - {period} Analysis')
             ax.set_ylabel('Price ($)')

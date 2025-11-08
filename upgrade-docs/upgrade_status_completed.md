@@ -190,6 +190,66 @@
 
 ---
 
+### Item #9: Robust Threshold Validation & Overfitting Prevention
+
+**Status:** ✅ COMPLETED (2025-11-07)
+
+**What Was Done:**
+- Created `threshold_validation.py` with comprehensive walk-forward validation framework
+- Created `test_threshold_validation.py` with test suite (3 test cases)
+- Implemented walk-forward analysis with configurable train/test periods
+- Added per-window threshold optimization on training data
+- Added validation evaluation with degradation detection
+- Integrated into `vol_analysis.py` via `--validate-thresholds` flag
+- Added comprehensive reporting with window-by-window performance breakdown
+
+**Key Features Implemented:**
+- **Walk-forward slicing:** Configurable rolling windows (default: 12-month train, 3-month test)
+- **Training optimization:** Finds best threshold per signal on each training window
+- **Validation evaluation:** Tests optimized thresholds on out-of-sample data
+- **Degradation detection:** Flags performance drops (win rate >12.5%, expectancy >1.0%)
+- **Comprehensive reporting:** Summary statistics and per-window breakdowns
+
+**Usage:**
+```bash
+# Run threshold validation on any ticker
+python vol_analysis.py TICKER -p 24mo --validate-thresholds
+
+# Configure walk-forward parameters in threshold_validation.py:
+# - train_period_days: Training window size (default: 252 trading days)
+# - test_period_days: Validation window size (default: 63 trading days)
+# - step_days: Window sliding interval (default: 63 trading days)
+# - minimum_trades: Minimum trades required per window (default: 10)
+```
+
+**Files Created:**
+- `threshold_validation.py` - Walk-forward validation framework
+- `test_threshold_validation.py` - Test suite for validation logic
+
+**Files Modified:**
+- `vol_analysis.py` - Added `--validate-thresholds` CLI flag
+
+**Test Results:**
+All 3 test cases passed:
+1. ✅ Walk-forward window generation
+2. ✅ Validation metrics production
+3. ✅ Report generation with summary sections
+
+**Benefits Achieved:**
+- ✅ Out-of-sample validation prevents overfitting
+- ✅ Rolling windows detect threshold stability over time
+- ✅ Degradation flags identify non-robust thresholds
+- ✅ Production-ready validation framework
+- ✅ Automated reporting for documentation updates
+
+**Risk Mitigation:**
+- Thresholds validated on separate time periods from optimization
+- Performance degradation automatically flagged
+- Multiple validation windows provide confidence in robustness
+- Configurable degradation tolerances for different risk appetites
+
+---
+
 ### Item #5: P&L-Aware Exit Logic
 
 **Status:** ✅ COMPLETED (2025-11-05)
@@ -311,6 +371,6 @@ From completed threshold optimization:
 
 ---
 
-**Last Updated:** 2025-11-05  
-**Total Completed:** 11 of 13 items (85%)  
-**For pending items, see:** `upgrade_status_active.md`
+**Last Updated:** 2025-11-07  
+**Total Completed:** 13 of 13 items (100%)  
+**Project Status:** ✅ ALL ITEMS COMPLETE
