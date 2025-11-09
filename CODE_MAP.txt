@@ -1,7 +1,7 @@
 # Volume Analysis Project - Code Map
 
-**Last Updated**: 2025-11-05
-**Purpose**: Quick reference for upgrade spec implementation
+**Last Updated**: 2025-11-09
+**Purpose**: Quick reference for upgrade spec implementation and current modules
 
 ---
 
@@ -59,9 +59,34 @@
 - Performance metrics
 - Primary target for Items #5, #13
 
-**`data_manager.py`** - Data fetch/cache
+**`data_manager.py`** - Data fetch/cache (ENHANCED - Nov 9, 2025)
 - Yahoo Finance integration
 - Cache management with schema versioning
+- **NEW:** Date range query functions:
+  - query_cache_by_date_range() - Query specific date ranges
+  - get_cache_date_range() - Get cache coverage
+  - cache_covers_date_range() - Validate coverage
+- Foundation for future provider abstraction
+
+**`batch_backtest.py`** - Multi-ticker backtesting (ENHANCED - Nov 9, 2025)
+- Batch backtest orchestration
+- Aggregate report generation
+- **NEW:** Regime-aware backtesting:
+  - --start-date/--end-date parameters
+  - Date range filtering for regime analysis
+  - Supports both period and date range queries
+
+**`populate_cache.py`** - Cache population tool (NEW - Nov 9, 2025)
+- Batch download historical data for multiple ticker files
+- Smart caching (skips already cached)
+- Progress tracking and error handling
+- Supports single file or all ticker files
+
+**`query_cache_range.py`** - Cache query tool (NEW - Nov 9, 2025)
+- Interactive date range queries
+- Cache coverage verification
+- Price statistics and data preview
+- Testing tool for regime analysis
 
 **`threshold_config.py`** - Signal thresholds (NEW)
 - Empirically-validated thresholds (Item #8 ✅)
@@ -209,6 +234,42 @@ backtest.py
 
 ---
 
+## Validation Tools (NEW - Nov 2025)
+
+**`validate_execution_timing.py`** - Check for lookahead bias
+**`validate_outlier_impact.py`** - Analyze outlier effects on means
+**`validate_signal_details.py`** - Deep dive into specific signals
+**`validate_walk_forward.py`** - Period consistency testing
+**`verify_threshold_disconnect.py`** - Threshold validation
+**`verify_trade_counts.py`** - Trade counting verification
+**`explain_exit_returns.py`** - Entry vs exit metric explanation
+**`calculate_realistic_expectations.py`** - Weighted return calculator
+
+---
+
+## Documentation Structure (Updated Nov 9, 2025)
+
+### Primary Reference Documents:
+- **`STRATEGY_VALIDATION_COMPLETE.md`** - Master validation document (ALL performance insights)
+- **`BACKTEST_VALIDATION_METHODOLOGY.md`** - How to validate strategies
+- **`IBD_STOCK_LIST_COMPARISON.md`** - Stock universe selection guide
+- **`TRADING_STRATEGY.md`** - Trading implementation guide
+
+### Session Tracking:
+- **`SESSION_IMPROVEMENTS_SUMMARY.md`** - Issue-by-issue changelog (8 issues)
+- **`SESSION_COMPLETE_NOV_2025.md`** - Session records
+- **`NEXT_SESSION_TASKS.md`** - Future priorities (Phase 3 pending)
+
+### Technical Documentation:
+- **`THRESHOLD_DISCONNECT_FIX.md`** - Threshold issue resolution
+- **`CODE_MAP.txt`** - This file (module reference)
+- **`git-workflow.md`** - Git usage guide
+- **`tasks.md`** - General task tracking
+
+**Note:** 4 redundant performance reports deleted Nov 9, 2025 (consolidated into STRATEGY_VALIDATION_COMPLETE.md)
+
+---
+
 ## Implementation Priority Order
 
 Based on upgrade spec pragmatic sequence:
@@ -219,7 +280,14 @@ Based on upgrade spec pragmatic sequence:
 4. ✅ **Item #6** (Regime) – Completed
 5. ✅ **Item #13** (RiskManager) – Completed
 6. ✅ **Item #5** (P&L Exits) – Completed
-7. **Item #9** (Validation) – Next major workstream alongside simplification backlog above
+7. **Item #9** (Validation) – Next major workstream
+
+### Recent Additions (Nov 9, 2025):
+- ✅ Date range cache queries (data_manager.py)
+- ✅ Regime-aware backtesting (batch_backtest.py)
+- ✅ Cache population tools (populate_cache.py, query_cache_range.py)
+- ✅ Market index data (SPY, QQQ, DIA cached)
+- ✅ Documentation consolidation (4 reports → 1 master)
 
 ---
 
