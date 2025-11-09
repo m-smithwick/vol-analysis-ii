@@ -595,6 +595,107 @@ def list_cache_info() -> None:
     
     print(f"\nTotal cache size: {total_size/1024:.1f}KB")
 
+def query_cache_by_date_range(
+    ticker: str,
+    start_date: datetime,
+    end_date: datetime,
+    interval: str = "1d"
+) -> Optional[pd.DataFrame]:
+    """
+    Query cached data for a specific date range.
+    
+    Args:
+        ticker (str): Stock symbol
+        start_date (datetime): Start date (inclusive)
+        end_date (datetime): End date (inclusive)
+        interval (str): Data interval ('1d', '1h', '30m', etc.)
+        
+    Returns:
+        Optional[pd.DataFrame]: DataFrame filtered to date range, or None if not in cache
+    """
+    with ErrorContext("querying cache by date range", ticker=ticker, start_date=start_date, end_date=end_date, interval=interval):
+        validate_ticker(ticker)
+        
+        # Load full cached data
+        cached_df = load_cached_data(ticker, interval)
+        
+        if cached_df is None:
+            logger.debug(f"No cached data found for {ticker} ({interval})")
+            return None
+        
+        # Ensure dates are timezone-naive for comparison
+        start_date = normalize_datetime(start_date)
+        end_date = normalize_datetime(end_date)
+        
+        # Filter to requested date range
+        mask = (cached_df.index >= start_date) & (cached_df.index <= end_date)
+        filtered_df = cached_df[mask]
+        
+        if filtered_df.empty:
+            logger.debug(f"No data in cache for {ticker} in range {start_date.date()} to {end_date.date()}")
+            return None
+        
+        logger.info(f"Retrieved {len(filtered_df)} periods from cache for {ticker} ({start_date.date()} to {end_date.date()})")
+        return filtered_df
+
+def get_cache_date_range(ticker: str, interval: str = "1d") -> Optional[tuple]:
+    """
+    Get the date range covered by cached data.
+    
+    Args:
+        ticker (str): Stock symbol
+        interval (str): Data interval ('1d', '1h', '30m', etc.)
+        
+    Returns:
+        Optional[tuple]: Tuple of (start_date, end_date) or None if no cache
+    """
+    with ErrorContext("getting cache date range", ticker=ticker, interval=interval):
+        validate_ticker(ticker)
+        
+        cached_df = load_cached_data(ticker, interval)
+        
+        if cached_df is None or cached_df.empty:
+            return None
+        
+        return (cached_df.index[0], cached_df.index[-1])
+
+def cache_covers_date_range(
+    ticker: str,
+    start_date: datetime,
+    end_date: datetime,
+    interval: str = "1d"
+) -> bool:
+    """
+    Check if cache fully covers the requested date range.
+    
+    Args:
+        ticker (str): Stock symbol
+        start_date (datetime): Start date
+        end_date (datetime): End date
+        interval (str): Data interval
+        
+    Returns:
+        bool: True if cache has all data for the range
+    """
+    with ErrorContext("checking cache coverage", ticker=ticker, start_date=start_date, end_date=end_date, interval=interval):
+        validate_ticker(ticker)
+        
+        cache_range = get_cache_date_range(ticker, interval)
+        
+        if cache_range is None:
+            return False
+        
+        cache_start, cache_end = cache_range
+        
+        # Ensure dates are timezone-naive for comparison
+        start_date = normalize_datetime(start_date)
+        end_date = normalize_datetime(end_date)
+        cache_start = normalize_datetime(cache_start)
+        cache_end = normalize_datetime(cache_end)
+        
+        # Check if cache covers the requested range
+        return cache_start <= start_date and cache_end >= end_date
+
 def read_ticker_file(filepath: str) -> List[str]:
     """
     Read ticker symbols from a text file (one ticker per line).

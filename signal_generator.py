@@ -145,33 +145,44 @@ def generate_strong_buy_signals(df: pd.DataFrame) -> pd.Series:
 
 def generate_moderate_buy_signals(df: pd.DataFrame) -> pd.Series:
     """
-    Detect moderate buy opportunities.
+    Detect moderate buy opportunities during pullbacks in uptrends.
+    
+    NEW LOGIC (Nov 2025): Redesigned to catch pullbacks in uptrends with 
+    accumulation building. Complementary to Stealth (catches before move) 
+    and Strong Buy (catches breakouts).
     
     Criteria:
-    - Moderate accumulation score (5-7)
-    - CMF z-score positive (>0, indicating buying pressure)
-    - Above VWAP
-    - Not already a strong buy signal
+    - Accumulation score ≥5 (no upper limit - removed narrow 5-7 window)
+    - In pullback zone (below 5-day MA but above 20-day MA)
+    - Volume normalizing (<1.5x average)
+    - CMF positive (buying pressure returning)
     - Not an event day (ATR spike filter)
+    - Not already a strong buy signal
     
     Args:
-        df: DataFrame with required columns: Accumulation_Score, CMF_Z,
-            Above_VWAP, Strong_Buy, Event_Day
+        df: DataFrame with required columns: Accumulation_Score, Close,
+            Relative_Volume, CMF_Z, Strong_Buy, Event_Day
             
     Returns:
-        Boolean Series indicating moderate buy signals
+        Boolean Series indicating moderate buy signals during pullbacks
     """
     # Check if Event_Day column exists for filtering
     event_day_filter = ~df['Event_Day'] if 'Event_Day' in df.columns else True
     
-    # CMF z-score positive indicates buying pressure (replaces A/D rising OR OBV trending)
+    # CMF z-score positive indicates buying pressure returning
     cmf_positive = df['CMF_Z'] > 0 if 'CMF_Z' in df.columns else True
     
+    # Define pullback zone: below short-term MA but above long-term MA
+    ma_5 = df['Close'].rolling(5).mean()
+    ma_20 = df['Close'].rolling(20).mean()
+    
+    pullback_zone = (df['Close'] < ma_5) & (df['Close'] > ma_20)
+    
     moderate_conditions = (
-        (df['Accumulation_Score'] >= 5) & 
-        (df['Accumulation_Score'] < 7) &
-        cmf_positive &
-        df['Above_VWAP'] &
+        (df['Accumulation_Score'] >= 5) &  # Removed upper limit
+        pullback_zone &                     # In pullback zone (key change)
+        (df['Relative_Volume'] < 1.5) &     # Volume normalizing
+        cmf_positive &                      # Buying pressure returning
         event_day_filter
     )
     
@@ -184,9 +195,21 @@ def generate_moderate_buy_signals(df: pd.DataFrame) -> pd.Series:
 
 def generate_stealth_accumulation_signals(df: pd.DataFrame) -> pd.Series:
     """
-    Detect stealth accumulation patterns.
+    ⚠️  DEPRECATED - DO NOT USE ⚠️
     
-    Criteria:
+    ❌ SIGNAL FAILED OUT-OF-SAMPLE VALIDATION (2025-11-08) ❌
+    
+    This signal showed 53.2% win rate on 24-month training data but COLLAPSED to 
+    22.7% win rate on 6-month out-of-sample test. Median return became NEGATIVE 
+    (-7.65%). This is textbook overfitting.
+    
+    Status: FAILED VALIDATION - Do NOT trade this signal
+    Action: Requires complete redesign and re-validation before use
+    See: OUT_OF_SAMPLE_VALIDATION_REPORT.md for details
+    
+    ---
+    
+    Original criteria (now deprecated):
     - High accumulation score (≥6)
     - Low/normal volume (<1.3x average)
     - CMF positive while price not rising (divergence)
@@ -198,8 +221,16 @@ def generate_stealth_accumulation_signals(df: pd.DataFrame) -> pd.Series:
             CMF_Z, Price_Rising, Strong_Buy, Moderate_Buy, Event_Day
             
     Returns:
-        Boolean Series indicating stealth accumulation signals
+        Boolean Series indicating stealth accumulation signals (DEPRECATED - returns all False)
     """
+    import warnings
+    warnings.warn(
+        "⚠️  Stealth Accumulation signal FAILED out-of-sample validation "
+        "(22.7% win rate vs 53.2% expected). DO NOT USE until redesigned. "
+        "See OUT_OF_SAMPLE_VALIDATION_REPORT.md",
+        DeprecationWarning,
+        stacklevel=2
+    )
     # Check if Event_Day column exists for filtering
     event_day_filter = ~df['Event_Day'] if 'Event_Day' in df.columns else True
     
@@ -531,37 +562,50 @@ def calculate_moderate_buy_score(df: pd.DataFrame) -> pd.Series:
     """
     Calculate Moderate Buy signal score (0-10 scale) for threshold optimization.
     
+    NEW LOGIC (Nov 2025): Aligned with redesigned pullback strategy.
     Uses same logic as generate_moderate_buy_signals() but returns graduated scores
     instead of boolean flags. This enables empirical threshold optimization.
     
     Scoring Components:
-    - Base accumulation score (0-7 points, normalized from calculate_accumulation_score)
-    - A/D rising bonus (0-1.5 points)
-    - OBV trending bonus (0-1.5 points) 
-    - VWAP position bonus (0-1 point)
+    - Base accumulation score ≥5 (0-5 points)
+    - Pullback zone bonus (0-3 points based on pullback depth)
+    - Volume normalizing bonus (0-1.5 points)
+    - CMF positive bonus (0-1.5 points based on CMF strength)
     
     Args:
-        df: DataFrame with required columns: Accumulation_Score, AD_Rising,
-            OBV_Trend, Above_VWAP, Event_Day
+        df: DataFrame with required columns: Accumulation_Score, Close,
+            Relative_Volume, CMF_Z, Event_Day
             
     Returns:
         Series with moderate buy scores (0-10 scale)
     """
     score = pd.Series(0.0, index=df.index)
     
-    # Base: Use existing accumulation score as foundation (0-7 points)
-    # Normalize from 0-10 scale to 0-7 to leave room for bonuses
-    base_score = df['Accumulation_Score'] * 0.7  # Convert 10-scale to 7-scale
-    score = score + base_score
+    # Base: Accumulation score foundation (0-5 points for score ≥5)
+    base_condition = (df['Accumulation_Score'] >= 5).astype(float)
+    accumulation_strength = np.clip((df['Accumulation_Score'] - 5) * 1.0, 0, 5)
+    score = score + base_condition * accumulation_strength
     
-    # A/D rising bonus (0-1.5 points)
-    score = score + df['AD_Rising'].astype(float) * 1.5
+    # Pullback zone bonus (0-3 points based on pullback depth)
+    ma_5 = df['Close'].rolling(5).mean()
+    ma_20 = df['Close'].rolling(20).mean()
     
-    # OBV trending bonus (0-1.5 points)
-    score = score + df['OBV_Trend'].astype(float) * 1.5
+    # Calculate pullback depth as % below 5-day MA
+    pullback_depth = ((ma_5 - df['Close']) / ma_5) * 100
+    pullback_zone = (df['Close'] < ma_5) & (df['Close'] > ma_20)
     
-    # VWAP position bonus (0-1 point)
-    score = score + df['Above_VWAP'].astype(float) * 1.0
+    # More points for deeper pullbacks (up to 3% below 5-day MA)
+    pullback_bonus = np.clip(pullback_depth, 0, 3) * pullback_zone.astype(float)
+    score = score + pullback_bonus
+    
+    # Volume normalizing bonus (0-1.5 points - higher score for lower volume)
+    volume_bonus = np.clip((1.5 - df['Relative_Volume']) * 1.5, 0, 1.5)
+    score = score + volume_bonus
+    
+    # CMF positive bonus (0-1.5 points based on CMF z-score strength)
+    if 'CMF_Z' in df.columns:
+        cmf_bonus = np.clip(df['CMF_Z'], 0, 2) * 0.75  # Max 1.5 at +2σ
+        score = score + cmf_bonus
     
     # Event day penalty (-2 points for ATR spikes)
     if 'Event_Day' in df.columns:
@@ -625,12 +669,19 @@ def calculate_profit_taking_score(df: pd.DataFrame) -> pd.Series:
 
 def calculate_stealth_accumulation_score(df: pd.DataFrame) -> pd.Series:
     """
-    Calculate Stealth Accumulation signal score (0-7 scale) for threshold optimization.
+    ⚠️  DEPRECATED - DO NOT USE ⚠️
     
-    Uses same logic as generate_stealth_accumulation_signals() but returns graduated scores.
-    Note: Max score is 7 (not 10) to reflect this is a secondary strategy.
+    ❌ SIGNAL FAILED OUT-OF-SAMPLE VALIDATION (2025-11-08) ❌
     
-    Scoring Components:
+    This scoring function is deprecated because the underlying Stealth Accumulation
+    signal failed validation (22.7% win rate vs 53.2% expected on out-of-sample data).
+    
+    Status: FAILED VALIDATION - Do NOT use for threshold optimization
+    See: OUT_OF_SAMPLE_VALIDATION_REPORT.md for details
+    
+    ---
+    
+    Original scoring logic (now deprecated):
     - High accumulation foundation (0-4 points from accumulation score ≥6)
     - Low volume bonus (0-1.5 points for volume <1.3x)
     - A/D divergence bonus (0-1.5 points for A/D up while price not up)
@@ -640,8 +691,15 @@ def calculate_stealth_accumulation_score(df: pd.DataFrame) -> pd.Series:
             AD_Rising, Price_Rising, Event_Day
             
     Returns:
-        Series with stealth accumulation scores (0-7 scale)
+        Series with stealth accumulation scores (0-7 scale) (DEPRECATED - returns zeros)
     """
+    import warnings
+    warnings.warn(
+        "⚠️  Stealth Accumulation scoring FAILED validation. DO NOT USE. "
+        "See OUT_OF_SAMPLE_VALIDATION_REPORT.md",
+        DeprecationWarning,
+        stacklevel=2
+    )
     score = pd.Series(0.0, index=df.index)
     
     # High accumulation foundation (0-4 points for scores ≥6)

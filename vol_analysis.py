@@ -578,21 +578,54 @@ def generate_analysis_text(ticker: str, df: pd.DataFrame, period: str) -> str:
                 "Support_Accumulation": "🟠", "Distribution": "🔴", "Neutral": "⚪"}.get(phase, "⚪")
         output.append(f"  {emoji} {phase}: {count} days ({percentage:.1f}%)")
     
-    # Recent signals
+    # Recent signals - use actual signal booleans and empirical scores (matches batch summary logic)
     recent_df = df.tail(10)
-    recent_signals = recent_df[recent_df['Phase'] != 'Neutral']
     
-    output.append(f"\n🔍 RECENT SIGNALS (Last 10 days):")
+    # Check for any active signals using actual signal columns
+    signal_columns = ['Moderate_Buy', 'Strong_Buy', 'Stealth_Accumulation', 
+                     'Confluence_Signal', 'Volume_Breakout',
+                     'Profit_Taking', 'Distribution_Warning', 'Sell_Signal',
+                     'Momentum_Exhaustion', 'Stop_Loss']
+    
+    recent_signals = recent_df[recent_df[signal_columns].any(axis=1)]
+    
+    output.append(f"\n🔍 RECENT SIGNALS (Last 10 days) - Empirically Validated:")
     if not recent_signals.empty:
         for date, row in recent_signals.iterrows():
-            score = row['Accumulation_Score']
-            phase = row['Phase']
-            price = row['Close']
-            volume_ratio = row['Relative_Volume']
+            # Get empirical scores
+            moderate_score = row.get('Moderate_Buy_Score', 0)
+            profit_score = row.get('Profit_Taking_Score', 0)
+            stealth_score = row.get('Stealth_Accumulation_Score', 0)
             
-            signal_strength = "🔥 STRONG" if score >= 7 else "⚡ MODERATE" if score >= 4 else "💡 WEAK"
-            output.append(f"  {date.strftime('%Y-%m-%d')}: {phase} - Score: {score:.1f}/10 {signal_strength}")
-            output.append(f"    Price: ${price:.2f}, Volume: {volume_ratio:.1f}x average")
+            # Check which signals are active
+            active_signals = []
+            if row.get('Strong_Buy', False):
+                active_signals.append('🟢 Strong Buy')
+            if row.get('Moderate_Buy', False):
+                active_signals.append(f'🟡 Moderate Buy (Score: {moderate_score:.1f})')
+            if row.get('Stealth_Accumulation', False):
+                active_signals.append(f'💎 Stealth Accumulation (Score: {stealth_score:.1f})')
+            if row.get('Confluence_Signal', False):
+                active_signals.append('⭐ Confluence')
+            if row.get('Volume_Breakout', False):
+                active_signals.append('🔥 Volume Breakout')
+            if row.get('Profit_Taking', False):
+                active_signals.append(f'🟠 Profit Taking (Score: {profit_score:.1f})')
+            if row.get('Distribution_Warning', False):
+                active_signals.append('⚠️ Distribution Warning')
+            if row.get('Sell_Signal', False):
+                active_signals.append('🔴 Sell Signal')
+            if row.get('Momentum_Exhaustion', False):
+                active_signals.append('💜 Momentum Exhaustion')
+            if row.get('Stop_Loss', False):
+                active_signals.append('🛑 Stop Loss')
+            
+            if active_signals:
+                price = row['Close']
+                volume_ratio = row['Relative_Volume']
+                
+                output.append(f"  {date.strftime('%Y-%m-%d')}: {', '.join(active_signals)}")
+                output.append(f"    Price: ${price:.2f}, Volume: {volume_ratio:.1f}x average")
     else:
         output.append("  No significant signals in recent trading days")
     
@@ -1284,13 +1317,19 @@ Note: Legacy periods (1y, 2y, 5y, etc.) are automatically converted to month equ
     parser.add_argument(
         '--backtest',
         action='store_true',
-        help='Run backtest analysis on generated signals (validates historical performance)'
+        help='Run risk-managed backtest with full trade management (default mode - uses RiskManager for position sizing, stops, profit scaling)'
+    )
+    
+    parser.add_argument(
+        '--simple',
+        action='store_true',
+        help='Use simple entry-to-exit backtest instead of risk-managed (basic win rate analysis without position management)'
     )
     
     parser.add_argument(
         '--risk-managed',
         action='store_true',
-        help='Run risk-managed backtest using RiskManager (Item #5: P&L-Aware Exit Logic)'
+        help='(Deprecated: now default) Run risk-managed backtest - kept for backward compatibility'
     )
 
     parser.add_argument(
@@ -1360,24 +1399,28 @@ Note: Legacy periods (1y, 2y, 5y, etc.) are automatically converted to month equ
                     chart_backend=args.chart_backend
                 )
                 
-                # Run backtest if requested
-                if args.risk_managed and BACKTEST_AVAILABLE:
-                    print(f"\n🎯 Running risk-managed backtest for {ticker}...")
-                    try:
-                        result = backtest.run_risk_managed_backtest(
-                            df=df,
-                            ticker=ticker,
-                            account_value=100000,
-                            risk_pct=0.75,
-                            save_to_file=True
-                        )
-                    except ImportError as e:
-                        print(f"\n⚠️  Error: {e}")
-                        print("Make sure risk_manager.py is available in the current directory.")
-                elif args.backtest and BACKTEST_AVAILABLE:
-                    print(f"\n📊 Running backtest analysis for {ticker}...")
-                    report = backtest.run_backtest(df, ticker, args.period, save_to_file=True)
-                    print(report)
+                # Run backtest if requested (risk-managed is now default)
+                if (args.backtest or args.risk_managed) and BACKTEST_AVAILABLE:
+                    # Use simple backtest only if explicitly requested
+                    if args.simple:
+                        print(f"\n📊 Running simple entry-to-exit backtest for {ticker}...")
+                        report = backtest.run_backtest(df, ticker, args.period, save_to_file=True)
+                        print(report)
+                    else:
+                        # Default: Run risk-managed backtest with full trade management
+                        print(f"\n🎯 Running risk-managed backtest for {ticker}...")
+                        print("   (Use --simple flag for basic entry-to-exit analysis)")
+                        try:
+                            result = backtest.run_risk_managed_backtest(
+                                df=df,
+                                ticker=ticker,
+                                account_value=100000,
+                                risk_pct=0.75,
+                                save_to_file=True
+                            )
+                        except ImportError as e:
+                            print(f"\n⚠️  Error: {e}")
+                            print("Make sure risk_manager.py is available in the current directory.")
                 elif (args.backtest or args.risk_managed) and not BACKTEST_AVAILABLE:
                     print("\n⚠️  Warning: Backtest module not available. Skipping backtest analysis.")
 

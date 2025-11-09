@@ -36,18 +36,20 @@ STEALTH_DISPLAY = get_display_name('Stealth_Accumulation')
 MODERATE_DISPLAY = get_display_name('Moderate_Buy')
 PROFIT_DISPLAY = get_display_name('Profit_Taking')
 
-def calculate_batch_metrics(df: pd.DataFrame) -> Dict[str, Any]:
+def calculate_batch_metrics(df: pd.DataFrame, account_value: float = 500000) -> Dict[str, Any]:
     """
     Calculate batch processing metrics using empirically validated thresholds.
     
+    Includes position sizing calculations for actionable trade execution.
     Uses signal_generator functions with OPTIMAL_THRESHOLDS from threshold_config.py
     to ensure consistent scoring methodology across the system.
     
     Args:
         df (pd.DataFrame): Analysis results dataframe with required score columns
+        account_value (float): Account value for position sizing (default: $500,000)
         
     Returns:
-        Dict[str, Any]: Dictionary with all signal metrics and threshold compliance
+        Dict[str, Any]: Dictionary with all signal metrics, threshold compliance, and position sizing
     """
     # Get empirically validated thresholds
     moderate_threshold = OPTIMAL_THRESHOLDS['moderate_buy']['threshold']
@@ -96,6 +98,42 @@ def calculate_batch_metrics(df: pd.DataFrame) -> Dict[str, Any]:
         current_price = df['Close'].iloc[-1]
         price_change_pct = ((current_price - first_stealth_price) / first_stealth_price) * 100
     
+    # Position sizing calculations (using RiskManager logic)
+    # Only calculate if there's an active signal
+    position_sizing = None
+    if moderate_signal_active or strong_signal_active or confluence_signal_active:
+        current_price = df['Close'].iloc[-1]
+        
+        # Calculate initial stop using RiskManager method
+        # stop = min(swing_low - 0.5*ATR, VWAP - 1*ATR)
+        if 'Recent_Swing_Low' in df.columns and 'ATR20' in df.columns and 'VWAP' in df.columns:
+            swing_stop = df['Recent_Swing_Low'].iloc[-1] - (0.5 * df['ATR20'].iloc[-1])
+            vwap_stop = df['VWAP'].iloc[-1] - (1.0 * df['ATR20'].iloc[-1])
+            stop_price = min(swing_stop, vwap_stop)
+            
+            # Calculate position size
+            risk_pct = 0.75  # 0.75% risk per trade
+            risk_amount = account_value * (risk_pct / 100)
+            risk_per_share = current_price - stop_price
+            
+            if risk_per_share > 0:
+                position_size = int(risk_amount / risk_per_share)
+                risk_dollars = position_size * risk_per_share
+                
+                # Calculate profit targets
+                r_distance = risk_per_share
+                target_2r = current_price + (2 * r_distance)
+                
+                position_sizing = {
+                    'shares': position_size,
+                    'entry_price': current_price,
+                    'stop_price': stop_price,
+                    'risk_per_share': risk_per_share,
+                    'risk_dollars': risk_dollars,
+                    'target_2r': target_2r,
+                    'r_multiple_distance': r_distance
+                }
+    
     return {
         # OPTIMAL ENTRY - Moderate Buy (empirically validated: ≥6.5 threshold for 64.3% win rate)
         'moderate_buy_score': current_moderate_score,
@@ -127,7 +165,10 @@ def calculate_batch_metrics(df: pd.DataFrame) -> Dict[str, Any]:
         # Additional context
         'total_days': len(df),
         'latest_phase': df['Phase'].iloc[-1],
-        'exit_score': df['Exit_Score'].iloc[-1] if 'Exit_Score' in df.columns else 0
+        'exit_score': df['Exit_Score'].iloc[-1] if 'Exit_Score' in df.columns else 0,
+        
+        # Position sizing for actionable execution
+        'position_sizing': position_sizing
     }
 
 
@@ -734,11 +775,13 @@ def process_batch(ticker_file: str, period='12mo', output_dir='results_volume',
     
     # Generate summary report
     if results:
-        active_moderate = [r for r in results if r['moderate_signal_active']]
+        # Filter for ACTIVE signals that ALSO meet empirically validated thresholds
+        # This ensures only actionable, statistically validated signals are shown
+        active_moderate = [r for r in results if r['moderate_signal_active'] and r['moderate_exceeds_threshold']]
         sorted_moderate_results = sorted(active_moderate, key=lambda x: x['moderate_buy_score'], reverse=True)
-        active_profit = [r for r in results if r['profit_signal_active']]
+        active_profit = [r for r in results if r['profit_signal_active'] and r['profit_exceeds_threshold']]
         sorted_profit_results = sorted(active_profit, key=lambda x: x['profit_taking_score'], reverse=True)
-        active_stealth = [r for r in results if r['stealth_signal_active']]
+        active_stealth = [r for r in results if r['stealth_signal_active'] and r['stealth_exceeds_threshold']]
         sorted_stealth_results = sorted(active_stealth, key=lambda x: x['stealth_score'], reverse=True)
         
         if verbose:
@@ -779,6 +822,13 @@ def process_batch(ticker_file: str, period='12mo', output_dir='results_volume',
                     
                     print(f"  {i:2d}. {result['ticker']:5s} - {MODERATE_DISPLAY}: {moderate_score:4.1f}/10 {score_emoji} {threshold_emoji} "
                           f"(≥{threshold} threshold, Status: {signal_status:13s}, Rec5d: {recent_count}, Total: {total_moderate})")
+                    
+                    # Add position sizing details if available
+                    if result.get('position_sizing'):
+                        pos = result['position_sizing']
+                        print(f"       💰 Position: {pos['shares']:,} shares @ ${pos['entry_price']:.2f} | "
+                              f"Stop: ${pos['stop_price']:.2f} | Risk: ${pos['risk_dollars']:.0f} | "
+                              f"Target (+2R): ${pos['target_2r']:.2f}")
             
             print(f"\n{PROFIT_DISPLAY} SIGNALS (Empirically validated - ≥7.0 threshold for 96.1% win rate):")
             if not sorted_profit_results:
@@ -826,6 +876,7 @@ def process_batch(ticker_file: str, period='12mo', output_dir='results_volume',
                 f.write("="*60 + "\n\n")
                 f.write(f"Processing Date: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
                 f.write(f"Period: {period}\n")
+                f.write(f"Portfolio Size: $500K\n")
                 f.write(f"Total Tickers: {len(tickers)}\n")
                 f.write(f"Successfully Processed: {len(results)}\n")
                 f.write(f"Errors: {len(errors)}\n\n")
@@ -858,6 +909,13 @@ def process_batch(ticker_file: str, period='12mo', output_dir='results_volume',
                         f.write(f"{i:<4} {result['ticker']:<6} {result['moderate_buy_score']:<7.1f} "
                                f"{threshold_status}≥{result['moderate_threshold']:<6.1f} {signal_status:<13} {result['recent_moderate_count']:<5} "
                                f"{result['total_moderate_signals']:<5} {result['filename']}\n")
+                        
+                        # Add position sizing details if available
+                        if result.get('position_sizing'):
+                            pos = result['position_sizing']
+                            f.write(f"     → Position: {pos['shares']:,} shares @ ${pos['entry_price']:.2f} | "
+                                   f"Stop: ${pos['stop_price']:.2f} | Risk: ${pos['risk_dollars']:.0f} | "
+                                   f"Target (+2R): ${pos['target_2r']:.2f}\n")
                 
                 f.write(f"\n{PROFIT_DISPLAY} SIGNALS (Empirically validated - ≥7.0 threshold for 96.1% win rate):\n")
                 f.write("-" * 110 + "\n")

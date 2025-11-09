@@ -14,6 +14,10 @@ import numpy as np
 from typing import Optional, Tuple
 import os
 from datetime import datetime
+import warnings
+
+# Suppress matplotlib emoji font warnings - emojis are in labels but may not render in all fonts
+warnings.filterwarnings('ignore', message='Glyph.*missing from font')
 
 # Import error handling for validation
 from error_handler import (

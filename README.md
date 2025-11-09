@@ -2,16 +2,43 @@
 
 A sophisticated Python tool for analyzing stock accumulation and distribution patterns using advanced volume indicators and visual signal detection.
 
+---
+
+## 🚨 CRITICAL VALIDATION UPDATE (2025-11-08)
+
+### ❌ Stealth Accumulation Signal - FAILED OUT-OF-SAMPLE VALIDATION
+
+**DO NOT USE Stealth Accumulation signal** until completely redesigned and re-validated.
+
+**Out-of-Sample Test Results (6 months):**
+- Win Rate: **22.7%** (collapsed from 53.2% expected) ❌
+- Median Return: **-7.65%** (was +2.29% expected) ❌ 
+- This is textbook overfitting - signal looked great on training data but failed on new data
+
+**See:** `OUT_OF_SAMPLE_VALIDATION_REPORT.md` for complete analysis
+
+### ⚠️ Moderate Buy Signal - Lower Returns Than Expected
+
+**Out-of-Sample Performance:**
+- Win Rate: **64.6%** (maintained/improved) ✅
+- Median Return: **+2.18%** (dropped from +5.21% expected) ⚠️
+- Signal still works but with lower profit per trade
+
+**Revised Expectations:** Use **+2-3% median per trade** (not +5%)
+
+---
+
 ## 🚀 Features
 
 ### **Complete Entry & Exit Signal System**
-- **6 Entry Signal Types**: Strong Buy, Moderate Buy, Stealth Accumulation, Multi-Signal Confluence, Volume Breakouts, Sell Avoidance
+- **Entry Signals**: Strong Buy, Moderate Buy (VALIDATED), ~~Stealth Accumulation (DEPRECATED)~~, Multi-Signal Confluence, Volume Breakouts
 - **5 Exit Signal Types**: Profit Taking, Distribution Warning, Sell Signals, Momentum Exhaustion, Stop Loss Triggers
+- **⚠️ ONLY USE MODERATE BUY** - Other entry signals require validation
 - **Advanced Technical Indicators**: OBV divergence, A/D Line analysis, VWAP positioning, support level detection
 - **Dual Scoring System**: Entry Score (0-10) + Exit Score (1-10) with threshold-based alerts and visual markers
 
 ### **Professional Visualization**
-- **Entry Signal Markers**: 🟢 Green dots (Strong Buy), 🟡 Yellow dots (Moderate Buy), 💎 Cyan diamonds (Stealth), ⭐ Magenta stars (Confluence), 🔥 Orange triangles (Breakouts)
+- **Entry Signal Markers**: 🟢 Green dots (Strong Buy), 🟡 Yellow dots (Moderate Buy - USE THIS), ~~💎 Cyan diamonds (Stealth - DEPRECATED)~~, ⭐ Magenta stars (Confluence), 🔥 Orange triangles (Breakouts)
 - **Exit Signal Markers**: 🟠 Orange dots (Profit Taking), ⚠️ Gold squares (Distribution Warning), 🔴 Red dots (Sell), 💜 Purple X's (Momentum Exhaustion), 🛑 Dark red triangles (Stop Loss)
 - **Multi-panel Charts**: Price action with all signals, Volume indicators with divergences, Volume bars with dual scoring
 - **Enhanced Threshold Lines**: Visual zones at levels 2, 4, 6, 7, and 8 for both entry and exit scoring
@@ -146,36 +173,37 @@ python migrate_cache.py --dry-run
 
 ### Backtesting & Validation (NEW)
 ```bash
-# Run backtest analysis on signals
+# Run risk-managed backtest (DEFAULT - full trade management)
 python vol_analysis.py AAPL --backtest
 
-# Backtest with custom period
+# Risk-managed backtest with custom period
 python vol_analysis.py TSLA -p 6mo --backtest
 
-# Backtest saves report to file automatically
-python vol_analysis.py NVDA --backtest  # Creates NVDA_12mo_backtest_report.txt
+# Simple entry-to-exit backtest (basic win rate analysis)
+python vol_analysis.py NVDA --backtest --simple
 
 # Walk-forward threshold validation (Item #9 prototype)
 python vol_analysis.py AAPL -p 24mo --validate-thresholds
 ```
 
-> ℹ️ Threshold validation requires enough history to cover the configured walk-forward windows (default: 12-month training + 3-month validation slices).
+> ℹ️ **Risk-managed backtesting is now the default** - it provides professional-grade metrics including R-multiples, position sizing, stops, profit scaling, and trailing stops. Use `--simple` flag only if you need basic entry-to-exit analysis.
 
 ```bash
 # Show per-ticker progress/log output
 python vol_analysis.py -f stocks.txt --debug
 ```
 
-### Risk-Managed Backtesting (Item #5 - NEW)
+### Risk-Managed Backtesting Features (Item #5 - DEFAULT MODE)
 ```bash
-# Run risk-managed backtest with RiskManager
-python vol_analysis.py AAPL --risk-managed
+# Default backtest now includes full risk management
+python vol_analysis.py AAPL --backtest
 
-# Risk-managed backtest with longer period
-python vol_analysis.py TSLA -p 12mo --risk-managed
+# All these commands now run risk-managed backtest:
+python vol_analysis.py TSLA -p 12mo --backtest
+python vol_analysis.py NVDA -p 6mo --backtest
 
-# Test risk management rules on historical data
-python vol_analysis.py NVDA -p 6mo --risk-managed
+# Legacy flag (--risk-managed) still supported for backward compatibility
+python vol_analysis.py AAPL --risk-managed  # Same as --backtest
 ```
 
 **Risk Management Features:**
@@ -196,22 +224,25 @@ python vol_analysis.py NVDA -p 6mo --risk-managed
 ### Batch Backtesting - Strategy Optimization (NEW)
 ```bash
 # Run backtests across multiple tickers from a file
-python batch_backtest.py stocks.txt
+python batch_backtest.py -f stocks.txt
 
 # Batch backtest with custom period
-python batch_backtest.py watchlist.txt -p 6mo
+python batch_backtest.py -f watchlist.txt -p 6mo
 
 # Custom output directory
-python batch_backtest.py stocks.txt -p 12mo -o optimization_results
+python batch_backtest.py -f stocks.txt -p 12mo -o optimization_results
 
 # Risk-managed batch backtesting (Item #5)
-python batch_backtest.py stocks.txt --risk-managed
+python batch_backtest.py -f stocks.txt --risk-managed
 
 # Full example with all options
-python batch_backtest.py watchlist.txt --period 12mo --output-dir backtest_analysis --risk-managed
+python batch_backtest.py -f watchlist.txt -p 12mo -o backtest_analysis --risk-managed
 
 # Often Run
-python batch_backtest.py ibd.txt --period 12mo
+python batch_backtest.py -f ibd.txt -p 12mo
+
+# Using --file (long form) also works
+python batch_backtest.py --file stocks.txt --period 6mo
 ```
 
 **Risk-Managed Batch Features:**
@@ -335,22 +366,26 @@ The batch backtesting system uses a sophisticated approach where entry and exit 
 
 ```bash
 # Basic usage - analyze all tickers in file
-python batch_backtest.py stocks.txt
+python batch_backtest.py -f stocks.txt
 
 # Specify analysis period
-python batch_backtest.py watchlist.txt -p 6mo
+python batch_backtest.py -f watchlist.txt -p 6mo
 
 # Custom output directory
-python batch_backtest.py stocks.txt --output-dir optimization_results
+python batch_backtest.py -f stocks.txt -o optimization_results
 
 # Full example
-python batch_backtest.py watchlist.txt --period 12mo --output-dir backtest_analysis
+python batch_backtest.py -f watchlist.txt -p 12mo -o backtest_analysis
+
+# Using --file (long form) also works
+python batch_backtest.py --file watchlist.txt --period 12mo
 ```
 
 **Arguments:**
-- `ticker_file`: Path to file with ticker symbols (one per line, comments with # supported)
+- `-f, --file`: Path to file with ticker symbols (one per line, comments with # supported) [REQUIRED]
 - `-p, --period`: Analysis period (default: 12mo)
 - `-o, --output-dir`: Directory for output reports (default: backtest_results)
+- `--risk-managed`: Use RiskManager for P&L-aware exits
 
 #### **Output Files Generated**
 
@@ -611,10 +646,11 @@ All files are saved to the `results/` directory by default.
 - **Meaning**: Good accumulation opportunity with some risk
 - **Action**: Consider entry with position sizing
 
-#### **💎 Stealth Accumulation (Cyan Diamonds)**
-**Criteria**: Score ≥6, low volume (<1.3x), A/D divergence
-- **Meaning**: Hidden accumulation without price movement
-- **Action**: Early accumulation opportunity
+#### **~~💎 Stealth Accumulation (Cyan Diamonds)~~ - ❌ DEPRECATED**
+**Status**: FAILED OUT-OF-SAMPLE VALIDATION (22.7% win rate vs 53.2% expected)
+- **DO NOT USE** until redesigned and re-validated
+- **See**: OUT_OF_SAMPLE_VALIDATION_REPORT.md for details
+- Signal showed severe overfitting - worked on training data but failed on new data
 
 #### **⭐ Multi-Signal Confluence (Magenta Stars)**
 **Criteria**: Multiple indicators aligned (Score ≥6, support, volume, VWAP, divergences)

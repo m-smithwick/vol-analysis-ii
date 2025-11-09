@@ -21,11 +21,15 @@ from error_handler import (
     setup_logging, logger
 )
 
+# Import empirical threshold filtering
+from signal_threshold_validator import apply_empirical_thresholds
+
 # Configure logging for this module
 setup_logging()
 
 
-def run_batch_backtest(ticker_file: str, period: str = '12mo', 
+def run_batch_backtest(ticker_file: str, period: str = '12mo',
+                      start_date: str = None, end_date: str = None,
                       output_dir: str = 'backtest_results',
                       risk_managed: bool = False,
                       account_value: float = 100000,
@@ -35,7 +39,9 @@ def run_batch_backtest(ticker_file: str, period: str = '12mo',
     
     Args:
         ticker_file (str): Path to file containing ticker symbols
-        period (str): Analysis period (default: 12mo)
+        period (str): Analysis period (default: 12mo) - ignored if start_date/end_date provided
+        start_date (str): Start date for analysis (YYYY-MM-DD format, optional)
+        end_date (str): End date for analysis (YYYY-MM-DD format, optional)
         output_dir (str): Directory to save backtest reports
         risk_managed (bool): Use RiskManager for P&L-aware exits (default: False)
         account_value (float): Account value for position sizing (risk-managed only)
@@ -60,7 +66,14 @@ def run_batch_backtest(ticker_file: str, period: str = '12mo',
             
         safe_operation(f"creating output directory {output_dir}", _create_output_dir)
         
-        logger.info(f"Starting batch backtesting: {len(tickers)} tickers, period: {period}")
+        # Determine analysis period display
+        if start_date and end_date:
+            period_display = f"{start_date} to {end_date}"
+            logger.info(f"Starting batch backtesting: {len(tickers)} tickers, date range: {period_display}")
+        else:
+            period_display = period
+            logger.info(f"Starting batch backtesting: {len(tickers)} tickers, period: {period}")
+        
         logger.info(f"Output directory: {output_dir}")
         
         # Aggregate results storage
@@ -73,17 +86,18 @@ def run_batch_backtest(ticker_file: str, period: str = '12mo',
             'ticker_specific_results': {}
         }
         
-        # Signal definitions
+        # Signal definitions - Using MULTI-TICKER VALIDATED filtered signals
+        # Thresholds validated on 24 tickers, 24-month period (Nov 2025)
         entry_signals = {
             'Strong_Buy': '🟢 Strong Buy',
-            'Moderate_Buy': '🟡 Moderate Buy',
-            'Stealth_Accumulation': '💎 Stealth Accumulation',
+            'Moderate_Buy_filtered': '🟡 Moderate Buy Pullback (≥6.0)',  # Redesigned pullback strategy
+            'Stealth_Accumulation_filtered': '💎 Stealth Accumulation (≥4.0)',  # Multi-ticker validated
             'Confluence_Signal': '⭐ Multi-Signal Confluence',
             'Volume_Breakout': '🔥 Volume Breakout'
         }
         
         exit_signals = {
-            'Profit_Taking': '🟠 Profit Taking',
+            'Profit_Taking': '🟠 Profit Taking',  # Exit signal - no filtering needed
             'Distribution_Warning': '⚠️ Distribution Warning',
             'Sell_Signal': '🔴 Sell Signal',
             'Momentum_Exhaustion': '💜 Momentum Exhaustion',
@@ -99,15 +113,31 @@ def run_batch_backtest(ticker_file: str, period: str = '12mo',
                     validate_ticker(ticker)
                     
                     # Run analysis without chart display
+                    # Always get enough data to calculate indicators properly
                     df = vol_analysis.analyze_ticker(
                         ticker=ticker,
-                        period=period,
+                        period='36mo',  # Get full 3 years for indicator calculation
                         save_to_file=False,
                         save_chart=False,
                         force_refresh=False,
                         show_chart=False,
                         show_summary=False
                     )
+                    
+                    # Filter to requested date range if specified
+                    if start_date and end_date:
+                        start_dt = datetime.strptime(start_date, '%Y-%m-%d')
+                        end_dt = datetime.strptime(end_date, '%Y-%m-%d')
+                        
+                        # Filter dataframe to date range
+                        mask = (df.index >= start_dt) & (df.index <= end_dt)
+                        df = df[mask].copy()
+                        logger.info(f"Filtered {ticker} to date range {start_date} to {end_date}: {len(df)} periods")
+                    
+                    # Apply empirical thresholds to filter signals
+                    # This ensures we use validated thresholds (e.g., Moderate Buy ≥6.5 instead of ≥5.0)
+                    df = apply_empirical_thresholds(df)
+                    logger.info(f"Applied empirical thresholds for {ticker}")
                     
                     if risk_managed:
                         # Use RiskManager for position management and exits
@@ -458,8 +488,13 @@ def generate_aggregate_report(results: Dict, period: str, output_dir: str) -> st
             report_lines.append(f"   {'─'*70}")
             report_lines.append(f"   Total Trades: {metrics['total_trades']} ({metrics['closed_trades']} closed, {metrics['open_trades']} open)")
             report_lines.append(f"   Win Rate: {metrics['win_rate']:.1f}% ({metrics['wins']} wins, {metrics['losses']} losses)")
-            report_lines.append(f"   Average Return: {metrics['avg_return']:+.2f}%")
-            report_lines.append(f"   Median Return: {metrics['median_return']:+.2f}%")
+            report_lines.append(f"   Typical Return: {metrics['median_return']:+.2f}% (median) ⭐ USE THIS")
+            report_lines.append(f"   Average Return: {metrics['avg_return']:+.2f}% (mean - inflated by outliers)")
+            
+            # Add outlier warning if mean >> median
+            if abs(metrics['avg_return']) > abs(metrics['median_return']) * 2:
+                report_lines.append(f"   ⚠️  OUTLIER IMPACT: Mean is {abs(metrics['avg_return'] / metrics['median_return']):.1f}x median - use median for expectations!")
+            
             report_lines.append(f"   Avg Win: {metrics['avg_win']:+.2f}% | Avg Loss: {metrics['avg_loss']:+.2f}%")
             
             # Get best/worst trades with ticker information
@@ -505,8 +540,13 @@ def generate_aggregate_report(results: Dict, period: str, output_dir: str) -> st
             report_lines.append(f"   {'─'*70}")
             report_lines.append(f"   Total Trades: {metrics['total_trades']} ({metrics['closed_trades']} closed, {metrics['open_trades']} open)")
             report_lines.append(f"   Win Rate: {metrics['win_rate']:.1f}% ({metrics['wins']} wins, {metrics['losses']} losses)")
-            report_lines.append(f"   Average Return: {metrics['avg_return']:+.2f}%")
-            report_lines.append(f"   Median Return: {metrics['median_return']:+.2f}%")
+            report_lines.append(f"   Typical Return: {metrics['median_return']:+.2f}% (median) ⭐ USE THIS")
+            report_lines.append(f"   Average Return: {metrics['avg_return']:+.2f}% (mean - may be inflated by outliers)")
+            
+            # Add outlier warning if mean >> median
+            if abs(metrics['avg_return']) > abs(metrics['median_return']) * 2:
+                report_lines.append(f"   ⚠️  OUTLIER IMPACT: Mean is {abs(metrics['avg_return'] / metrics['median_return']):.1f}x median!")
+            
             report_lines.append(f"   Avg Win: {metrics['avg_win']:+.2f}% | Avg Loss: {metrics['avg_loss']:+.2f}%")
             
             # Get best/worst trades with ticker information
@@ -653,14 +693,26 @@ def main():
     )
     
     parser.add_argument(
-        'ticker_file',
+        '-f', '--file',
+        dest='ticker_file',
+        required=True,
         help='Path to file containing ticker symbols (one per line)'
     )
     
     parser.add_argument(
         '-p', '--period',
         default='12mo',
-        help='Analysis period (default: 12mo)'
+        help='Analysis period (default: 12mo) - ignored if date range provided'
+    )
+    
+    parser.add_argument(
+        '--start-date',
+        help='Start date for analysis (YYYY-MM-DD) - for regime analysis'
+    )
+    
+    parser.add_argument(
+        '--end-date',
+        help='End date for analysis (YYYY-MM-DD) - for regime analysis'
     )
     
     parser.add_argument(
@@ -677,10 +729,16 @@ def main():
     
     args = parser.parse_args()
     
+    # Validate date range if provided
+    if (args.start_date and not args.end_date) or (args.end_date and not args.start_date):
+        parser.error("--start-date and --end-date must be used together")
+    
     # Run batch backtest
     results = run_batch_backtest(
         ticker_file=args.ticker_file,
         period=args.period,
+        start_date=args.start_date,
+        end_date=args.end_date,
         output_dir=args.output_dir,
         risk_managed=args.risk_managed
     )
@@ -689,16 +747,24 @@ def main():
         print("\n❌ No results generated. Check for errors above.")
         sys.exit(1)
     
+    # Determine period display for reports
+    if args.start_date and args.end_date:
+        period_display = f"{args.start_date} to {args.end_date}"
+        file_suffix = f"{args.start_date}_{args.end_date}".replace('-', '')
+    else:
+        period_display = args.period
+        file_suffix = args.period
+    
     # Generate aggregate report tailored to run mode
     print(f"\n📊 Generating aggregate optimization report...")
     if args.risk_managed:
-        aggregate_report = generate_risk_managed_aggregate_report(results, args.period, args.output_dir)
+        aggregate_report = generate_risk_managed_aggregate_report(results, period_display, args.output_dir)
     else:
-        aggregate_report = generate_aggregate_report(results, args.period, args.output_dir)
+        aggregate_report = generate_aggregate_report(results, period_display, args.output_dir)
     
     # Save aggregate report
     timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-    agg_filename = f"AGGREGATE_optimization_{args.period}_{timestamp}.txt"
+    agg_filename = f"AGGREGATE_optimization_{file_suffix}_{timestamp}.txt"
     agg_filepath = os.path.join(args.output_dir, agg_filename)
     
     with open(agg_filepath, 'w') as f:
