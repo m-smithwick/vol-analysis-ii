@@ -1,0 +1,114 @@
+📊 BACKTEST REPORT: TCEHY (12mo)
+======================================================================
+
+======================================================================
+🎯 ENTRY-TO-EXIT STRATEGY ANALYSIS
+======================================================================
+
+📊 OVERALL TRADING STATISTICS:
+  Total Trades Generated: 12
+  Closed Trades: 9
+  Open Positions: 3
+
+🚀 ENTRY STRATEGY COMPARISON:
+
+  🟡 Moderate Buy Pullback (≥6.0):
+    Trades: 3 closed, 0 open
+    Win Rate: 100.0% (3W-0L)
+    Average Return: +19.38%
+    Median Return: +15.71%
+    Avg Win: +19.38% | Avg Loss: +0.00%
+    Best Trade: 2025-05-08 (+37.68%)
+    Worst Trade: 2025-09-24 (+4.76%)
+    Avg Holding Period: 62.0 days
+    Profit Factor: inf
+    Expectancy: +19.38%
+    ✅ EXCELLENT - Highly profitable strategy
+
+  💎 Stealth Accumulation (≥4.0):
+    Trades: 6 closed, 3 open
+    Win Rate: 50.0% (3W-3L)
+    Average Return: +9.17%
+    Median Return: +3.79%
+    Avg Win: +29.67% | Avg Loss: -11.34%
+    Best Trade: 2025-07-03 (+37.55%)
+    Worst Trade: 2025-04-01 (-13.88%)
+    Avg Holding Period: 40.0 days
+    Profit Factor: 2.62
+    Expectancy: +9.17%
+    ✓ FAIR - Marginally profitable
+
+🚪 EXIT STRATEGY COMPARISON:
+
+  ⚠️ Distribution Warning:
+    Times Used: 1
+    Win Rate: 100.0% (1W-0L)
+    Average Return: +15.71%
+    Median Return: +15.71%
+    Avg Holding Period: 21.0 days
+    Profit Factor: inf
+    ✅ EXCELLENT exit timing
+
+  💜 Momentum Exhaustion:
+    Times Used: 5
+    Win Rate: 100.0% (5W-0L)
+    Average Return: +26.29%
+    Median Return: +36.84%
+    Avg Holding Period: 78.2 days
+    Profit Factor: inf
+    ✅ EXCELLENT exit timing
+
+  🛑 Stop Loss:
+    Times Used: 3
+    Win Rate: 0.0% (0W-3L)
+    Average Return: -11.34%
+    Median Return: -13.08%
+    Avg Holding Period: 4.7 days
+    Profit Factor: 0.00
+    ❌ POOR - Avoid this exit
+
+⭐ OPTIMAL STRATEGY COMBINATIONS:
+
+  Best Entry Signal: 🟡 Moderate Buy Pullback (≥6.0)
+    Win Rate: 100.0%
+    Expectancy: +19.38%
+
+  Best Exit Signal: 💜 Momentum Exhaustion
+    Win Rate: 100.0%
+    Avg Return: +26.29%
+
+💡 RECOMMENDED STRATEGY:
+  Entry: 🟡 Moderate Buy Pullback (≥6.0)
+  Exit: 💜 Momentum Exhaustion
+  Combined Performance:
+    Trades: 2
+    Win Rate: 100.0%
+    Avg Return: +21.22%
+    Expectancy: +21.22%
+
+⚠️  WARNING: Limited sample size!
+   Only 9 closed trades available.
+   Results may not be statistically significant.
+   Use longer time period for more reliable analysis.
+
+======================================================================
+
+📝 INTERPRETATION GUIDE:
+
+  Win Rate:
+    70%+ = Excellent
+    60-69% = Good
+    50-59% = Fair
+    <50% = Poor
+
+  Expectancy:
+    >2.0% = Excellent edge
+    1.0-2.0% = Good edge
+    0-1.0% = Marginal edge
+    <0% = Losing strategy
+
+  Profit Factor:
+    >2.0 = Strong system
+    1.5-2.0 = Good system
+    1.0-1.5 = Acceptable
+    <1.0 = Losing system

@@ -1,0 +1,126 @@
+📊 BACKTEST REPORT: XLRE (6mo)
+======================================================================
+
+======================================================================
+🎯 ENTRY-TO-EXIT STRATEGY ANALYSIS
+======================================================================
+
+📊 OVERALL TRADING STATISTICS:
+  Total Trades Generated: 17
+  Closed Trades: 15
+  Open Positions: 2
+
+🚀 ENTRY STRATEGY COMPARISON:
+
+  🟢 Strong Buy:
+    Trades: 11 closed, 1 open
+    Win Rate: 0.0% (0W-11L)
+    Average Return: -3.02%
+    Median Return: -3.12%
+    Avg Win: +0.00% | Avg Loss: -3.02%
+    Best Trade: 2025-07-17 (-1.70%)
+    Worst Trade: 2025-10-24 (-4.79%)
+    Avg Holding Period: 31.5 days
+    Profit Factor: 0.00
+    Expectancy: -3.02%
+    ❌ POOR - Needs improvement
+
+  🟡 Moderate Buy Pullback (≥6.0):
+    Trades: 3 closed, 0 open
+    Win Rate: 0.0% (0W-3L)
+    Average Return: -2.52%
+    Median Return: -2.33%
+    Avg Win: +0.00% | Avg Loss: -2.52%
+    Best Trade: 2025-09-11 (-2.19%)
+    Worst Trade: 2025-07-29 (-3.03%)
+    Avg Holding Period: 48.7 days
+    Profit Factor: 0.00
+    Expectancy: -2.52%
+    ❌ POOR - Needs improvement
+
+  💎 Stealth Accumulation (≥4.0):
+    Trades: 1 closed, 1 open
+    Win Rate: 0.0% (0W-1L)
+    Average Return: -2.22%
+    Median Return: -2.22%
+    Avg Win: +0.00% | Avg Loss: -2.22%
+    Best Trade: 2025-09-02 (-2.22%)
+    Worst Trade: 2025-09-02 (-2.22%)
+    Avg Holding Period: 41.0 days
+    Profit Factor: 0.00
+    Expectancy: -2.22%
+    ❌ POOR - Needs improvement
+
+  ⭐ Multi-Signal Confluence:
+    Trades: 2 closed, 0 open
+    Win Rate: 0.0% (0W-2L)
+    Average Return: -2.95%
+    Median Return: -2.95%
+    Avg Win: +0.00% | Avg Loss: -2.95%
+    Best Trade: 2025-07-31 (-2.08%)
+    Worst Trade: 2025-10-20 (-3.81%)
+    Avg Holding Period: 42.0 days
+    Profit Factor: 0.00
+    Expectancy: -2.95%
+    ❌ POOR - Needs improvement
+
+🚪 EXIT STRATEGY COMPARISON:
+
+  ⚠️ Distribution Warning:
+    Times Used: 15
+    Win Rate: 0.0% (0W-15L)
+    Average Return: -2.87%
+    Median Return: -2.69%
+    Avg Holding Period: 35.6 days
+    Profit Factor: 0.00
+    ❌ POOR - Avoid this exit
+
+  🔴 Sell Signal:
+    Times Used: 15
+    Win Rate: 0.0% (0W-15L)
+    Average Return: -2.87%
+    Median Return: -2.69%
+    Avg Holding Period: 35.6 days
+    Profit Factor: 0.00
+    ❌ POOR - Avoid this exit
+
+⭐ OPTIMAL STRATEGY COMBINATIONS:
+
+  Best Entry Signal: 💎 Stealth Accumulation (≥4.0)
+    Win Rate: 0.0%
+    Expectancy: -2.22%
+
+  Best Exit Signal: ⚠️ Distribution Warning
+    Win Rate: 0.0%
+    Avg Return: -2.87%
+
+💡 RECOMMENDED STRATEGY:
+  Entry: 💎 Stealth Accumulation (≥4.0)
+  Exit: ⚠️ Distribution Warning
+  Combined Performance:
+    Trades: 1
+    Win Rate: 0.0%
+    Avg Return: -2.22%
+    Expectancy: -2.22%
+
+======================================================================
+
+📝 INTERPRETATION GUIDE:
+
+  Win Rate:
+    70%+ = Excellent
+    60-69% = Good
+    50-59% = Fair
+    <50% = Poor
+
+  Expectancy:
+    >2.0% = Excellent edge
+    1.0-2.0% = Good edge
+    0-1.0% = Marginal edge
+    <0% = Losing strategy
+
+  Profit Factor:
+    >2.0 = Strong system
+    1.5-2.0 = Good system
+    1.0-1.5 = Acceptable
+    <1.0 = Losing system

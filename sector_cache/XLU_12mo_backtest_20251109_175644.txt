@@ -1,0 +1,101 @@
+📊 BACKTEST REPORT: XLU (12mo)
+======================================================================
+
+======================================================================
+🎯 ENTRY-TO-EXIT STRATEGY ANALYSIS
+======================================================================
+
+📊 OVERALL TRADING STATISTICS:
+  Total Trades Generated: 6
+  Closed Trades: 3
+  Open Positions: 3
+
+🚀 ENTRY STRATEGY COMPARISON:
+
+  💎 Stealth Accumulation (≥4.0):
+    Trades: 3 closed, 1 open
+    Win Rate: 0.0% (0W-3L)
+    Average Return: -5.47%
+    Median Return: -5.58%
+    Avg Win: +0.00% | Avg Loss: -5.47%
+    Best Trade: 2025-01-15 (-4.01%)
+    Worst Trade: 2025-03-04 (-6.83%)
+    Avg Holding Period: 58.3 days
+    Profit Factor: 0.00
+    Expectancy: -5.47%
+    ❌ POOR - Needs improvement
+
+🚪 EXIT STRATEGY COMPARISON:
+
+  ⚠️ Distribution Warning:
+    Times Used: 3
+    Win Rate: 0.0% (0W-3L)
+    Average Return: -5.47%
+    Median Return: -5.58%
+    Avg Holding Period: 58.3 days
+    Profit Factor: 0.00
+    ❌ POOR - Avoid this exit
+
+  🔴 Sell Signal:
+    Times Used: 3
+    Win Rate: 0.0% (0W-3L)
+    Average Return: -5.47%
+    Median Return: -5.58%
+    Avg Holding Period: 58.3 days
+    Profit Factor: 0.00
+    ❌ POOR - Avoid this exit
+
+  🛑 Stop Loss:
+    Times Used: 3
+    Win Rate: 0.0% (0W-3L)
+    Average Return: -5.47%
+    Median Return: -5.58%
+    Avg Holding Period: 58.3 days
+    Profit Factor: 0.00
+    ❌ POOR - Avoid this exit
+
+⭐ OPTIMAL STRATEGY COMBINATIONS:
+
+  Best Entry Signal: 💎 Stealth Accumulation (≥4.0)
+    Win Rate: 0.0%
+    Expectancy: -5.47%
+
+  Best Exit Signal: ⚠️ Distribution Warning
+    Win Rate: 0.0%
+    Avg Return: -5.47%
+
+💡 RECOMMENDED STRATEGY:
+  Entry: 💎 Stealth Accumulation (≥4.0)
+  Exit: ⚠️ Distribution Warning
+  Combined Performance:
+    Trades: 3
+    Win Rate: 0.0%
+    Avg Return: -5.47%
+    Expectancy: -5.47%
+
+⚠️  WARNING: Limited sample size!
+   Only 3 closed trades available.
+   Results may not be statistically significant.
+   Use longer time period for more reliable analysis.
+
+======================================================================
+
+📝 INTERPRETATION GUIDE:
+
+  Win Rate:
+    70%+ = Excellent
+    60-69% = Good
+    50-59% = Fair
+    <50% = Poor
+
+  Expectancy:
+    >2.0% = Excellent edge
+    1.0-2.0% = Good edge
+    0-1.0% = Marginal edge
+    <0% = Losing strategy
+
+  Profit Factor:
+    >2.0 = Strong system
+    1.5-2.0 = Good system
+    1.0-1.5 = Acceptable
+    <1.0 = Losing system

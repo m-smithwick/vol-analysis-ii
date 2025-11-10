@@ -1,0 +1,118 @@
+📊 BACKTEST REPORT: XLY (6mo)
+======================================================================
+
+======================================================================
+🎯 ENTRY-TO-EXIT STRATEGY ANALYSIS
+======================================================================
+
+📊 OVERALL TRADING STATISTICS:
+  Total Trades Generated: 7
+  Closed Trades: 7
+  Open Positions: 0
+
+🚀 ENTRY STRATEGY COMPARISON:
+
+  🟡 Moderate Buy Pullback (≥6.0):
+    Trades: 4 closed, 0 open
+    Win Rate: 75.0% (3W-1L)
+    Average Return: +1.32%
+    Median Return: +0.71%
+    Avg Win: +1.97% | Avg Loss: -0.63%
+    Best Trade: 2025-07-18 (+4.49%)
+    Worst Trade: 2025-09-04 (-0.63%)
+    Avg Holding Period: 51.8 days
+    Profit Factor: 9.38
+    Expectancy: +1.32%
+    ✅ GOOD - Strong positive edge
+
+  🟢 Strong Buy:
+    Trades: 3 closed, 0 open
+    Win Rate: 0.0% (0W-3L)
+    Average Return: -2.09%
+    Median Return: -2.15%
+    Avg Win: +0.00% | Avg Loss: -2.09%
+    Best Trade: 2025-09-09 (-1.95%)
+    Worst Trade: 2025-09-05 (-2.18%)
+    Avg Holding Period: 35.7 days
+    Profit Factor: 0.00
+    Expectancy: -2.09%
+    ❌ POOR - Needs improvement
+
+  ⭐ Multi-Signal Confluence:
+    Trades: 1 closed, 0 open
+    Win Rate: 0.0% (0W-1L)
+    Average Return: -2.18%
+    Median Return: -2.18%
+    Avg Win: +0.00% | Avg Loss: -2.18%
+    Best Trade: 2025-09-05 (-2.18%)
+    Worst Trade: 2025-09-05 (-2.18%)
+    Avg Holding Period: 38.0 days
+    Profit Factor: 0.00
+    Expectancy: -2.18%
+    ❌ POOR - Needs improvement
+
+🚪 EXIT STRATEGY COMPARISON:
+
+  ⚠️ Distribution Warning:
+    Times Used: 7
+    Win Rate: 42.9% (3W-4L)
+    Average Return: -0.14%
+    Median Return: -0.63%
+    Avg Holding Period: 44.9 days
+    Profit Factor: 0.85
+    ❌ POOR - Avoid this exit
+
+  🔴 Sell Signal:
+    Times Used: 7
+    Win Rate: 42.9% (3W-4L)
+    Average Return: -0.14%
+    Median Return: -0.63%
+    Avg Holding Period: 44.9 days
+    Profit Factor: 0.85
+    ❌ POOR - Avoid this exit
+
+⭐ OPTIMAL STRATEGY COMBINATIONS:
+
+  Best Entry Signal: 🟡 Moderate Buy Pullback (≥6.0)
+    Win Rate: 75.0%
+    Expectancy: +1.32%
+
+  Best Exit Signal: ⚠️ Distribution Warning
+    Win Rate: 42.9%
+    Avg Return: -0.14%
+
+💡 RECOMMENDED STRATEGY:
+  Entry: 🟡 Moderate Buy Pullback (≥6.0)
+  Exit: ⚠️ Distribution Warning
+  Combined Performance:
+    Trades: 4
+    Win Rate: 75.0%
+    Avg Return: +1.32%
+    Expectancy: +1.32%
+
+⚠️  WARNING: Limited sample size!
+   Only 7 closed trades available.
+   Results may not be statistically significant.
+   Use longer time period for more reliable analysis.
+
+======================================================================
+
+📝 INTERPRETATION GUIDE:
+
+  Win Rate:
+    70%+ = Excellent
+    60-69% = Good
+    50-59% = Fair
+    <50% = Poor
+
+  Expectancy:
+    >2.0% = Excellent edge
+    1.0-2.0% = Good edge
+    0-1.0% = Marginal edge
+    <0% = Losing strategy
+
+  Profit Factor:
+    >2.0 = Strong system
+    1.5-2.0 = Good system
+    1.0-1.5 = Acceptable
+    <1.0 = Losing system

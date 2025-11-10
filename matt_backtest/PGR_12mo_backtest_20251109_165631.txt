@@ -1,0 +1,14 @@
+📊 BACKTEST REPORT: PGR (12mo)
+======================================================================
+
+======================================================================
+🎯 ENTRY-TO-EXIT STRATEGY ANALYSIS
+======================================================================
+
+📊 OVERALL TRADING STATISTICS:
+  Total Trades Generated: 36
+  Closed Trades: 0
+  Open Positions: 36
+
+⚠️  No closed trades to analyze.
+   Generate more signals or use a longer time period.

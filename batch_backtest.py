@@ -116,7 +116,7 @@ def run_batch_backtest(ticker_file: str, period: str = '12mo',
                     # Always get enough data to calculate indicators properly
                     df = vol_analysis.analyze_ticker(
                         ticker=ticker,
-                        period='36mo',  # Get full 3 years for indicator calculation
+                        period=period,  # Use user-specified period
                         save_to_file=False,
                         save_chart=False,
                         force_refresh=False,

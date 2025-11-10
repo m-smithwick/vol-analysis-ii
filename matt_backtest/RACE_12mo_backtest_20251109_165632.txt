@@ -1,0 +1,148 @@
+📊 BACKTEST REPORT: RACE (12mo)
+======================================================================
+
+======================================================================
+🎯 ENTRY-TO-EXIT STRATEGY ANALYSIS
+======================================================================
+
+📊 OVERALL TRADING STATISTICS:
+  Total Trades Generated: 24
+  Closed Trades: 24
+  Open Positions: 0
+
+🚀 ENTRY STRATEGY COMPARISON:
+
+  ⭐ Multi-Signal Confluence:
+    Trades: 6 closed, 0 open
+    Win Rate: 16.7% (1W-5L)
+    Average Return: -7.83%
+    Median Return: -5.21%
+    Avg Win: +0.55% | Avg Loss: -9.51%
+    Best Trade: 2025-03-27 (+0.55%)
+    Worst Trade: 2025-07-17 (-23.09%)
+    Avg Holding Period: 62.5 days
+    Profit Factor: 0.01
+    Expectancy: -7.83%
+    ❌ POOR - Needs improvement
+
+  🟢 Strong Buy:
+    Trades: 15 closed, 0 open
+    Win Rate: 13.3% (2W-13L)
+    Average Return: -9.12%
+    Median Return: -5.21%
+    Avg Win: +1.56% | Avg Loss: -10.76%
+    Best Trade: 2025-04-07 (+2.57%)
+    Worst Trade: 2025-07-18 (-23.91%)
+    Avg Holding Period: 49.9 days
+    Profit Factor: 0.02
+    Expectancy: -9.12%
+    ❌ POOR - Needs improvement
+
+  🟡 Moderate Buy Pullback (≥6.0):
+    Trades: 7 closed, 0 open
+    Win Rate: 0.0% (0W-7L)
+    Average Return: -18.85%
+    Median Return: -20.59%
+    Avg Win: +0.00% | Avg Loss: -18.85%
+    Best Trade: 2025-01-23 (-4.56%)
+    Worst Trade: 2025-07-23 (-24.32%)
+    Avg Holding Period: 79.6 days
+    Profit Factor: 0.00
+    Expectancy: -18.85%
+    ❌ POOR - Needs improvement
+
+  💎 Stealth Accumulation (≥4.0):
+    Trades: 1 closed, 0 open
+    Win Rate: 0.0% (0W-1L)
+    Average Return: -5.66%
+    Median Return: -5.66%
+    Avg Win: +0.00% | Avg Loss: -5.66%
+    Best Trade: 2025-04-01 (-5.66%)
+    Worst Trade: 2025-04-01 (-5.66%)
+    Avg Holding Period: 7.0 days
+    Profit Factor: 0.00
+    Expectancy: -5.66%
+    ❌ POOR - Needs improvement
+
+  🔥 Volume Breakout:
+    Trades: 1 closed, 0 open
+    Win Rate: 0.0% (0W-1L)
+    Average Return: -6.43%
+    Median Return: -6.43%
+    Avg Win: +0.00% | Avg Loss: -6.43%
+    Best Trade: 2025-03-28 (-6.43%)
+    Worst Trade: 2025-03-28 (-6.43%)
+    Avg Holding Period: 11.0 days
+    Profit Factor: 0.00
+    Expectancy: -6.43%
+    ❌ POOR - Needs improvement
+
+🚪 EXIT STRATEGY COMPARISON:
+
+  ⚠️ Distribution Warning:
+    Times Used: 24
+    Win Rate: 8.3% (2W-22L)
+    Average Return: -11.70%
+    Median Return: -7.09%
+    Avg Holding Period: 55.2 days
+    Profit Factor: 0.01
+    ❌ POOR - Avoid this exit
+
+  🔴 Sell Signal:
+    Times Used: 24
+    Win Rate: 8.3% (2W-22L)
+    Average Return: -11.70%
+    Median Return: -7.09%
+    Avg Holding Period: 55.2 days
+    Profit Factor: 0.01
+    ❌ POOR - Avoid this exit
+
+  🛑 Stop Loss:
+    Times Used: 11
+    Win Rate: 0.0% (0W-11L)
+    Average Return: -20.41%
+    Median Return: -21.29%
+    Avg Holding Period: 61.1 days
+    Profit Factor: 0.00
+    ❌ POOR - Avoid this exit
+
+⭐ OPTIMAL STRATEGY COMBINATIONS:
+
+  Best Entry Signal: 💎 Stealth Accumulation (≥4.0)
+    Win Rate: 0.0%
+    Expectancy: -5.66%
+
+  Best Exit Signal: ⚠️ Distribution Warning
+    Win Rate: 8.3%
+    Avg Return: -11.70%
+
+💡 RECOMMENDED STRATEGY:
+  Entry: 💎 Stealth Accumulation (≥4.0)
+  Exit: ⚠️ Distribution Warning
+  Combined Performance:
+    Trades: 1
+    Win Rate: 0.0%
+    Avg Return: -5.66%
+    Expectancy: -5.66%
+
+======================================================================
+
+📝 INTERPRETATION GUIDE:
+
+  Win Rate:
+    70%+ = Excellent
+    60-69% = Good
+    50-59% = Fair
+    <50% = Poor
+
+  Expectancy:
+    >2.0% = Excellent edge
+    1.0-2.0% = Good edge
+    0-1.0% = Marginal edge
+    <0% = Losing strategy
+
+  Profit Factor:
+    >2.0 = Strong system
+    1.5-2.0 = Good system
+    1.0-1.5 = Acceptable
+    <1.0 = Losing system

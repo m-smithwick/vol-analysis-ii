@@ -1,0 +1,92 @@
+📊 BACKTEST REPORT: XLC (3mo)
+======================================================================
+
+======================================================================
+🎯 ENTRY-TO-EXIT STRATEGY ANALYSIS
+======================================================================
+
+📊 OVERALL TRADING STATISTICS:
+  Total Trades Generated: 1
+  Closed Trades: 1
+  Open Positions: 0
+
+🚀 ENTRY STRATEGY COMPARISON:
+
+  🟢 Strong Buy:
+    Trades: 1 closed, 0 open
+    Win Rate: 0.0% (0W-1L)
+    Average Return: -0.33%
+    Median Return: -0.33%
+    Avg Win: +0.00% | Avg Loss: -0.33%
+    Best Trade: 2025-10-30 (-0.33%)
+    Worst Trade: 2025-10-30 (-0.33%)
+    Avg Holding Period: 1.0 days
+    Profit Factor: 0.00
+    Expectancy: -0.33%
+    ❌ POOR - Needs improvement
+
+🚪 EXIT STRATEGY COMPARISON:
+
+  ⚠️ Distribution Warning:
+    Times Used: 1
+    Win Rate: 0.0% (0W-1L)
+    Average Return: -0.33%
+    Median Return: -0.33%
+    Avg Holding Period: 1.0 days
+    Profit Factor: 0.00
+    ❌ POOR - Avoid this exit
+
+  🔴 Sell Signal:
+    Times Used: 1
+    Win Rate: 0.0% (0W-1L)
+    Average Return: -0.33%
+    Median Return: -0.33%
+    Avg Holding Period: 1.0 days
+    Profit Factor: 0.00
+    ❌ POOR - Avoid this exit
+
+⭐ OPTIMAL STRATEGY COMBINATIONS:
+
+  Best Entry Signal: 🟢 Strong Buy
+    Win Rate: 0.0%
+    Expectancy: -0.33%
+
+  Best Exit Signal: ⚠️ Distribution Warning
+    Win Rate: 0.0%
+    Avg Return: -0.33%
+
+💡 RECOMMENDED STRATEGY:
+  Entry: 🟢 Strong Buy
+  Exit: ⚠️ Distribution Warning
+  Combined Performance:
+    Trades: 1
+    Win Rate: 0.0%
+    Avg Return: -0.33%
+    Expectancy: -0.33%
+
+⚠️  WARNING: Limited sample size!
+   Only 1 closed trades available.
+   Results may not be statistically significant.
+   Use longer time period for more reliable analysis.
+
+======================================================================
+
+📝 INTERPRETATION GUIDE:
+
+  Win Rate:
+    70%+ = Excellent
+    60-69% = Good
+    50-59% = Fair
+    <50% = Poor
+
+  Expectancy:
+    >2.0% = Excellent edge
+    1.0-2.0% = Good edge
+    0-1.0% = Marginal edge
+    <0% = Losing strategy
+
+  Profit Factor:
+    >2.0 = Strong system
+    1.5-2.0 = Good system
+    1.0-1.5 = Acceptable
+    <1.0 = Losing system

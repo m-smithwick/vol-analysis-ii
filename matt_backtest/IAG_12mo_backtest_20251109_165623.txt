@@ -1,0 +1,83 @@
+📊 BACKTEST REPORT: IAG (12mo)
+======================================================================
+
+======================================================================
+🎯 ENTRY-TO-EXIT STRATEGY ANALYSIS
+======================================================================
+
+📊 OVERALL TRADING STATISTICS:
+  Total Trades Generated: 8
+  Closed Trades: 3
+  Open Positions: 5
+
+🚀 ENTRY STRATEGY COMPARISON:
+
+  🟡 Moderate Buy Pullback (≥6.0):
+    Trades: 3 closed, 0 open
+    Win Rate: 100.0% (3W-0L)
+    Average Return: +25.61%
+    Median Return: +24.17%
+    Avg Win: +25.61% | Avg Loss: +0.00%
+    Best Trade: 2025-01-28 (+29.31%)
+    Worst Trade: 2025-03-24 (+23.36%)
+    Avg Holding Period: 95.0 days
+    Profit Factor: inf
+    Expectancy: +25.61%
+    ✅ EXCELLENT - Highly profitable strategy
+
+🚪 EXIT STRATEGY COMPARISON:
+
+  ⚠️ Distribution Warning:
+    Times Used: 3
+    Win Rate: 100.0% (3W-0L)
+    Average Return: +25.61%
+    Median Return: +24.17%
+    Avg Holding Period: 95.0 days
+    Profit Factor: inf
+    ✅ EXCELLENT exit timing
+
+⭐ OPTIMAL STRATEGY COMBINATIONS:
+
+  Best Entry Signal: 🟡 Moderate Buy Pullback (≥6.0)
+    Win Rate: 100.0%
+    Expectancy: +25.61%
+
+  Best Exit Signal: ⚠️ Distribution Warning
+    Win Rate: 100.0%
+    Avg Return: +25.61%
+
+💡 RECOMMENDED STRATEGY:
+  Entry: 🟡 Moderate Buy Pullback (≥6.0)
+  Exit: ⚠️ Distribution Warning
+  Combined Performance:
+    Trades: 3
+    Win Rate: 100.0%
+    Avg Return: +25.61%
+    Expectancy: +25.61%
+
+⚠️  WARNING: Limited sample size!
+   Only 3 closed trades available.
+   Results may not be statistically significant.
+   Use longer time period for more reliable analysis.
+
+======================================================================
+
+📝 INTERPRETATION GUIDE:
+
+  Win Rate:
+    70%+ = Excellent
+    60-69% = Good
+    50-59% = Fair
+    <50% = Poor
+
+  Expectancy:
+    >2.0% = Excellent edge
+    1.0-2.0% = Good edge
+    0-1.0% = Marginal edge
+    <0% = Losing strategy
+
+  Profit Factor:
+    >2.0 = Strong system
+    1.5-2.0 = Good system
+    1.0-1.5 = Acceptable
+    <1.0 = Losing system

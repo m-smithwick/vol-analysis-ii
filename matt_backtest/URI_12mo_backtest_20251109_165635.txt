@@ -1,0 +1,101 @@
+📊 BACKTEST REPORT: URI (12mo)
+======================================================================
+
+======================================================================
+🎯 ENTRY-TO-EXIT STRATEGY ANALYSIS
+======================================================================
+
+📊 OVERALL TRADING STATISTICS:
+  Total Trades Generated: 7
+  Closed Trades: 7
+  Open Positions: 0
+
+🚀 ENTRY STRATEGY COMPARISON:
+
+  🟡 Moderate Buy Pullback (≥6.0):
+    Trades: 7 closed, 0 open
+    Win Rate: 42.9% (3W-4L)
+    Average Return: -5.59%
+    Median Return: -11.70%
+    Avg Win: +3.43% | Avg Loss: -12.35%
+    Best Trade: 2025-08-06 (+6.59%)
+    Worst Trade: 2025-01-29 (-12.73%)
+    Avg Holding Period: 36.1 days
+    Profit Factor: 0.21
+    Expectancy: -5.59%
+    ❌ POOR - Needs improvement
+
+🚪 EXIT STRATEGY COMPARISON:
+
+  ⚠️ Distribution Warning:
+    Times Used: 4
+    Win Rate: 75.0% (3W-1L)
+    Average Return: -0.61%
+    Median Return: +1.84%
+    Avg Holding Period: 58.8 days
+    Profit Factor: 0.81
+    ✅ EXCELLENT exit timing
+
+  🔴 Sell Signal:
+    Times Used: 4
+    Win Rate: 75.0% (3W-1L)
+    Average Return: -0.61%
+    Median Return: +1.84%
+    Avg Holding Period: 58.8 days
+    Profit Factor: 0.81
+    ✅ EXCELLENT exit timing
+
+  🛑 Stop Loss:
+    Times Used: 6
+    Win Rate: 50.0% (3W-3L)
+    Average Return: -4.40%
+    Median Return: -5.32%
+    Avg Holding Period: 37.8 days
+    Profit Factor: 0.28
+    ⚠️  FAIR - Consider alternatives
+
+⭐ OPTIMAL STRATEGY COMBINATIONS:
+
+  Best Entry Signal: 🟡 Moderate Buy Pullback (≥6.0)
+    Win Rate: 42.9%
+    Expectancy: -5.59%
+
+  Best Exit Signal: ⚠️ Distribution Warning
+    Win Rate: 75.0%
+    Avg Return: -0.61%
+
+💡 RECOMMENDED STRATEGY:
+  Entry: 🟡 Moderate Buy Pullback (≥6.0)
+  Exit: ⚠️ Distribution Warning
+  Combined Performance:
+    Trades: 4
+    Win Rate: 75.0%
+    Avg Return: -0.61%
+    Expectancy: -0.61%
+
+⚠️  WARNING: Limited sample size!
+   Only 7 closed trades available.
+   Results may not be statistically significant.
+   Use longer time period for more reliable analysis.
+
+======================================================================
+
+📝 INTERPRETATION GUIDE:
+
+  Win Rate:
+    70%+ = Excellent
+    60-69% = Good
+    50-59% = Fair
+    <50% = Poor
+
+  Expectancy:
+    >2.0% = Excellent edge
+    1.0-2.0% = Good edge
+    0-1.0% = Marginal edge
+    <0% = Losing strategy
+
+  Profit Factor:
+    >2.0 = Strong system
+    1.5-2.0 = Good system
+    1.0-1.5 = Acceptable
+    <1.0 = Losing system

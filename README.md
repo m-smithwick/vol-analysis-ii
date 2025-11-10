@@ -135,7 +135,7 @@ python vol_analysis.py --file ibd.txt -p 12mo --save-charts --chart-backend plot
 python vol_analysis.py -f stocks.txt --save-charts
 
 # Full batch processing example
-python vol_analysis.py -f watchlist.txt -p 6mo -o analysis_output --save-charts
+python vol_analysis.py -f matt.txt -p 6mo -o matt_output --save-charts --chart-backend plotly
 ```
 
 ### Data Caching Options
@@ -230,7 +230,7 @@ python batch_backtest.py -f stocks.txt
 python batch_backtest.py -f watchlist.txt -p 6mo
 
 # Custom output directory
-python batch_backtest.py -f stocks.txt -p 12mo -o optimization_results
+python batch_backtest.py -f matt.txt -p 12mo -o matt_backtest
 
 # Risk-managed batch backtesting (Item #5)
 python batch_backtest.py -f stocks.txt --risk-managed
@@ -611,7 +611,527 @@ All files are saved to the `results/` directory by default.
 ### Available Time Periods
 - `1d`, `5d`, `1mo`, `3mo`, `6mo`, `1y`, `2y`, `5y`, `10y`, `ytd`, `max`
 
-## 📈 Chart Interpretation Guide
+## 🔄 Sector Rotation Dashboard (NEW - Nov 2025)
+
+A comprehensive sector strength analysis system that helps identify leading and lagging sectors for optimal portfolio allocation. Uses the same volume analysis framework applied to sector ETFs.
+
+### **What It Does**
+
+The sector rotation dashboard analyzes 11 sector ETFs to identify which sectors are currently leading the market and deserve overweighting in your portfolio. This helps you:
+
+- **Identify sector leaders** before the rotation is obvious
+- **Avoid weak sectors** that drag down performance
+- **Time sector rotations** using objective, data-driven signals
+- **Adapt to market cycles** instead of being married to one sector
+
+### **The 11 Sector ETFs Analyzed**
+
+| ETF | Sector | Characteristics |
+|-----|--------|----------------|
+| XLK | Technology | Growth, innovation, high volatility |
+| XLC | Communication Services | Tech-adjacent (Meta, Google, Netflix) |
+| XLY | Consumer Discretionary | Consumer spending, economy-sensitive |
+| XLF | Financials | Banks, insurance, interest rate sensitive |
+| XLV | Healthcare | Pharma, biotech, defensive |
+| XLI | Industrials | Manufacturing, infrastructure |
+| XLE | Energy | Oil, gas, commodity-linked |
+| XLB | Materials | Mining, commodities, cyclical |
+| XLRE | Real Estate | REITs, interest rate sensitive |
+| XLP | Consumer Staples | Defensive, stable earnings |
+| XLU | Utilities | Most defensive, dividend-focused |
+
+### **Sector Scoring System (0-14 Points)**
+
+Each sector receives a comprehensive score based on three components:
+
+#### **Momentum Score (6 points max)**
+- Above 50-day MA: +2 points
+- Above 200-day MA: +2 points
+- 20-day return >5%: +2 points
+
+#### **Volume Analysis Score (6 points max)**
+*Requires backtest - use `sector_dashboard_with_backtest.py`*
+- Win rate >60% on Moderate Buy signal: +2 points
+- Positive expectancy: +2 points
+- Recent signal activity (<14 days): +2 points
+
+#### **Relative Strength Score (2 points max)**
+- Outperforming SPY benchmark: +1 point
+- Top-3 sector ranking: +1 point (bonus)
+
+### **Command-Line Usage**
+
+#### **Quick Analysis (Fast - No Backtest)**
+```bash
+# Basic 3-month sector analysis (momentum + relative strength only)
+python sector_dashboard.py
+
+# 6-month analysis
+python sector_dashboard.py -p 6mo
+
+# Show only top 5 sectors
+python sector_dashboard.py --top 5
+
+# Compare to previous run (detect rotations)
+python sector_dashboard.py --compare
+
+# Save detailed report
+python sector_dashboard.py -o sector_reports
+```
+
+**Performance**: ~10 seconds (analyzes 11 sectors + SPY)
+
+#### **Complete Analysis (Slow - With Volume Scoring)**
+```bash
+# Full analysis with backtesting (complete 14-point scoring)
+python sector_dashboard_with_backtest.py
+
+# First run takes 5-10 minutes
+# Subsequent runs use 7-day cache (much faster!)
+
+# Quick mode (skip backtest if needed)
+python sector_dashboard_with_backtest.py --quick
+
+# With comparison and saved report
+python sector_dashboard_with_backtest.py --compare -o sector_analysis
+```
+
+**Performance**: 
+- First run: ~5-10 minutes (runs backtests)
+- Cached runs: ~10 seconds (backtests cached for 7 days)
+
+### **Sample Dashboard Output**
+
+```
+🎯 SECTOR ROTATION DASHBOARD
+
+Analysis Period: 3mo
+Generated: 2025-11-09 19:00:00
+Benchmark: SPY (S&P 500)
+
+📊 SECTOR STRENGTH RANKING
+
+🥇 RANK #1: XLK (Technology) - Score: 10/14 ⭐⭐⭐
+   ──────────────────────────────────────────────────────────────────────
+   Momentum Score: 6/6
+     • Above 50-day MA: ✅ +2 (Price: $288.16, MA: $282.13)
+     • Above 200-day MA: ✅ +2 (Price: $288.16, MA: $265.40)
+     • 20-day Return: ✅ +2 (+8.5%)
+   
+   Volume Score: 2/6
+     • Win Rate: ✅ +2 (68.5% vs 60% threshold)
+     • Expectancy: ❌ 0 (-1.2%)
+     • Recent Signals: ❌ 0 (23 days ago)
+   
+   Relative Strength: 2/2
+     • vs SPY: ✅ +1 (+7.58% vs SPY +4.69%, +2.89%)
+     • Top-3 Bonus: ✅ +1 (Rank #1)
+   
+   💡 RECOMMENDATION: OVERWEIGHT
+   📊 Target Allocation: 35-50% of portfolio
+
+🥈 RANK #2: XLV (Healthcare) - Score: 9/14 ⭐⭐⭐
+   [Similar detailed breakdown]
+   💡 RECOMMENDATION: OVERWEIGHT
+   📊 Target Allocation: 35-50% of portfolio
+
+[... Continue for all 11 sectors ...]
+
+📈 RECOMMENDED PORTFOLIO ALLOCATION
+
+Based on current sector strength scores:
+
+LEADING SECTORS (Score 8-10): 70% Total Allocation
+  • XLK (Technology): 42%
+  • XLV (Healthcare): 28%
+
+STRONG SECTORS (Score 6-7): 20% Total Allocation
+  • XLI (Industrials): 20%
+
+OPPORTUNISTIC (Score 4-5): 10% Total Allocation
+  • XLE (Energy): 10%
+
+AVOID (Score 0-3): 0% Allocation
+  • XLF, XLB, XLRE, XLP, XLU, XLC, XLY
+
+⚠️ ROTATION ALERTS
+
+🚨 2 SIGNIFICANT CHANGES DETECTED:
+
+📉 XLF (Financials): 7/14 → 4/14 (-3 points)
+   💡 Action: Consider reducing exposure
+
+🔥 XLE (Energy): 3/14 → 6/14 (+3 points)
+   💡 Action: Potential entry opportunity
+```
+
+### **Interpreting the Results**
+
+#### **Score Categories**
+
+- **8-10 (LEADING)**: Overweight 35-50%
+  - All green signals: momentum, volume, outperformance
+  - These sectors should dominate your portfolio
+  
+- **6-7 (STRONG)**: Market weight 15-25%
+  - Mostly positive signals, some weakness
+  - Include but don't overallocate
+  
+- **4-5 (NEUTRAL)**: Light weight 5-10%
+  - Mixed signals, proceed with caution
+  - Small opportunistic positions only
+  
+- **0-3 (WEAK)**: Avoid 0%
+  - Multiple red flags
+  - Stay away completely
+
+#### **Rotation Signals**
+
+**When to Rotate INTO a Sector:**
+- Score increases by 3+ points
+- Score crosses above 6 (enters "strong" territory)
+- Momentum score reaches 6/6 (all MAs positive)
+
+**When to Rotate OUT OF a Sector:**
+- Score drops by 3+ points
+- Score falls below 6 (loses "strong" status)
+- Momentum score drops to 0-2 (losing MA support)
+
+### **Recommended Workflow**
+
+#### **Weekly Review (Every Monday)**
+```bash
+# Quick 2-minute check
+python sector_dashboard.py --compare --top 5
+
+# If major changes detected (>3 point moves):
+python sector_dashboard_with_backtest.py --compare
+```
+
+#### **Monthly Deep Dive (First Sunday)**
+```bash
+# Full 6-month analysis with saved report
+python sector_dashboard_with_backtest.py -p 6mo -o monthly_reports
+
+# Review allocation recommendations
+# Rebalance portfolio based on new sector rankings
+```
+
+#### **Quarterly Validation**
+```bash
+# Run 12-month analysis for long-term perspective
+python sector_dashboard_with_backtest.py -p 12mo --compare
+
+# Validate that your portfolio sectors still score >6
+# Make strategic shifts if sector leadership has changed
+```
+
+### **Practical Example - Using the Dashboard**
+
+**Scenario**: You notice tech (XLK) dropping from 10/14 to 6/14
+
+**Action Plan:**
+
+1. **Identify new leaders** from dashboard
+   ```bash
+   python sector_dashboard.py --compare
+   ```
+   Result: Healthcare (XLV) now scores 9/14
+
+2. **Reduce tech exposure**
+   - Take profits on tech stocks showing Distribution Warning
+   - Shift from 50% tech → 25% tech
+
+3. **Build healthcare positions**
+   - Run backtest on healthcare stocks
+   ```bash
+   python batch_backtest.py -f healthcare_stocks.txt -p 12mo
+   ```
+   - Enter positions showing Moderate Buy signals
+
+4. **Monitor weekly**
+   - Watch if tech recovers (score >6 again)
+   - Watch if healthcare maintains leadership
+
+### **Files Created**
+
+- `sector_etfs.txt` - List of 11 sector ETFs
+- `sector_rotation.py` - Core scoring algorithms
+- `sector_dashboard.py` - Fast dashboard (no backtest)
+- `sector_dashboard_with_backtest.py` - Complete dashboard (with backtest)
+- `sector_cache/` - Cached backtest results and historical scores
+
+### **Cache Management**
+
+**Backtest Cache:**
+- Location: `sector_cache/backtest_results_{period}.json`
+- Validity: 7 days
+- Auto-refresh: Runs new backtest if cache expired
+
+**Score History:**
+- Location: `sector_cache/scores_{period}_latest.json`
+- Used for: `--compare` mode to detect rotations
+- Updated: Every dashboard run
+
+### **Integration with Stock Selection**
+
+Once you identify leading sectors (score ≥6), use batch backtesting to find the best stocks within those sectors:
+
+```bash
+# 1. Dashboard identifies XLK (Tech) and XLV (Healthcare) as leaders
+
+# 2. Run backtests on stocks in those sectors
+python batch_backtest.py -f tech_stocks.txt -p 12mo
+python batch_backtest.py -f healthcare_stocks.txt -p 12mo
+
+# 3. Select stocks with:
+#    - Moderate Buy win rate >60%
+#    - Positive expectancy
+#    - Recent signal activity
+
+# 4. Monitor sectors weekly for rotation signals
+python sector_dashboard.py --compare
+```
+
+### **Benefits of Sector Rotation**
+
+Based on your backtest comparison:
+- Your tech-heavy portfolio: +10.71% expectancy, 66.5% win rate
+- Matt's diversified portfolio: +0.32% expectancy, 42.9% win rate
+
+**The difference?** You focused on the leading sector (tech). The dashboard ensures you **always** focus on leading sectors, not just during tech bull markets.
+
+### **Key Insights**
+
+✅ **Sector matters more than stock selection** - Being in the right sector (tech) gave you 33x better results than being diversified across weak sectors
+
+✅ **Rotation detection prevents giving back gains** - Exit tech when it weakens (score drops to <6) before the correction
+
+✅ **Systematic rebalancing** - Removes emotion and guesswork from sector allocation
+
+✅ **Works with your existing system** - Uses same volume analysis signals on sector ETFs
+
+---
+
+## 🎯 Sector-Aware Trading Strategy
+
+**Purpose**: Adapt position sizing, entry frequency, and risk management based on current sector strength to optimize returns across all market environments.
+
+### **Core Principle**
+
+**Market environment dictates aggression level.** When sectors are strong (score ≥8/14), trade aggressively. When sectors are weak (score ≤5/14), trade defensively. This adaptive approach prevents giving back gains during market transitions.
+
+### **Position Sizing Framework**
+
+| Top Sector Score | Market Environment | Position Size | Cash Allocation | Entry Frequency |
+|-----------------|-------------------|---------------|-----------------|-----------------|
+| **≥10/14** | Elite bull market | 100-125%* | 10-15% | Aggressive - enter all Moderate Buy signals |
+| **8-9/14** | Strong bull market | 90-100% | 15-20% | Normal - enter most Moderate Buy signals |
+| **6-7/14** | Mixed/choppy market | 75-90% | 20-30% | Selective - best Moderate Buy setups only |
+| **4-5/14** | Weak/transitional | 50-75% | 30-40% | Very selective - exceptional setups only |
+| **≤3/14** | Very weak/defensive | 0-25% | 60-80% | Minimal - rare entries, mostly cash |
+
+*125% = using margin on exceptional setups only when market leadership is crystal clear
+
+### **Entry Qualification Matrix**
+
+**Sector-aware entry rules ensure you're always trading with the market, not against it:**
+
+| Sector Score | Stock Signal | Support Proximity | CMF | VWAP | Action | Size |
+|--------------|--------------|-------------------|-----|------|--------|------|
+| **≥8/14** | Moderate Buy | Any | Any | Above | ✅ ENTER | 100% |
+| **≥8/14** | Weak Moderate Buy | Near support | >1.0σ | Above | ✅ ENTER | 75% |
+| **6-7/14** | Moderate Buy | Near support | >1.0σ | Above | ✅ ENTER | 75% |
+| **6-7/14** | Moderate Buy | Far from support | <0.5σ | Below | ❌ SKIP | - |
+| **4-5/14** | Moderate Buy | Near support | >1.5σ | Above | ⚠️ CONSIDER | 50% |
+| **4-5/14** | Moderate Buy | Any other | Any | Any | ❌ SKIP | - |
+| **≤3/14** | ANY signal | ANY | ANY | ANY | ❌ SKIP | - |
+
+**Key Requirements by Environment:**
+
+**Strong Market (≥8/14):**
+- ✅ Moderate Buy signal (required)
+- ✅ Stock in top-scoring sector (required)
+- → Enter with confidence
+
+**Normal Market (6-7/14):**
+- ✅ Moderate Buy signal (required)
+- ✅ Near support (within 1 ATR) (required)
+- ✅ Strong CMF (>1.0σ) (required)
+- ✅ Above VWAP (required)
+- → Enter if all criteria met
+
+**Weak Market (4-5/14):**
+- ✅ Moderate Buy signal (required)
+- ✅ Near support (within 0.5 ATR) (required)
+- ✅ Very strong CMF (>1.5σ) (required)
+- ✅ Above VWAP (required)
+- ✅ Additional confirmation (recent pivot, volume spike)
+- → Only enter exceptional setups
+
+**Very Weak Market (≤3/14):**
+- ❌ **No new entries** - move to cash and wait for leadership
+
+### **Risk Management Adjustments**
+
+**Initial Stop Placement:**
+
+| Market Environment | Stop Formula | Rationale |
+|-------------------|-------------|-----------|
+| Strong (≥8/14) | `min(swing_low - 0.5*ATR, VWAP - 1*ATR)` | Standard stops, give room |
+| Normal (6-7/14) | `min(swing_low - 0.5*ATR, VWAP - 0.75*ATR)` | Slightly tighter |
+| Weak (4-5/14) | `min(swing_low - 0.25*ATR, VWAP - 0.5*ATR)` | Tight stops, quick exit |
+| Very Weak (≤3/14) | `VWAP - 0.25*ATR` | Very tight, minimal risk |
+
+**Time Stops:**
+
+| Market Environment | Bars Until Time Stop | Dead Position Threshold |
+|-------------------|---------------------|------------------------|
+| Strong (≥8/14) | 15 bars | <+0.5R after 15 bars |
+| Normal (6-7/14) | 12 bars | <+1R after 12 bars |
+| Weak (4-5/14) | 10 bars | <+1R after 10 bars |
+| Very Weak (≤3/14) | 8 bars | <+0.5R after 8 bars |
+
+**Profit Targets:**
+
+| Market Environment | First Target | Amount | Trailing Stop |
+|-------------------|-------------|--------|---------------|
+| Strong (≥8/14) | +2R | 50% | 10-day low |
+| Normal (6-7/14) | +2R | 50% | 10-day low |
+| Weak (4-5/14) | +1.5R | 50% | 7-day low |
+| Very Weak (≤3/14) | +1R | 100% | None - exit completely |
+
+**Exit Signal Sensitivity:**
+
+| Market Environment | Exit Signal Action |
+|-------------------|-------------------|
+| Strong (≥8/14) | Wait for confirmation (2+ exit signals) |
+| Normal (6-7/14) | Act on first strong exit signal |
+| Weak (4-5/14) | Exit on first Distribution Warning |
+| Very Weak (≤3/14) | Exit on ANY exit signal |
+
+### **Sector Selection Rules**
+
+**Primary Rule**: Only consider stocks from sectors scoring ≥4/14
+
+**Within qualifying sectors:**
+1. **Focus 60-80%** of capital on the **top-scoring sector**
+2. **Allocate 15-25%** to the **second-best sector** (if score ≥6/14)
+3. **Keep 5-15%** in **third sector** as diversification (if score ≥6/14)
+4. **Avoid completely** any sector scoring <4/14
+
+**Example Current Market (Top = 5/14):**
+```
+XLK (Tech): 5/14        → 60% of deployed capital
+XLV (Healthcare): 4/14  → 25% of deployed capital
+XLE (Energy): 4/14      → 15% of deployed capital
+All others: <4/14       → 0% allocation
+
+With 50% position sizing and 40% cash:
+- Tech positions: 30% of total capital (60% of 50%)
+- Healthcare: 12.5% of total capital
+- Energy: 7.5% of total capital
+- Cash: 40%
+- Total: 90% (10% buffer)
+```
+
+### **Weekly Monitoring Protocol**
+
+**Every Monday Morning:**
+```bash
+# 1. Check sector strength
+python sector_dashboard.py --compare --top 5
+
+# 2. Identify top-scoring sector and its score
+# 3. Adjust strategy for the week based on score:
+```
+
+**If score ≥8**: Resume normal aggressive trading  
+**If score 6-7**: Trade normally but be selective  
+**If score 4-5**: Defensive - small sizes, exceptional setups only  
+**If score ≤3**: Very defensive - mostly cash, rare entries  
+
+### **Monthly Rebalancing Protocol**
+
+**First Sunday of Month:**
+```bash
+# 1. Full 6-month analysis
+python sector_dashboard_with_backtest.py -p 6mo --compare -o monthly_reports
+
+# 2. Review allocation recommendations
+# 3. Check for rotation alerts (>3 point changes)
+# 4. Rebalance portfolio:
+```
+
+**Rotation Triggers:**
+- Sector drops >3 points: Reduce allocation by 50%
+- Sector rises >3 points: Increase allocation by 50%
+- Sector crosses below 6: Exit poorest-performing stocks
+- Sector crosses above 6: Begin building positions
+
+### **Real-World Example: Current Market (Top = 5/14)**
+
+**Your Current Environment Analysis:**
+```
+Top Sector Score: 5/14
+Market Environment: WEAK/TRANSITIONAL
+Recommended Posture: DEFENSIVE
+```
+
+**Strategy Dictates:**
+1. ✅ Position size: 50-75% (you should be using 50-75% of normal size)
+2. ✅ Cash allocation: 30-40% (you should be holding significant cash)
+3. ✅ Entry criteria: Only exceptional Moderate Buy setups
+   - Must be near support (within 0.5 ATR)
+   - Must have strong CMF (>1.5σ)
+   - Must be above VWAP
+4. ✅ Stop losses: Tight (VWAP - 0.5*ATR)
+5. ✅ Time stops: 10 bars
+6. ✅ Profit targets: +1.5R (take 50%), then trail with 7-day low
+7. ✅ Exit signals: Exit on first Distribution Warning
+
+**This is VERY DIFFERENT from when tech scored 10/14:**
+- Then: Full size, aggressive, standard stops, +2R targets
+- Now: Half size, selective, tight stops, +1.5R targets
+
+**The sector score tells you HOW to trade, not WHETHER to trade.**
+
+---
+
+## 🎯 Implementation Validation
+
+Once documented, you can validate code against strategy:
+
+```python
+# In risk_manager.py - should check sector score:
+def calculate_position_size(account_value, risk_pct, entry_price, stop_price, sector_score):
+    """
+    Calculate position size based on risk and sector environment.
+    
+    Sector adjustments:
+    - Score ≥8: Normal sizing (1.0x multiplier)
+    - Score 6-7: Slightly reduced (0.85x multiplier)
+    - Score 4-5: Defensive (0.65x multiplier)
+    - Score ≤3: Minimal (0.25x multiplier)
+    """
+    # Standard calculation
+    base_size = (account_value * risk_pct) / (entry_price - stop_price)
+    
+    # Apply sector adjustment
+    if sector_score >= 8:
+        multiplier = 1.0
+    elif sector_score >= 6:
+        multiplier = 0.85
+    elif sector_score >= 4:
+        multiplier = 0.65
+    else:
+        multiplier = 0.25
+    
+    return base_size * multiplier
+```
+
+Should I add all this strategy documentation to README, guide, and create the comprehensive strategy document?
+</response>
 
 ### **Three-Panel Layout**
 

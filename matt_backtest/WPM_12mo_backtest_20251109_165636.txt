@@ -1,0 +1,83 @@
+📊 BACKTEST REPORT: WPM (12mo)
+======================================================================
+
+======================================================================
+🎯 ENTRY-TO-EXIT STRATEGY ANALYSIS
+======================================================================
+
+📊 OVERALL TRADING STATISTICS:
+  Total Trades Generated: 4
+  Closed Trades: 1
+  Open Positions: 3
+
+🚀 ENTRY STRATEGY COMPARISON:
+
+  🟡 Moderate Buy Pullback (≥6.0):
+    Trades: 1 closed, 1 open
+    Win Rate: 100.0% (1W-0L)
+    Average Return: +25.33%
+    Median Return: +25.33%
+    Avg Win: +25.33% | Avg Loss: +0.00%
+    Best Trade: 2025-01-28 (+25.33%)
+    Worst Trade: 2025-01-28 (+25.33%)
+    Avg Holding Period: 51.0 days
+    Profit Factor: inf
+    Expectancy: +25.33%
+    ✅ EXCELLENT - Highly profitable strategy
+
+🚪 EXIT STRATEGY COMPARISON:
+
+  💜 Momentum Exhaustion:
+    Times Used: 1
+    Win Rate: 100.0% (1W-0L)
+    Average Return: +25.33%
+    Median Return: +25.33%
+    Avg Holding Period: 51.0 days
+    Profit Factor: inf
+    ✅ EXCELLENT exit timing
+
+⭐ OPTIMAL STRATEGY COMBINATIONS:
+
+  Best Entry Signal: 🟡 Moderate Buy Pullback (≥6.0)
+    Win Rate: 100.0%
+    Expectancy: +25.33%
+
+  Best Exit Signal: 💜 Momentum Exhaustion
+    Win Rate: 100.0%
+    Avg Return: +25.33%
+
+💡 RECOMMENDED STRATEGY:
+  Entry: 🟡 Moderate Buy Pullback (≥6.0)
+  Exit: 💜 Momentum Exhaustion
+  Combined Performance:
+    Trades: 1
+    Win Rate: 100.0%
+    Avg Return: +25.33%
+    Expectancy: +25.33%
+
+⚠️  WARNING: Limited sample size!
+   Only 1 closed trades available.
+   Results may not be statistically significant.
+   Use longer time period for more reliable analysis.
+
+======================================================================
+
+📝 INTERPRETATION GUIDE:
+
+  Win Rate:
+    70%+ = Excellent
+    60-69% = Good
+    50-59% = Fair
+    <50% = Poor
+
+  Expectancy:
+    >2.0% = Excellent edge
+    1.0-2.0% = Good edge
+    0-1.0% = Marginal edge
+    <0% = Losing strategy
+
+  Profit Factor:
+    >2.0 = Strong system
+    1.5-2.0 = Good system
+    1.0-1.5 = Acceptable
+    <1.0 = Losing system

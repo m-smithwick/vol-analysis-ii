@@ -1,0 +1,14 @@
+📊 BACKTEST REPORT: XLB (3mo)
+======================================================================
+
+======================================================================
+🎯 ENTRY-TO-EXIT STRATEGY ANALYSIS
+======================================================================
+
+📊 OVERALL TRADING STATISTICS:
+  Total Trades Generated: 0
+  Closed Trades: 0
+  Open Positions: 0
+
+⚠️  No closed trades to analyze.
+   Generate more signals or use a longer time period.

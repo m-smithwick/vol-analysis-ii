@@ -1,0 +1,83 @@
+📊 BACKTEST REPORT: NVDA (12mo)
+======================================================================
+
+======================================================================
+🎯 ENTRY-TO-EXIT STRATEGY ANALYSIS
+======================================================================
+
+📊 OVERALL TRADING STATISTICS:
+  Total Trades Generated: 2
+  Closed Trades: 2
+  Open Positions: 0
+
+🚀 ENTRY STRATEGY COMPARISON:
+
+  🟡 Moderate Buy Pullback (≥6.0):
+    Trades: 2 closed, 0 open
+    Win Rate: 100.0% (2W-0L)
+    Average Return: +32.45%
+    Median Return: +32.45%
+    Avg Win: +32.45% | Avg Loss: +0.00%
+    Best Trade: 2025-05-22 (+32.87%)
+    Worst Trade: 2025-05-21 (+32.04%)
+    Avg Holding Period: 116.5 days
+    Profit Factor: inf
+    Expectancy: +32.45%
+    ✅ EXCELLENT - Highly profitable strategy
+
+🚪 EXIT STRATEGY COMPARISON:
+
+  💜 Momentum Exhaustion:
+    Times Used: 2
+    Win Rate: 100.0% (2W-0L)
+    Average Return: +32.45%
+    Median Return: +32.45%
+    Avg Holding Period: 116.5 days
+    Profit Factor: inf
+    ✅ EXCELLENT exit timing
+
+⭐ OPTIMAL STRATEGY COMBINATIONS:
+
+  Best Entry Signal: 🟡 Moderate Buy Pullback (≥6.0)
+    Win Rate: 100.0%
+    Expectancy: +32.45%
+
+  Best Exit Signal: 💜 Momentum Exhaustion
+    Win Rate: 100.0%
+    Avg Return: +32.45%
+
+💡 RECOMMENDED STRATEGY:
+  Entry: 🟡 Moderate Buy Pullback (≥6.0)
+  Exit: 💜 Momentum Exhaustion
+  Combined Performance:
+    Trades: 2
+    Win Rate: 100.0%
+    Avg Return: +32.45%
+    Expectancy: +32.45%
+
+⚠️  WARNING: Limited sample size!
+   Only 2 closed trades available.
+   Results may not be statistically significant.
+   Use longer time period for more reliable analysis.
+
+======================================================================
+
+📝 INTERPRETATION GUIDE:
+
+  Win Rate:
+    70%+ = Excellent
+    60-69% = Good
+    50-59% = Fair
+    <50% = Poor
+
+  Expectancy:
+    >2.0% = Excellent edge
+    1.0-2.0% = Good edge
+    0-1.0% = Marginal edge
+    <0% = Losing strategy
+
+  Profit Factor:
+    >2.0 = Strong system
+    1.5-2.0 = Good system
+    1.0-1.5 = Acceptable
+    <1.0 = Losing system

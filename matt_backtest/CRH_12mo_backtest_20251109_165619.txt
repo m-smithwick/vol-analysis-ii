@@ -1,0 +1,105 @@
+📊 BACKTEST REPORT: CRH (12mo)
+======================================================================
+
+======================================================================
+🎯 ENTRY-TO-EXIT STRATEGY ANALYSIS
+======================================================================
+
+📊 OVERALL TRADING STATISTICS:
+  Total Trades Generated: 6
+  Closed Trades: 6
+  Open Positions: 0
+
+🚀 ENTRY STRATEGY COMPARISON:
+
+  🟡 Moderate Buy Pullback (≥6.0):
+    Trades: 4 closed, 0 open
+    Win Rate: 50.0% (2W-2L)
+    Average Return: +7.93%
+    Median Return: +10.05%
+    Avg Win: +21.65% | Avg Loss: -5.79%
+    Best Trade: 2025-07-17 (+22.10%)
+    Worst Trade: 2025-02-21 (-10.47%)
+    Avg Holding Period: 76.0 days
+    Profit Factor: 3.74
+    Expectancy: +7.93%
+    ✓ FAIR - Marginally profitable
+
+  💎 Stealth Accumulation (≥4.0):
+    Trades: 2 closed, 0 open
+    Win Rate: 50.0% (1W-1L)
+    Average Return: +8.76%
+    Median Return: +8.76%
+    Avg Win: +20.12% | Avg Loss: -2.59%
+    Best Trade: 2025-07-21 (+20.12%)
+    Worst Trade: 2025-06-13 (-2.59%)
+    Avg Holding Period: 59.0 days
+    Profit Factor: 7.76
+    Expectancy: +8.76%
+    ✓ FAIR - Marginally profitable
+
+🚪 EXIT STRATEGY COMPARISON:
+
+  ⚠️ Distribution Warning:
+    Times Used: 5
+    Win Rate: 60.0% (3W-2L)
+    Average Return: +10.07%
+    Median Return: +20.12%
+    Avg Holding Period: 83.4 days
+    Profit Factor: 4.86
+    ✓ GOOD exit timing
+
+  🔴 Sell Signal:
+    Times Used: 6
+    Win Rate: 50.0% (3W-3L)
+    Average Return: +8.21%
+    Median Return: +9.50%
+    Avg Holding Period: 70.3 days
+    Profit Factor: 4.48
+    ⚠️  FAIR - Consider alternatives
+
+⭐ OPTIMAL STRATEGY COMBINATIONS:
+
+  Best Entry Signal: 💎 Stealth Accumulation (≥4.0)
+    Win Rate: 50.0%
+    Expectancy: +8.76%
+
+  Best Exit Signal: ⚠️ Distribution Warning
+    Win Rate: 60.0%
+    Avg Return: +10.07%
+
+💡 RECOMMENDED STRATEGY:
+  Entry: 💎 Stealth Accumulation (≥4.0)
+  Exit: ⚠️ Distribution Warning
+  Combined Performance:
+    Trades: 2
+    Win Rate: 50.0%
+    Avg Return: +8.76%
+    Expectancy: +8.76%
+
+⚠️  WARNING: Limited sample size!
+   Only 6 closed trades available.
+   Results may not be statistically significant.
+   Use longer time period for more reliable analysis.
+
+======================================================================
+
+📝 INTERPRETATION GUIDE:
+
+  Win Rate:
+    70%+ = Excellent
+    60-69% = Good
+    50-59% = Fair
+    <50% = Poor
+
+  Expectancy:
+    >2.0% = Excellent edge
+    1.0-2.0% = Good edge
+    0-1.0% = Marginal edge
+    <0% = Losing strategy
+
+  Profit Factor:
+    >2.0 = Strong system
+    1.5-2.0 = Good system
+    1.0-1.5 = Acceptable
+    <1.0 = Losing system

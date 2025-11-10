@@ -1,0 +1,105 @@
+📊 BACKTEST REPORT: XLV (6mo)
+======================================================================
+
+======================================================================
+🎯 ENTRY-TO-EXIT STRATEGY ANALYSIS
+======================================================================
+
+📊 OVERALL TRADING STATISTICS:
+  Total Trades Generated: 7
+  Closed Trades: 3
+  Open Positions: 4
+
+🚀 ENTRY STRATEGY COMPARISON:
+
+  🟡 Moderate Buy Pullback (≥6.0):
+    Trades: 1 closed, 0 open
+    Win Rate: 0.0% (0W-1L)
+    Average Return: -2.39%
+    Median Return: -2.39%
+    Avg Win: +0.00% | Avg Loss: -2.39%
+    Best Trade: 2025-07-29 (-2.39%)
+    Worst Trade: 2025-07-29 (-2.39%)
+    Avg Holding Period: 3.0 days
+    Profit Factor: 0.00
+    Expectancy: -2.39%
+    ❌ POOR - Needs improvement
+
+  💎 Stealth Accumulation (≥4.0):
+    Trades: 2 closed, 1 open
+    Win Rate: 0.0% (0W-2L)
+    Average Return: -2.24%
+    Median Return: -2.24%
+    Avg Win: +0.00% | Avg Loss: -2.24%
+    Best Trade: 2025-08-06 (-2.05%)
+    Worst Trade: 2025-08-05 (-2.43%)
+    Avg Holding Period: 2.5 days
+    Profit Factor: 0.00
+    Expectancy: -2.24%
+    ❌ POOR - Needs improvement
+
+🚪 EXIT STRATEGY COMPARISON:
+
+  ⚠️ Distribution Warning:
+    Times Used: 3
+    Win Rate: 0.0% (0W-3L)
+    Average Return: -2.29%
+    Median Return: -2.39%
+    Avg Holding Period: 2.7 days
+    Profit Factor: 0.00
+    ❌ POOR - Avoid this exit
+
+  🔴 Sell Signal:
+    Times Used: 3
+    Win Rate: 0.0% (0W-3L)
+    Average Return: -2.29%
+    Median Return: -2.39%
+    Avg Holding Period: 2.7 days
+    Profit Factor: 0.00
+    ❌ POOR - Avoid this exit
+
+⭐ OPTIMAL STRATEGY COMBINATIONS:
+
+  Best Entry Signal: 💎 Stealth Accumulation (≥4.0)
+    Win Rate: 0.0%
+    Expectancy: -2.24%
+
+  Best Exit Signal: ⚠️ Distribution Warning
+    Win Rate: 0.0%
+    Avg Return: -2.29%
+
+💡 RECOMMENDED STRATEGY:
+  Entry: 💎 Stealth Accumulation (≥4.0)
+  Exit: ⚠️ Distribution Warning
+  Combined Performance:
+    Trades: 2
+    Win Rate: 0.0%
+    Avg Return: -2.24%
+    Expectancy: -2.24%
+
+⚠️  WARNING: Limited sample size!
+   Only 3 closed trades available.
+   Results may not be statistically significant.
+   Use longer time period for more reliable analysis.
+
+======================================================================
+
+📝 INTERPRETATION GUIDE:
+
+  Win Rate:
+    70%+ = Excellent
+    60-69% = Good
+    50-59% = Fair
+    <50% = Poor
+
+  Expectancy:
+    >2.0% = Excellent edge
+    1.0-2.0% = Good edge
+    0-1.0% = Marginal edge
+    <0% = Losing strategy
+
+  Profit Factor:
+    >2.0 = Strong system
+    1.5-2.0 = Good system
+    1.0-1.5 = Acceptable
+    <1.0 = Losing system

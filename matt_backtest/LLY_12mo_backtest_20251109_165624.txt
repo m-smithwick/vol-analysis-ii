@@ -1,0 +1,118 @@
+📊 BACKTEST REPORT: LLY (12mo)
+======================================================================
+
+======================================================================
+🎯 ENTRY-TO-EXIT STRATEGY ANALYSIS
+======================================================================
+
+📊 OVERALL TRADING STATISTICS:
+  Total Trades Generated: 9
+  Closed Trades: 6
+  Open Positions: 3
+
+🚀 ENTRY STRATEGY COMPARISON:
+
+  💎 Stealth Accumulation (≥4.0):
+    Trades: 3 closed, 1 open
+    Win Rate: 66.7% (2W-1L)
+    Average Return: +3.07%
+    Median Return: +9.95%
+    Avg Win: +12.05% | Avg Loss: -14.89%
+    Best Trade: 2025-04-11 (+14.14%)
+    Worst Trade: 2025-03-28 (-14.89%)
+    Avg Holding Period: 16.3 days
+    Profit Factor: 1.62
+    Expectancy: +3.07%
+    ✅ GOOD - Strong positive edge
+
+  🟡 Moderate Buy Pullback (≥6.0):
+    Trades: 2 closed, 2 open
+    Win Rate: 50.0% (1W-1L)
+    Average Return: -7.96%
+    Median Return: -7.96%
+    Avg Win: +2.58% | Avg Loss: -18.51%
+    Best Trade: 2025-09-08 (+2.58%)
+    Worst Trade: 2025-02-18 (-18.51%)
+    Avg Holding Period: 31.0 days
+    Profit Factor: 0.14
+    Expectancy: -7.96%
+    ❌ POOR - Needs improvement
+
+  🟢 Strong Buy:
+    Trades: 1 closed, 0 open
+    Win Rate: 0.0% (0W-1L)
+    Average Return: -18.58%
+    Median Return: -18.58%
+    Avg Win: +0.00% | Avg Loss: -18.58%
+    Best Trade: 2025-02-19 (-18.58%)
+    Worst Trade: 2025-02-19 (-18.58%)
+    Avg Holding Period: 47.0 days
+    Profit Factor: 0.00
+    Expectancy: -18.58%
+    ❌ POOR - Needs improvement
+
+🚪 EXIT STRATEGY COMPARISON:
+
+  ⚠️ Distribution Warning:
+    Times Used: 6
+    Win Rate: 50.0% (3W-3L)
+    Average Return: -4.22%
+    Median Return: -6.15%
+    Avg Holding Period: 26.3 days
+    Profit Factor: 0.51
+    ⚠️  FAIR - Consider alternatives
+
+  🔴 Sell Signal:
+    Times Used: 4
+    Win Rate: 25.0% (1W-3L)
+    Average Return: -12.35%
+    Median Return: -16.70%
+    Avg Holding Period: 29.8 days
+    Profit Factor: 0.05
+    ❌ POOR - Avoid this exit
+
+⭐ OPTIMAL STRATEGY COMBINATIONS:
+
+  Best Entry Signal: 💎 Stealth Accumulation (≥4.0)
+    Win Rate: 66.7%
+    Expectancy: +3.07%
+
+  Best Exit Signal: ⚠️ Distribution Warning
+    Win Rate: 50.0%
+    Avg Return: -4.22%
+
+💡 RECOMMENDED STRATEGY:
+  Entry: 💎 Stealth Accumulation (≥4.0)
+  Exit: ⚠️ Distribution Warning
+  Combined Performance:
+    Trades: 3
+    Win Rate: 66.7%
+    Avg Return: +3.07%
+    Expectancy: +3.07%
+
+⚠️  WARNING: Limited sample size!
+   Only 6 closed trades available.
+   Results may not be statistically significant.
+   Use longer time period for more reliable analysis.
+
+======================================================================
+
+📝 INTERPRETATION GUIDE:
+
+  Win Rate:
+    70%+ = Excellent
+    60-69% = Good
+    50-59% = Fair
+    <50% = Poor
+
+  Expectancy:
+    >2.0% = Excellent edge
+    1.0-2.0% = Good edge
+    0-1.0% = Marginal edge
+    <0% = Losing strategy
+
+  Profit Factor:
+    >2.0 = Strong system
+    1.5-2.0 = Good system
+    1.0-1.5 = Acceptable
+    <1.0 = Losing system

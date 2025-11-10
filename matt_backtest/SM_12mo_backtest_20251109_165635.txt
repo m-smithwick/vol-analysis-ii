@@ -1,0 +1,131 @@
+📊 BACKTEST REPORT: SM (12mo)
+======================================================================
+
+======================================================================
+🎯 ENTRY-TO-EXIT STRATEGY ANALYSIS
+======================================================================
+
+📊 OVERALL TRADING STATISTICS:
+  Total Trades Generated: 23
+  Closed Trades: 23
+  Open Positions: 0
+
+🚀 ENTRY STRATEGY COMPARISON:
+
+  🟢 Strong Buy:
+    Trades: 5 closed, 0 open
+    Win Rate: 20.0% (1W-4L)
+    Average Return: -10.42%
+    Median Return: -5.60%
+    Avg Win: +7.08% | Avg Loss: -14.79%
+    Best Trade: 2025-04-07 (+7.08%)
+    Worst Trade: 2025-09-11 (-28.94%)
+    Avg Holding Period: 46.0 days
+    Profit Factor: 0.12
+    Expectancy: -10.42%
+    ❌ POOR - Needs improvement
+
+  🟡 Moderate Buy Pullback (≥6.0):
+    Trades: 13 closed, 0 open
+    Win Rate: 0.0% (0W-13L)
+    Average Return: -29.88%
+    Median Return: -25.90%
+    Avg Win: +0.00% | Avg Loss: -29.88%
+    Best Trade: 2025-05-20 (-19.92%)
+    Worst Trade: 2025-01-23 (-46.57%)
+    Avg Holding Period: 81.3 days
+    Profit Factor: 0.00
+    Expectancy: -29.88%
+    ❌ POOR - Needs improvement
+
+  💎 Stealth Accumulation (≥4.0):
+    Trades: 5 closed, 0 open
+    Win Rate: 0.0% (0W-5L)
+    Average Return: -24.07%
+    Median Return: -21.08%
+    Avg Win: +0.00% | Avg Loss: -24.07%
+    Best Trade: 2025-05-27 (-18.56%)
+    Worst Trade: 2025-09-12 (-30.53%)
+    Avg Holding Period: 89.6 days
+    Profit Factor: 0.00
+    Expectancy: -24.07%
+    ❌ POOR - Needs improvement
+
+🚪 EXIT STRATEGY COMPARISON:
+
+  💜 Momentum Exhaustion:
+    Times Used: 12
+    Win Rate: 8.3% (1W-11L)
+    Average Return: -23.44%
+    Median Return: -24.49%
+    Avg Holding Period: 36.7 days
+    Profit Factor: 0.02
+    ❌ POOR - Avoid this exit
+
+  ⚠️ Distribution Warning:
+    Times Used: 11
+    Win Rate: 0.0% (0W-11L)
+    Average Return: -25.41%
+    Median Return: -23.63%
+    Avg Holding Period: 117.7 days
+    Profit Factor: 0.00
+    ❌ POOR - Avoid this exit
+
+  🔴 Sell Signal:
+    Times Used: 11
+    Win Rate: 0.0% (0W-11L)
+    Average Return: -25.41%
+    Median Return: -23.63%
+    Avg Holding Period: 117.7 days
+    Profit Factor: 0.00
+    ❌ POOR - Avoid this exit
+
+  🛑 Stop Loss:
+    Times Used: 11
+    Win Rate: 0.0% (0W-11L)
+    Average Return: -25.41%
+    Median Return: -23.63%
+    Avg Holding Period: 117.7 days
+    Profit Factor: 0.00
+    ❌ POOR - Avoid this exit
+
+⭐ OPTIMAL STRATEGY COMBINATIONS:
+
+  Best Entry Signal: 🟢 Strong Buy
+    Win Rate: 20.0%
+    Expectancy: -10.42%
+
+  Best Exit Signal: 💜 Momentum Exhaustion
+    Win Rate: 8.3%
+    Avg Return: -23.44%
+
+💡 RECOMMENDED STRATEGY:
+  Entry: 🟢 Strong Buy
+  Exit: 💜 Momentum Exhaustion
+  Combined Performance:
+    Trades: 3
+    Win Rate: 33.3%
+    Avg Return: +0.16%
+    Expectancy: +0.16%
+
+======================================================================
+
+📝 INTERPRETATION GUIDE:
+
+  Win Rate:
+    70%+ = Excellent
+    60-69% = Good
+    50-59% = Fair
+    <50% = Poor
+
+  Expectancy:
+    >2.0% = Excellent edge
+    1.0-2.0% = Good edge
+    0-1.0% = Marginal edge
+    <0% = Losing strategy
+
+  Profit Factor:
+    >2.0 = Strong system
+    1.5-2.0 = Good system
+    1.0-1.5 = Acceptable
+    <1.0 = Losing system
