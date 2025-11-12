@@ -1,0 +1,42 @@
+======================================================================
+MASSIVE.COM FILE LISTING
+======================================================================
+Generated: 2025-11-11 18:48:53
+Bucket: flatfiles
+Prefix: us_stocks_sip/day_aggs_v1/2025/11/
+======================================================================
+
+us_stocks_sip/day_aggs_v1/2025/11/2025-11-03.csv.gz
+  Size: 225,531 bytes (0.22 MB)
+  Modified: 2025-11-04 02:50:07.823000+00:00
+
+us_stocks_sip/day_aggs_v1/2025/11/2025-11-04.csv.gz
+  Size: 228,106 bytes (0.22 MB)
+  Modified: 2025-11-05 02:50:07.690000+00:00
+
+us_stocks_sip/day_aggs_v1/2025/11/2025-11-05.csv.gz
+  Size: 227,512 bytes (0.22 MB)
+  Modified: 2025-11-06 02:50:08.382000+00:00
+
+us_stocks_sip/day_aggs_v1/2025/11/2025-11-06.csv.gz
+  Size: 225,593 bytes (0.22 MB)
+  Modified: 2025-11-07 02:50:22.050000+00:00
+
+us_stocks_sip/day_aggs_v1/2025/11/2025-11-07.csv.gz
+  Size: 225,681 bytes (0.22 MB)
+  Modified: 2025-11-08 02:50:10.590000+00:00
+
+us_stocks_sip/day_aggs_v1/2025/11/2025-11-10.csv.gz
+  Size: 227,258 bytes (0.22 MB)
+  Modified: 2025-11-11 02:50:13.739000+00:00
+
+us_stocks_sip/day_aggs_v1/2025/11/2025-11-11.csv.gz
+  Size: 224,901 bytes (0.21 MB)
+  Modified: 2025-11-12 02:40:08.036000+00:00
+
+======================================================================
+SUMMARY
+======================================================================
+Total files: 7
+Total size: 1,584,582 bytes (1.51 MB)
+Average file size: 226,369 bytes

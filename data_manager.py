@@ -244,7 +244,7 @@ def normalize_period(period: str) -> str:
         logger.debug(f"Period normalized: {period} → {normalized}")
         return normalized
 
-def get_smart_data(ticker: str, period: str, interval: str = "1d", force_refresh: bool = False) -> pd.DataFrame:
+def get_smart_data(ticker: str, period: str, interval: str = "1d", force_refresh: bool = False, data_source: str = "yfinance") -> pd.DataFrame:
     """
     Smart data fetching with caching support.
     
@@ -253,6 +253,7 @@ def get_smart_data(ticker: str, period: str, interval: str = "1d", force_refresh
         period (str): Requested period (e.g., '6mo', '12mo')
         interval (str): Data interval ('1d', '1h', '30m', '15m', etc.)
         force_refresh (bool): If True, ignore cache and download fresh data
+        data_source (str): Data source to use ('yfinance' or 'massive')
         
     Returns:
         pd.DataFrame: Stock data with OHLCV columns
@@ -260,8 +261,28 @@ def get_smart_data(ticker: str, period: str, interval: str = "1d", force_refresh
     Raises:
         DataValidationError: If no valid data is available for the ticker
     """
-    with ErrorContext("smart data retrieval", ticker=ticker, period=period, interval=interval):
+    with ErrorContext("smart data retrieval", ticker=ticker, period=period, interval=interval, data_source=data_source):
         validate_ticker(ticker)
+    
+    # Handle Massive.com data source
+    if data_source == "massive":
+        if interval != "1d":
+            logger.warning(f"Massive.com only supports daily data. Interval '{interval}' not supported, falling back to yfinance")
+        else:
+            try:
+                from massive_data_provider import get_massive_daily_data
+                logger.info(f"Using Massive.com as data source for {ticker}")
+                df = get_massive_daily_data(ticker, period)
+                if not df.empty:
+                    # Save to cache with same format as yfinance
+                    save_to_cache(ticker, df, interval)
+                    return df
+                else:
+                    logger.warning(f"No data from Massive.com for {ticker}, falling back to yfinance")
+            except Exception as e:
+                logger.warning(f"Error fetching from Massive.com: {e}, falling back to yfinance")
+    
+    # Continue with yfinance (original logic)
     # Normalize the period first
     period = normalize_period(period)
     

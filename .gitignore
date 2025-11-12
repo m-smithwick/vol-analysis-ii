@@ -10,6 +10,8 @@ matt_backtest/
 
 # Data cache (local storage, should not be committed)
 data_cache/
+data_cache.bk/
+massive_cache/
 news_cache/
 sector_cache/
 

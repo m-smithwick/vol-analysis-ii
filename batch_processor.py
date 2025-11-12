@@ -36,6 +36,62 @@ STEALTH_DISPLAY = get_display_name('Stealth_Accumulation')
 MODERATE_DISPLAY = get_display_name('Moderate_Buy')
 PROFIT_DISPLAY = get_display_name('Profit_Taking')
 
+def check_data_staleness(results: List[Dict], warning_threshold_hours: int = 24) -> Dict[str, Any]:
+    """
+    Check if any tickers have stale data and return warning information.
+    
+    Args:
+        results (List[Dict]): Processed ticker results with filenames
+        warning_threshold_hours (int): Hours before data is considered stale (default: 24)
+        
+    Returns:
+        Dict[str, Any]: Dictionary with staleness information including:
+            - has_stale_data: Whether any stale data exists
+            - stale_count: Number of stale tickers
+            - stale_tickers: List of stale ticker details
+            - max_age_hours: Maximum age in hours
+    """
+    stale_tickers = []
+    max_age_hours = 0
+    
+    for result in results:
+        # Extract data end date from filename (e.g., NBIX_12mo_20241112_20251110_analysis.txt)
+        # Format: TICKER_PERIOD_STARTDATE_ENDDATE_analysis.txt
+        filename = result['filename']
+        parts = filename.split('_')
+        
+        if len(parts) >= 4:
+            try:
+                # Get the end date (4th part before _analysis.txt)
+                data_date_str = parts[3]  # e.g., "20251110"
+                data_date = datetime.strptime(data_date_str, '%Y%m%d')
+                
+                # Calculate age in hours
+                now = datetime.now()
+                age_hours = (now - data_date).total_seconds() / 3600
+                
+                if age_hours > warning_threshold_hours:
+                    stale_tickers.append({
+                        'ticker': result['ticker'],
+                        'data_date': data_date.strftime('%Y-%m-%d'),
+                        'age_hours': int(age_hours),
+                        'age_days': int(age_hours / 24)
+                    })
+                    max_age_hours = max(max_age_hours, age_hours)
+            except (ValueError, IndexError) as e:
+                # If we can't parse the date, skip this ticker
+                logger = get_logger()
+                logger.warning(f"Could not parse date from filename {filename}: {e}")
+                continue
+    
+    return {
+        'has_stale_data': len(stale_tickers) > 0,
+        'stale_count': len(stale_tickers),
+        'stale_tickers': stale_tickers,
+        'max_age_hours': int(max_age_hours),
+        'max_age_days': int(max_age_hours / 24) if max_age_hours > 0 else 0
+    }
+
 def calculate_batch_metrics(df: pd.DataFrame, account_value: float = 500000) -> Dict[str, Any]:
     """
     Calculate batch processing metrics using empirically validated thresholds.
@@ -192,6 +248,9 @@ def generate_html_summary(results: List[Dict], errors: List[Dict], period: str,
     normalized_backend = (chart_backend or 'matplotlib').lower()
     is_plotly_backend = normalized_backend == 'plotly'
     chart_extension = 'html' if is_plotly_backend else 'png'
+    
+    # Check for data staleness
+    staleness = check_data_staleness(results)
     
     # Filter for ACTIVE signals only, then sort by score
     active_moderate = [r for r in results if r['moderate_signal_active']]
@@ -428,7 +487,31 @@ def generate_html_summary(results: List[Dict], errors: List[Dict], period: str,
                 <h3>{len(active_stealth)}</h3>
                 <p>Active {stealth_display} Signals</p>
             </div>
-        </div>
+        </div>"""
+    
+    # Add data staleness warning banner if present
+    if staleness['has_stale_data']:
+        html_content += f"""
+        
+        <div style="background: #ff4444; color: white; padding: 20px; border-radius: 8px; margin-bottom: 30px; border-left: 6px solid #cc0000;">
+            <h2 style="margin: 0 0 10px 0; color: white;">⚠️ DATA STALENESS WARNING</h2>
+            <p style="margin: 5px 0; font-size: 1.1em;">
+                <strong>{staleness['stale_count']} tickers have data older than 24 hours</strong>
+            </p>
+            <p style="margin: 5px 0;">
+                Oldest data: {staleness['max_age_hours']} hours ({staleness['max_age_days']} days) old
+            </p>
+            <p style="margin: 10px 0 5px 0; font-weight: bold;">Stale Tickers:</p>
+            <ul style="margin: 5px 0;">"""
+        for ticker_info in staleness['stale_tickers'][:20]:  # Show up to 20 in HTML
+            html_content += f"<li>{ticker_info['ticker']}: {ticker_info['data_date']} ({ticker_info['age_days']}d old)</li>\n"
+        if len(staleness['stale_tickers']) > 20:
+            html_content += f"<li>... and {len(staleness['stale_tickers']) - 20} more stale tickers</li>\n"
+        html_content += """
+            </ul>
+        </div>"""
+    
+    html_content += """
         
         <div class="rankings">
             <div class="ranking-section">
@@ -784,10 +867,26 @@ def process_batch(ticker_file: str, period='12mo', output_dir='results_volume',
         active_stealth = [r for r in results if r['stealth_signal_active'] and r['stealth_exceeds_threshold']]
         sorted_stealth_results = sorted(active_stealth, key=lambda x: x['stealth_score'], reverse=True)
         
+        # Check for data staleness
+        staleness = check_data_staleness(results)
+        
         if verbose:
             print(f"\n📋 BATCH PROCESSING SUMMARY")
             print("="*60)
             print(f"✅ Successfully processed: {len(results)}/{len(tickers)} tickers")
+            
+            # Display data staleness warning prominently if present
+            if staleness['has_stale_data']:
+                print(f"\n⚠️  DATA STALENESS WARNING")
+                print("="*60)
+                print(f"🔴 {staleness['stale_count']} tickers have data older than 24 hours")
+                print(f"   Oldest data: {staleness['max_age_hours']} hours ({staleness['max_age_days']} days) old")
+                print(f"\n   Stale tickers:")
+                for ticker_info in staleness['stale_tickers'][:10]:  # Show first 10
+                    print(f"   • {ticker_info['ticker']}: {ticker_info['data_date']} ({ticker_info['age_days']}d old)")
+                if len(staleness['stale_tickers']) > 10:
+                    print(f"   ... and {len(staleness['stale_tickers']) - 10} more")
+                print()
             
             if errors:
                 print(f"❌ Errors: {len(errors)}")
@@ -880,6 +979,17 @@ def process_batch(ticker_file: str, period='12mo', output_dir='results_volume',
                 f.write(f"Total Tickers: {len(tickers)}\n")
                 f.write(f"Successfully Processed: {len(results)}\n")
                 f.write(f"Errors: {len(errors)}\n\n")
+                
+                # Add data staleness warning if present
+                if staleness['has_stale_data']:
+                    f.write("\n⚠️  DATA STALENESS WARNING\n")
+                    f.write("="*60 + "\n")
+                    f.write(f"🔴 {staleness['stale_count']} TICKERS HAVE STALE DATA (>24h old)\n")
+                    f.write(f"   Oldest data is {staleness['max_age_hours']} hours ({staleness['max_age_days']} days) old\n\n")
+                    f.write("   Stale tickers:\n")
+                    for ticker_info in staleness['stale_tickers']:
+                        f.write(f"   • {ticker_info['ticker']}: {ticker_info['data_date']} ({ticker_info['age_days']}d old)\n")
+                    f.write("\n" + "="*60 + "\n\n")
                 
                 if errors:
                     f.write("ERRORS:\n")

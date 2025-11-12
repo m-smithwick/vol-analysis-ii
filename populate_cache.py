@@ -12,7 +12,8 @@ def populate_cache_for_tickers(
     ticker_file: str,
     months: int = 36,
     interval: str = "1d",
-    force_refresh: bool = False
+    force_refresh: bool = False,
+    data_source: str = "yfinance"
 ):
     """
     Populate cache with historical data for all tickers in a file.
@@ -22,6 +23,7 @@ def populate_cache_for_tickers(
         months: Number of months of history to download
         interval: Data interval
         force_refresh: Redownload even if cached
+        data_source: Data source to use ('yfinance' or 'massive')
         
     Returns:
         Tuple of (success_count, fail_count)
@@ -30,7 +32,7 @@ def populate_cache_for_tickers(
     tickers = data_manager.read_ticker_file(ticker_file)
     
     logger.info(f"Populating cache for {len(tickers)} tickers from {ticker_file}")
-    logger.info(f"Period: {months} months ({months/12:.1f} years), Interval: {interval}")
+    logger.info(f"Period: {months} months ({months/12:.1f} years), Interval: {interval}, Data Source: {data_source}")
     
     # Calculate date range for checking coverage
     end_date = datetime.now()
@@ -46,6 +48,7 @@ def populate_cache_for_tickers(
     print(f"Tickers: {len(tickers)}")
     print(f"Period: {months} months (≈{months/12:.1f} years)")
     print(f"Interval: {interval}")
+    print(f"Data Source: {data_source}")
     print(f"Force Refresh: {force_refresh}")
     print(f"{'='*70}\n")
     
@@ -71,7 +74,8 @@ def populate_cache_for_tickers(
                 ticker=ticker,
                 period=f"{months}mo",
                 interval=interval,
-                force_refresh=force_refresh
+                force_refresh=force_refresh,
+                data_source=data_source
             )
             
             print(f"✓ Cached {len(df):4d} periods ({df.index[0].date()} to {df.index[-1].date()})")
@@ -99,7 +103,8 @@ def populate_cache_for_tickers(
 def populate_all_ticker_files(
     months: int = 36,
     interval: str = "1d",
-    force_refresh: bool = False
+    force_refresh: bool = False,
+    data_source: str = "yfinance"
 ):
     """
     Populate cache for all ticker files in the project.
@@ -108,13 +113,14 @@ def populate_all_ticker_files(
         months: Number of months of history
         interval: Data interval
         force_refresh: Force redownload
+        data_source: Data source to use ('yfinance' or 'massive')
     """
     import os
     
     # Find all .txt files in current directory (excluding documentation files)
     ticker_files = []
     # Known ticker files - being explicit to avoid documentation files
-    known_ticker_files = {'ibd.txt', 'ibd20.txt', 'ltl.txt', 'stocks.txt', 'cmb.txt', 'short.txt'}
+    known_ticker_files = {'ibd.txt', 'ibd20.txt', 'ltl.txt', 'stocks.txt', 'cmb.txt', 'short.txt', 'sector_etfs.txt'}
     
     for file in os.listdir('.'):
         if file.endswith('.txt') and file in known_ticker_files:
@@ -139,7 +145,8 @@ def populate_all_ticker_files(
             ticker_file=ticker_file,
             months=months,
             interval=interval,
-            force_refresh=force_refresh
+            force_refresh=force_refresh,
+            data_source=data_source
         )
         results[ticker_file] = (success, fail)
         total_success += success
@@ -165,14 +172,17 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  # Populate single file with 3 years of daily data
+  # Populate single file with 3 years of daily data (yfinance)
   python populate_cache.py -f ibd.txt -m 36
   
-  # Populate all ticker files
-  python populate_cache.py --all -m 36
+  # Populate all ticker files with 24 months from Massive.com
+  python populate_cache.py --all -m 24 --data-source massive
   
   # Force refresh even if cached
   python populate_cache.py -f stocks.txt -m 36 --force
+  
+  # Use Massive.com as data source
+  python populate_cache.py --all -m 24 --data-source massive
         """
     )
     
@@ -203,6 +213,12 @@ Examples:
         action='store_true',
         help='Force refresh even if already cached'
     )
+    parser.add_argument(
+        '--data-source',
+        choices=['yfinance', 'massive'],
+        default='yfinance',
+        help='Data source to use (default: yfinance, alternative: massive)'
+    )
     
     args = parser.parse_args()
     
@@ -211,14 +227,16 @@ Examples:
         populate_all_ticker_files(
             months=args.months,
             interval=args.interval,
-            force_refresh=args.force
+            force_refresh=args.force,
+            data_source=args.data_source
         )
     else:
         populate_cache_for_tickers(
             ticker_file=args.file,
             months=args.months,
             interval=args.interval,
-            force_refresh=args.force
+            force_refresh=args.force,
+            data_source=args.data_source
         )
 
 if __name__ == "__main__":

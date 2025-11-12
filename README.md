@@ -156,6 +156,42 @@ python vol_analysis.py AAPL --force-refresh
 python vol_analysis.py -f stocks.txt --force-refresh
 ```
 
+### Bulk Cache Population from Massive.com (NEW)
+
+**Efficient mass data retrieval** - Download 24 months of data for all tickers in ~8 minutes (40x faster than per-ticker approach).
+
+```bash
+# Populate cache with 1 month of data (test run)
+python populate_cache_bulk.py --months 1
+
+# Extend to 6 months (automatically skips already-cached dates)
+python populate_cache_bulk.py --months 6
+
+# Full 24 months of historical data
+python populate_cache_bulk.py --months 24
+
+# Specific date range
+python populate_cache_bulk.py --start 2024-01-01 --end 2024-12-31
+
+# Skip saving non-tracked tickers (faster, less storage)
+python populate_cache_bulk.py --months 12 --no-save-others
+```
+
+**Key Features:**
+- **40x Faster**: Downloads each daily file once (contains all US stocks), not once per ticker
+- **Sectional Population**: Build cache incrementally - extend 1 month to 6 months automatically
+- **Smart Deduplication**: Automatically skips already-cached dates, no redundant downloads
+- **Two-Tier Caching**: 
+  - `data_cache/` - Your tracked tickers (uncompressed, ready to use)
+  - `massive_cache/` - All other US stocks (compressed, for future use)
+
+**Performance:**
+- 1 month (~20 days): ~30 seconds
+- 6 months (~130 days): ~2 minutes  
+- 24 months (~500 days): ~8 minutes
+
+See [BULK_CACHE_POPULATION.md](BULK_CACHE_POPULATION.md) for comprehensive guide.
+
 ### Schema Management & Migration (NEW)
 ```bash
 # Check which cache files need migration
