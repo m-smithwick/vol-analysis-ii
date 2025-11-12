@@ -28,6 +28,7 @@ from sector_dashboard import (
     create_output_directory,
     format_score_visual,
     display_sector_detail,
+    display_recommendation_summary,
     display_allocation_summary,
     display_rotation_alerts,
     save_report,
@@ -187,6 +188,9 @@ def generate_dashboard_with_backtest(period: str = '3mo',
                 'points': 1,
                 'rank': i
             }
+    
+    # Add recommendation summary at the top
+    report_lines.append(display_recommendation_summary(sectors))
     
     # Display sectors
     display_sectors = sectors[:top_n] if top_n else sectors

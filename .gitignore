@@ -3,10 +3,15 @@ results/
 results_news/
 results_volume/
 backtest_results/
+monthly_reports/
+matt_output/
+matt_backtest/
+
 
 # Data cache (local storage, should not be committed)
 data_cache/
 news_cache/
+sector_cache/
 
 # macOS system files
 .DS_Store

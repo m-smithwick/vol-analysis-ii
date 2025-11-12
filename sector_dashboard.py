@@ -166,6 +166,52 @@ def display_sector_detail(sector_data: Dict) -> str:
     return "\n".join(lines)
 
 
+def display_recommendation_summary(sectors: List[Dict]) -> str:
+    """
+    Generate concise recommendation summary for all sectors.
+    
+    Args:
+        sectors: List of sector analysis dicts (sorted by score)
+        
+    Returns:
+        Formatted summary table
+    """
+    lines = []
+    lines.append("\n" + "=" * 80)
+    lines.append("📋 SECTOR RECOMMENDATION SUMMARY")
+    lines.append("=" * 80)
+    lines.append("\nQuick reference for all sector recommendations:\n")
+    
+    for sector in sectors:
+        ticker = sector['ticker']
+        sector_name = sector['sector']
+        score = sector['total_score']
+        recommendation = sector['recommendation']
+        allocation_range = sector['allocation_range']
+        
+        # Format allocation
+        if allocation_range[1] > 0:
+            alloc_str = f"{allocation_range[0]*100:.0f}-{allocation_range[1]*100:.0f}%"
+        else:
+            alloc_str = "0%"
+        
+        # Add visual indicator
+        if score >= 8:
+            indicator = "⭐"
+        elif score >= 6:
+            indicator = "→"
+        elif score >= 4:
+            indicator = "○"
+        else:
+            indicator = "⚠️"
+        
+        # Format line with proper spacing for alignment
+        line = f"{indicator} {ticker:5} ({sector_name:25}): {recommendation:15} | Allocation: {alloc_str:6} | Score: {score:2}/14"
+        lines.append(line)
+    
+    return "\n".join(lines)
+
+
 def display_allocation_summary(sectors: List[Dict]) -> str:
     """
     Generate portfolio allocation recommendations.
@@ -304,6 +350,9 @@ def generate_dashboard_report(period: str = '3mo',
     if not sectors:
         report_lines.append("\n❌ Failed to analyze sectors. Check data availability.")
         return "\n".join(report_lines)
+    
+    # Add recommendation summary at the top
+    report_lines.append(display_recommendation_summary(sectors))
     
     # Filter to top N if requested
     display_sectors = sectors[:top_n] if top_n else sectors
