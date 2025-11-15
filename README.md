@@ -103,6 +103,307 @@ pip install pandas numpy yfinance matplotlib argparse requests
 - Python 3.7 or higher required
 - Tested on Python 3.12
 
+---
+
+## 🚀 Getting Started - Complete Workflow
+
+This guide walks you through the complete workflow from initial setup to daily/monthly trading routines.
+
+### Initial Setup (One-Time, ~15 minutes)
+
+#### 1. Install Dependencies
+```bash
+pip install pandas numpy yfinance matplotlib boto3
+```
+
+#### 2. Configure Massive.com Credentials (Optional but Recommended)
+
+For 40x faster data downloads, configure your Massive.com credentials:
+
+```bash
+# Create or edit ~/.aws/credentials
+[massive]
+aws_access_key_id = your-key-id
+aws_secret_access_key = your-secret-key
+```
+
+#### 3. Test Connection
+```bash
+python test_massive_bulk_single_day.py
+```
+
+**Expected output**: ✅ Successfully downloaded and parsed test file
+
+---
+
+### Step 1: Populate Historical Cache (~10 minutes)
+
+**Goal**: Download 24 months of historical data for all your tickers
+
+```bash
+# Start conservative (test run - 30 seconds)
+python populate_cache_bulk.py --months 1
+
+# Expand to full dataset (8 minutes)
+python populate_cache_bulk.py --months 24
+```
+
+**What happens**: 
+- Downloads daily files from Massive.com containing ALL US stocks
+- Splits data by your tracked tickers
+- Caches in `data_cache/` directory (uncompressed, ready to use)
+- Optionally saves other tickers in `massive_cache/` (compressed archive)
+
+**Storage**: ~135 MB for 24 months + 53 tickers
+
+**Key Advantage**: Extends automatically - if interrupted, just re-run and it skips already-cached dates
+
+---
+
+### Step 2: Organize Your Ticker Lists (5 minutes)
+
+Create ticker files (one ticker per line) to organize your watchlists:
+
+```bash
+# Your core watchlist (10-20 stocks you monitor closely)
+cat > stocks.txt << EOF
+AAPL
+MSFT
+GOOGL
+NVDA
+TSLA
+EOF
+
+# IBD stocks (if you follow IBD 50/85)
+# Edit ibd.txt and ibd20.txt
+
+# Sector ETFs (already provided)
+# sector_etfs.txt contains 11 sector ETFs (XLK, XLV, XLF, etc.)
+```
+
+**File Organization Tips**:
+- `stocks.txt` - Your core watchlist (10-20 stocks)
+- `ibd.txt` - IBD 50/85 stocks for rotation scanning
+- `sector_etfs.txt` - 11 sector ETFs (provided)
+- Comments allowed: Lines starting with `#` are ignored
+
+---
+
+### Step 3: Validate Strategy with Backtesting (~30 minutes)
+
+**Goal**: Understand which entry/exit signals work best for your stocks
+
+```bash
+# Test your core watchlist (10 min)
+python batch_backtest.py -f stocks.txt -p 12mo
+
+# Test IBD stocks (15 min)
+python batch_backtest.py -f ibd.txt -p 12mo
+
+# Review aggregate report
+# Location: backtest_results/AGGREGATE_optimization_12mo_*.txt
+```
+
+**What to look for in the report**:
+- ✅ **Moderate Buy** win rate (should be 60-65%)
+- ✅ Positive expectancy (+2-3% per trade)
+- ✅ Profit factor >2.0
+- ⚠️ Sample size (need 50+ trades for reliability)
+
+**Key Takeaway**: This shows you which signals are profitable with YOUR stocks in YOUR timeframe
+
+---
+
+### Step 4: Initial Stock Analysis (15 minutes)
+
+Analyze individual stocks to understand current signals:
+
+```bash
+# Single ticker deep dive
+python vol_analysis.py AAPL -p 6mo
+
+# Batch analysis with charts (saves HTML files)
+python vol_analysis.py -f stocks.txt -p 6mo --save-charts
+```
+
+**Review checklist**:
+- [ ] Current entry score (look for 5-7 range for Moderate Buy)
+- [ ] Active signals (any 🟡 yellow dots recently?)
+- [ ] Exit score (should be <4 for healthy positions)
+- [ ] Swing structure (is stock near support?)
+
+---
+
+### Daily Routine (10-15 minutes)
+
+**Monday-Friday Morning Routine**:
+
+```bash
+# 1. Check sector strength (2 min)
+python sector_dashboard.py --compare --top 5
+
+# 2. Update cache with latest data (1 min)
+python populate_cache_bulk.py --months 25  # Extends by 1 month
+
+# 3. Scan watchlist for new signals (5-10 min)
+python vol_analysis.py -f stocks.txt -p 3mo --save-charts
+
+# 4. Review charts for new opportunities
+# Location: results/*.html or results/*.png
+```
+
+**Decision Framework** (based on sector score):
+
+| Top Sector Score | Your Action | Position Size | Entry Criteria |
+|-----------------|-------------|---------------|----------------|
+| **≥8/14** | Trade aggressively | 100% | Enter all Moderate Buy signals |
+| **6-7/14** | Trade normally | 75-90% | Enter best Moderate Buy setups |
+| **4-5/14** | Trade defensively | 50-75% | Only exceptional setups |
+| **≤3/14** | Hold cash | 0-25% | Avoid new entries |
+
+**Signal Priority**:
+1. ✅ Look for **🟡 Moderate Buy** signals (validated, 64.6% win rate)
+2. ✅ Confirm stock's sector scores ≥6/14
+3. ✅ Check position near support + above VWAP
+4. ✅ Monitor existing positions for exit signals (🟠⚠️🔴)
+
+---
+
+### Monthly Routine (30-45 minutes)
+
+**First Sunday of Each Month**:
+
+```bash
+# 1. Full sector analysis with backtesting (10 min)
+python sector_dashboard_with_backtest.py -p 6mo --compare -o monthly_reports
+
+# 2. Review sector rotation alerts
+# Check for sectors with >3 point changes
+
+# 3. Rebalance portfolio based on sector scores
+# - Reduce sectors that dropped >3 points
+# - Increase sectors that rose >3 points  
+# - Exit positions in sectors scoring <4/14
+
+# 4. Re-validate backtest with fresh data (15 min)
+python batch_backtest.py -f stocks.txt -p 12mo -o monthly_backtest
+
+# 5. Update ticker lists based on performance
+# - Remove underperformers (negative expectancy)
+# - Add new stocks from leading sectors
+
+# 6. Extend historical cache (5 min)
+python populate_cache_bulk.py --months 25
+```
+
+**Portfolio Review Checklist**:
+- [ ] Are current holdings in sectors scoring ≥6/14?
+- [ ] Any rotation alerts requiring action?
+- [ ] Any positions showing Distribution Warning or Sell signals?
+- [ ] New opportunities in leading sectors?
+- [ ] Backtest results still positive for strategy?
+
+---
+
+### Quarterly Deep Dive (1-2 hours)
+
+**Comprehensive Strategy Validation**:
+
+```bash
+# 1. Full 24-month backtest
+python batch_backtest.py -f stocks.txt -p 24mo
+
+# 2. Walk-forward threshold validation  
+python vol_analysis.py AAPL -p 24mo --validate-thresholds
+
+# 3. Long-term sector analysis
+python sector_dashboard_with_backtest.py -p 12mo --compare
+
+# 4. Review and refine strategy based on results
+```
+
+**Questions to answer**:
+- Is my win rate maintaining 60-65% on Moderate Buy?
+- Is expectancy still positive (+2-3%)?
+- Which sectors have been most profitable?
+- Any signals consistently underperforming?
+
+---
+
+### Adding New Tickers (5 minutes)
+
+**When you discover a new stock to track**:
+
+```bash
+# 1. Add to appropriate ticker file
+echo "NVDA" >> stocks.txt
+
+# 2. Populate cache for new ticker (8 min for 24 months)
+python populate_cache_bulk.py --months 24
+
+# Result: Only downloads NVDA data
+# (existing tickers automatically skipped due to smart deduplication)
+```
+
+**Alternative** (if you saved `massive_cache/`):
+- Extract ticker from compressed archive (instant, zero downloads)
+- Requires custom extraction script (see BULK_CACHE_POPULATION.md)
+
+---
+
+### Quick Reference Commands
+
+**Most Common Daily/Weekly Commands**:
+
+```bash
+# Daily quick scan
+python vol_analysis.py -f stocks.txt -p 3mo --save-charts
+
+# Weekly sector check  
+python sector_dashboard.py --compare --top 5
+
+# Monthly full sector analysis
+python sector_dashboard_with_backtest.py -p 6mo --compare -o monthly_reports
+
+# Add new ticker
+echo "TICKER" >> stocks.txt && python populate_cache_bulk.py --months 24
+
+# Backtest validation
+python batch_backtest.py -f stocks.txt -p 12mo
+
+# Single stock deep dive
+python vol_analysis.py AAPL -p 6mo --backtest
+```
+
+**Cache Management**:
+```bash
+# View cache info
+python vol_analysis.py --cache-info
+
+# Clear specific ticker
+python vol_analysis.py --clear-cache AAPL
+
+# Force fresh download
+python vol_analysis.py AAPL --force-refresh
+```
+
+---
+
+### Time Investment Summary
+
+| Activity | Frequency | Time Required |
+|----------|-----------|---------------|
+| Initial setup | One-time | 15 minutes |
+| Cache population | One-time | 10 minutes |
+| Daily routine | Mon-Fri | 10-15 minutes |
+| Weekly sector check | Monday | 2 minutes |
+| Monthly analysis | First Sunday | 30-45 minutes |
+| Quarterly deep dive | Quarterly | 1-2 hours |
+
+**Total weekly commitment**: ~1 hour (50-75 min daily + 30-45 min monthly spread)
+
+---
+
 ## 🔧 Usage
 
 ### Basic Usage
@@ -266,7 +567,7 @@ python batch_backtest.py -f stocks.txt
 python batch_backtest.py -f watchlist.txt -p 6mo
 
 # Custom output directory
-python batch_backtest.py -f matt.txt -p 12mo -o matt_backtest
+python batch_backtest.py -f cmb.txt -p 24mo -o backtest_results
 
 # Risk-managed batch backtesting (Item #5)
 python batch_backtest.py -f stocks.txt --risk-managed

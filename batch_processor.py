@@ -726,7 +726,7 @@ def read_ticker_file(filepath: str) -> List[str]:
 
 def process_batch(ticker_file: str, period='12mo', output_dir='results_volume', 
                  save_charts=False, generate_html=True, verbose=True,
-                 chart_backend: str = 'matplotlib'):
+                 chart_backend: str = 'matplotlib', data_source: str = 'yfinance'):
     """
     Process multiple tickers from a file and save individual analysis reports.
     
@@ -738,6 +738,7 @@ def process_batch(ticker_file: str, period='12mo', output_dir='results_volume',
         generate_html (bool): Whether to generate interactive HTML summary
         verbose (bool): Print progress output during batch processing
         chart_backend (str): Chart engine ('matplotlib' PNG or 'plotly' HTML) passed to analyze_ticker
+        data_source (str): Data source to use ('yfinance' or 'massive')
         
     Raises:
         DataValidationError: If input parameters are invalid
@@ -810,7 +811,8 @@ def process_batch(ticker_file: str, period='12mo', output_dir='results_volume',
                     show_chart=False,  # Don't display charts interactively in batch mode
                     show_summary=False,  # Don't print verbose summaries in batch mode
                     debug=verbose,
-                    chart_backend=chart_backend
+                    chart_backend=chart_backend,
+                    data_source=data_source
                 )
                 
                 if isinstance(result, tuple):

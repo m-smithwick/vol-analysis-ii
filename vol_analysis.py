@@ -17,6 +17,9 @@ from error_handler import (
     validate_file_path, safe_operation, get_logger, setup_logging
 )
 
+# Import data manager for smart data retrieval with multiple sources
+from data_manager import get_smart_data
+
 # Allow imports from the sibling charts project (../charts) if it exists.
 PROJECT_ROOT = Path(__file__).resolve().parent
 EXTERNAL_CHARTS_DIR = PROJECT_ROOT.parent / "charts"
@@ -268,211 +271,6 @@ def append_to_cache(ticker: str, new_data: pd.DataFrame) -> None:
         except Exception as e:
             raise CacheError(f"Failed to append to cache for {ticker}: {str(e)}")
 
-def normalize_period(period: str) -> str:
-    """
-    Normalize period parameter to ensure compatibility with yfinance.
-    Converts user-friendly periods to yfinance-compatible format.
-    
-    Args:
-        period (str): User input period
-        
-    Returns:
-        str: Normalized period compatible with yfinance
-    """
-    # Period mapping for common user inputs
-    period_mapping = {
-        '1yr': '12mo',
-        '2yr': '24mo', 
-        '3yr': '36mo',
-        '5yr': '60mo',
-        '10yr': '120mo',
-        '1y': '12mo',
-        '2y': '24mo',
-        '5y': '60mo',
-        '10y': '120mo'
-    }
-    
-    normalized = period_mapping.get(period.lower(), period)
-    print(f"📅 Period normalized: {period} → {normalized}")
-    return normalized
-
-def get_smart_data(ticker: str, period: str, force_refresh: bool = False) -> pd.DataFrame:
-    """
-    Smart data fetching with caching support.
-    
-    Args:
-        ticker (str): Stock symbol
-        period (str): Requested period (e.g., '6mo', '12mo')
-        force_refresh (bool): If True, ignore cache and download fresh data
-        
-    Returns:
-        pd.DataFrame: Stock data with OHLCV columns
-        
-    Raises:
-        DataValidationError: If ticker or period is invalid
-        DataDownloadError: If data cannot be downloaded from Yahoo Finance
-        CacheError: If cache operations fail
-    """
-    with ErrorContext("smart data fetching", ticker=ticker, period=period, force_refresh=force_refresh):
-        # Validate inputs
-        validate_ticker(ticker)
-        validate_period(period)
-        
-        logger = get_logger()
-        
-        # Normalize the period first
-        period = normalize_period(period)
-        
-        # Convert period to days for calculations
-        period_days = {
-            '1d': 1, '5d': 5, '1mo': 30, '3mo': 90, '6mo': 180, 
-            '12mo': 365, '24mo': 730, '36mo': 1095, '60mo': 1825, '120mo': 3650, 
-            'ytd': 365, 'max': 7300
-        }
-        
-        requested_days = period_days.get(period, 365)
-        cutoff_date = datetime.now() - timedelta(days=requested_days)
-        
-        def download_and_validate_data(download_period=None, start_date=None):
-            """Helper function to download and validate data from Yahoo Finance."""
-            try:
-                if start_date:
-                    logger.info(f"Downloading data for {ticker} from {start_date}")
-                    df = yf.download(ticker, start=start_date, interval='1d', auto_adjust=True)
-                else:
-                    logger.info(f"Downloading {download_period or period} data for {ticker}")
-                    df = yf.download(ticker, period=download_period or period, interval='1d', auto_adjust=True)
-                
-                # Handle MultiIndex columns from yfinance
-                if isinstance(df.columns, pd.MultiIndex):
-                    df.columns = df.columns.droplevel(1)
-                
-                # Clean the data
-                df.dropna(inplace=True)
-                
-                # Validate downloaded data
-                if df.empty:
-                    raise DataDownloadError(f"No data available for {ticker} (possibly delisted or invalid symbol)")
-                
-                # Validate required columns are present
-                validate_dataframe(df, required_columns=['Open', 'High', 'Low', 'Close', 'Volume'])
-                
-                logger.info(f"Successfully downloaded {len(df)} days of data for {ticker}")
-                return df
-                
-            except Exception as e:
-                if "No data available" in str(e) or "possibly delisted" in str(e):
-                    raise DataDownloadError(f"No data available for {ticker}: {str(e)}")
-                else:
-                    raise DataDownloadError(f"Failed to download data for {ticker}: {str(e)}")
-        
-        if force_refresh:
-            logger.info(f"Force refresh enabled - downloading fresh data for {ticker}")
-            df = download_and_validate_data()
-            
-            # Cache the downloaded data
-            try:
-                save_to_cache(ticker, df)
-            except CacheError as e:
-                # Log cache error but don't fail the operation
-                logger.warning(f"Failed to cache data for {ticker}: {e}")
-            
-            return df
-        
-        # Try to load cached data
-        try:
-            cached_df = load_cached_data(ticker)
-        except CacheError as e:
-            # If cache is corrupted, proceed with fresh download
-            logger.warning(f"Cache error for {ticker}: {e}. Proceeding with fresh download.")
-            cached_df = None
-        
-        if cached_df is None:
-            # No cache exists - download full period
-            logger.info(f"No cache found for {ticker} - downloading {period} data from Yahoo Finance")
-            df = download_and_validate_data()
-            
-            # Cache the downloaded data
-            try:
-                save_to_cache(ticker, df)
-            except CacheError as e:
-                # Log cache error but don't fail the operation
-                logger.warning(f"Failed to cache data for {ticker}: {e}")
-            
-            return df
-        
-        # Check if cached data covers the requested period
-        cache_start_date = cached_df.index[0]
-        cache_end_date = cached_df.index[-1]
-        
-        # Check if we need to download more recent data
-        today = datetime.now().date()
-        last_cached_date = cache_end_date.date()
-        days_behind = (today - last_cached_date).days
-        
-        # Check if cache goes back far enough to cover requested period
-        if cache_start_date > cutoff_date:
-            logger.warning(f"Cache only goes back to {cache_start_date.date()}, but need data from {cutoff_date.date()}")
-            logger.info(f"Downloading full {period} period for {ticker}...")
-            
-            # Download full period
-            df = download_and_validate_data()
-            
-            # Update cache with full period data
-            try:
-                save_to_cache(ticker, df)
-            except CacheError as e:
-                # Log cache error but don't fail the operation
-                logger.warning(f"Failed to update cache for {ticker}: {e}")
-            
-            return df
-        
-        if days_behind <= 1:
-            # Cache is up to date (within 1 day) and covers the full period
-            logger.info(f"Cache is current for {ticker} - using cached data")
-            # Filter cached data to requested period if needed
-            filtered_df = cached_df[cached_df.index >= cutoff_date] if cutoff_date > cache_start_date else cached_df
-            return filtered_df
-        
-        # Need to download recent data
-        logger.info(f"Cache is {days_behind} days behind - downloading recent data for {ticker}")
-        
-        # Download from day after last cached date to today
-        start_date = (cache_end_date + timedelta(days=1)).strftime('%Y-%m-%d')
-        
-        try:
-            new_data = download_and_validate_data(start_date=start_date)
-            
-            # Append new data to cache
-            try:
-                append_to_cache(ticker, new_data)
-                
-                # Combine cached and new data
-                combined_df = pd.concat([cached_df, new_data])
-                combined_df = combined_df[~combined_df.index.duplicated(keep='last')]  # Remove any duplicates
-                combined_df.sort_index(inplace=True)
-                
-                # Update the cache with the complete dataset
-                save_to_cache(ticker, combined_df)
-                
-                # Filter to requested period
-                filtered_df = combined_df[combined_df.index >= cutoff_date] if cutoff_date > combined_df.index[0] else combined_df
-                return filtered_df
-                
-            except CacheError as e:
-                # If cache operations fail, return combined data without caching
-                logger.warning(f"Failed to update cache for {ticker}: {e}")
-                combined_df = pd.concat([cached_df, new_data])
-                combined_df = combined_df[~combined_df.index.duplicated(keep='last')]
-                combined_df.sort_index(inplace=True)
-                filtered_df = combined_df[combined_df.index >= cutoff_date] if cutoff_date > combined_df.index[0] else combined_df
-                return filtered_df
-                
-        except DataDownloadError as e:
-            logger.warning(f"No new data available for {ticker}: {e}")
-            # Return existing cached data
-            filtered_df = cached_df[cached_df.index >= cutoff_date] if cutoff_date > cache_start_date else cached_df
-            return filtered_df
 
 def clear_cache(ticker: str = None) -> None:
     """
@@ -691,7 +489,7 @@ def generate_analysis_text(ticker: str, df: pd.DataFrame, period: str) -> str:
 
 def analyze_ticker(ticker: str, period='6mo', save_to_file=False, output_dir='.', save_chart=False,
                    force_refresh=False, show_chart=True, show_summary=True, debug=False,
-                   chart_backend: str = 'matplotlib'):
+                   chart_backend: str = 'matplotlib', data_source: str = 'yfinance'):
     """
     Retrieve and analyze price-volume data for a given ticker symbol.
     
@@ -706,6 +504,7 @@ def analyze_ticker(ticker: str, period='6mo', save_to_file=False, output_dir='.'
         show_summary (bool): Whether to print detailed summary output (default: True)
         debug (bool): Enable additional progress prints when saving artifacts
         chart_backend (str): Chart engine to use ('matplotlib' for PNG, 'plotly' for interactive HTML)
+        data_source (str): Data source to use ('yfinance' or 'massive')
         
     Raises:
         DataValidationError: If ticker or period is invalid
@@ -725,8 +524,8 @@ def analyze_ticker(ticker: str, period='6mo', save_to_file=False, output_dir='.'
         
         # --- Retrieve Data with Smart Caching ---
         try:
-            df = get_smart_data(ticker, period, force_refresh=force_refresh)
-            logger.info(f"Retrieved {len(df)} days of data for {ticker} ({period})")
+            df = get_smart_data(ticker, period, interval='1d', force_refresh=force_refresh, data_source=data_source)
+            logger.info(f"Retrieved {len(df)} days of data for {ticker} ({period}) from {data_source}")
         except (DataValidationError, DataDownloadError, CacheError) as e:
             # Re-raise specific error handling exceptions
             raise e
@@ -1292,6 +1091,13 @@ Note: Legacy periods (1y, 2y, 5y, etc.) are automatically converted to month equ
     )
     
     parser.add_argument(
+        '--data-source',
+        choices=['yfinance', 'massive'],
+        default='yfinance',
+        help='Data source to use: yfinance (default) or massive (Massive.com flat files)'
+    )
+    
+    parser.add_argument(
         '--multi',
         action='store_true',
         help='Run multi-timeframe analysis instead of single period (single ticker mode only)'
@@ -1374,7 +1180,8 @@ Note: Legacy periods (1y, 2y, 5y, etc.) are automatically converted to month equ
                 output_dir=args.output_dir,
                 save_charts=args.save_charts,
                 chart_backend=args.chart_backend,
-                verbose=args.debug
+                verbose=args.debug,
+                data_source=args.data_source
             )
             if args.debug:
                 print(f"\n✅ Batch processing complete!")
@@ -1396,7 +1203,8 @@ Note: Legacy periods (1y, 2y, 5y, etc.) are automatically converted to month equ
                     show_chart=not args.backtest,  # Hide chart when backtesting
                     show_summary=not args.backtest,  # Hide verbose summary when backtesting
                     debug=args.debug,
-                    chart_backend=args.chart_backend
+                    chart_backend=args.chart_backend,
+                    data_source=args.data_source
                 )
                 
                 # Run backtest if requested (risk-managed is now default)
