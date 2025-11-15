@@ -20,14 +20,6 @@ from error_handler import (
 # Import data manager for smart data retrieval with multiple sources
 from data_manager import get_smart_data
 
-# Allow imports from the sibling charts project (../charts) if it exists.
-PROJECT_ROOT = Path(__file__).resolve().parent
-EXTERNAL_CHARTS_DIR = PROJECT_ROOT.parent / "charts"
-if EXTERNAL_CHARTS_DIR.exists():
-    charts_path = str(EXTERNAL_CHARTS_DIR)
-    if charts_path not in sys.path:
-        sys.path.append(charts_path)
-
 # Import backtest module if available
 try:
     import backtest
@@ -87,7 +79,7 @@ def resolve_chart_engine(chart_backend: str = 'matplotlib'):
         except ModuleNotFoundError as exc:
             raise ImportError(
                 "Plotly chart backend not available. "
-                "Ensure ../charts is accessible and Plotly dependencies are installed."
+                "Ensure chart_builder_plotly.py is in the current directory and Plotly dependencies are installed."
             ) from exc
     
     return chart_builder.generate_analysis_chart, 'png'
@@ -1087,7 +1079,7 @@ Note: Legacy periods (1y, 2y, 5y, etc.) are automatically converted to month equ
         '--chart-backend',
         choices=['matplotlib', 'plotly'],
         default='matplotlib',
-        help='Select chart renderer: matplotlib (PNG) or plotly (interactive HTML in ../charts)'
+        help='Select chart renderer: matplotlib (PNG) or plotly (interactive HTML)'
     )
     
     parser.add_argument(

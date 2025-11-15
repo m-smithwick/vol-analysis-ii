@@ -938,7 +938,7 @@ All files are saved to the `results/` directory by default.
 
 **Chart Files** (when `--save-charts` used): `{TICKER}_{PERIOD}_{STARTDATE}_{ENDDATE}_chart.<ext>`
 - `ext = png` when `--chart-backend matplotlib` (static image)
-- `ext = html` when `--chart-backend plotly` (interactive chart from `../charts`)
+- `ext = html` when `--chart-backend plotly` (interactive chart)
 - Example: `results/AAPL_6mo_20240404_20241003_chart.html`
 
 **Summary Report**: `batch_summary_{PERIOD}_{TIMESTAMP}.txt`
