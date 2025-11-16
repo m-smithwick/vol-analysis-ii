@@ -34,276 +34,6 @@ import swing_structure
 import indicators
 
 
-class VariableStopRiskManager(RiskManager):
-    """
-    Extended RiskManager that implements variable stop loss strategies.
-    
-    This class inherits from RiskManager and adds variable stop calculation
-    methods without modifying the base class. Each strategy can be tested
-    independently.
-    """
-    
-    def __init__(self, account_value: float, risk_pct_per_trade: float = 0.75, 
-                 stop_strategy: str = 'static'):
-        """
-        Initialize with specific stop loss strategy.
-        
-        Args:
-            account_value: Total account equity
-            risk_pct_per_trade: Risk percentage per trade
-            stop_strategy: 'static', 'atr_dynamic', 'pct_trail', 'vol_regime', 'time_decay'
-        """
-        super().__init__(account_value, risk_pct_per_trade)
-        self.stop_strategy = stop_strategy
-        
-        # Strategy-specific parameters (fixed for testing)
-        self.params = {
-            'atr_dynamic': {
-                'multiplier': 2.0,
-                'min_multiplier': 1.5,
-                'max_multiplier': 3.0
-            },
-            'pct_trail': {
-                'trail_pct': 8.0,  # 8% trail
-                'activation_r': 1.0  # Activate after +1R
-            },
-            'vol_regime': {
-                'low_vol_threshold': -0.5,
-                'high_vol_threshold': 0.5,
-                'low_vol_mult': 1.5,
-                'normal_vol_mult': 2.0,
-                'high_vol_mult': 2.5
-            },
-            'time_decay': {
-                'initial_mult': 2.5,
-                'day_5_mult': 2.5,
-                'day_10_mult': 2.0,
-                'day_15_mult': 1.5
-            }
-        }
-    
-    def calculate_variable_stop(
-        self, 
-        ticker: str, 
-        df: pd.DataFrame, 
-        current_idx: int
-    ) -> float:
-        """
-        Calculate variable stop based on selected strategy.
-        
-        Args:
-            ticker: Stock symbol
-            df: DataFrame with price and indicator data
-            current_idx: Current bar index
-            
-        Returns:
-            Updated stop price
-        """
-        if ticker not in self.active_positions:
-            return None
-        
-        pos = self.active_positions[ticker]
-        current_price = df.iloc[current_idx]['Close']
-        
-        # Get strategy
-        if self.stop_strategy == 'static':
-            # Use original static stop
-            return pos['stop_price']
-        
-        elif self.stop_strategy == 'atr_dynamic':
-            return self._calculate_atr_dynamic_stop(pos, df, current_idx, current_price)
-        
-        elif self.stop_strategy == 'pct_trail':
-            return self._calculate_pct_trail_stop(pos, df, current_idx, current_price)
-        
-        elif self.stop_strategy == 'vol_regime':
-            return self._calculate_vol_regime_stop(pos, df, current_idx, current_price)
-        
-        elif self.stop_strategy == 'time_decay':
-            return self._calculate_time_decay_stop(pos, df, current_idx, current_price)
-        
-        else:
-            # Unknown strategy, use static
-            return pos['stop_price']
-    
-    def _calculate_atr_dynamic_stop(
-        self, 
-        pos: Dict, 
-        df: pd.DataFrame, 
-        current_idx: int,
-        current_price: float
-    ) -> float:
-        """
-        ATR-based dynamic stop: Adjusts based on current ATR.
-        
-        Stop = entry_price - (current_ATR * multiplier)
-        Clamped between min/max multipliers
-        """
-        params = self.params['atr_dynamic']
-        
-        current_atr = df.iloc[current_idx]['ATR20']
-        
-        # Calculate stop using current ATR
-        multiplier = params['multiplier']
-        stop = pos['entry_price'] - (current_atr * multiplier)
-        
-        # Apply min/max constraints
-        max_stop = pos['entry_price'] - (current_atr * params['min_multiplier'])
-        min_stop = pos['entry_price'] - (current_atr * params['max_multiplier'])
-        
-        stop = max(min_stop, min(stop, max_stop))
-        
-        # Never lower the stop (only raise it)
-        stop = max(stop, pos['stop_price'])
-        
-        return stop
-    
-    def _calculate_pct_trail_stop(
-        self, 
-        pos: Dict, 
-        df: pd.DataFrame, 
-        current_idx: int,
-        current_price: float
-    ) -> float:
-        """
-        Percentage-based trailing stop: Fixed % below peak price.
-        
-        Activates after reaching activation_r profit level.
-        Stop = peak_price * (1 - trail_pct/100)
-        """
-        params = self.params['pct_trail']
-        
-        # Check if activated
-        r_multiple = pos['current_r_multiple']
-        
-        if r_multiple < params['activation_r']:
-            # Not activated yet, use initial stop
-            return pos['stop_price']
-        
-        # Calculate trail from peak
-        if 'peak_price' not in pos:
-            pos['peak_price'] = pos['entry_price']
-        
-        pos['peak_price'] = max(pos['peak_price'], current_price)
-        
-        trail_stop = pos['peak_price'] * (1 - params['trail_pct'] / 100)
-        
-        # Never lower the stop
-        trail_stop = max(trail_stop, pos['stop_price'])
-        
-        return trail_stop
-    
-    def _calculate_vol_regime_stop(
-        self, 
-        pos: Dict, 
-        df: pd.DataFrame, 
-        current_idx: int,
-        current_price: float
-    ) -> float:
-        """
-        Volatility regime-adjusted stop: Uses ATR_Z to determine regime.
-        
-        Low vol (ATR_Z < -0.5): Tighter stop (1.5 ATR)
-        Normal vol: Standard stop (2.0 ATR)
-        High vol (ATR_Z > 0.5): Wider stop (2.5 ATR)
-        """
-        params = self.params['vol_regime']
-        
-        # Get current ATR and ATR_Z
-        current_atr = df.iloc[current_idx]['ATR20']
-        atr_z = df.iloc[current_idx].get('ATR_Z', 0)
-        
-        # Determine regime and multiplier
-        if atr_z < params['low_vol_threshold']:
-            multiplier = params['low_vol_mult']
-        elif atr_z > params['high_vol_threshold']:
-            multiplier = params['high_vol_mult']
-        else:
-            multiplier = params['normal_vol_mult']
-        
-        # Calculate stop
-        stop = pos['entry_price'] - (current_atr * multiplier)
-        
-        # Never lower the stop
-        stop = max(stop, pos['stop_price'])
-        
-        return stop
-    
-    def _calculate_time_decay_stop(
-        self, 
-        pos: Dict, 
-        df: pd.DataFrame, 
-        current_idx: int,
-        current_price: float
-    ) -> float:
-        """
-        Time-decay stop: Gradually tightens as position ages.
-        
-        Days 1-5: 2.5 ATR
-        Days 6-10: 2.0 ATR
-        Days 11+: 1.5 ATR
-        """
-        params = self.params['time_decay']
-        
-        bars_in_trade = pos['bars_in_trade']
-        current_atr = df.iloc[current_idx]['ATR20']
-        
-        # Determine multiplier based on time in trade
-        if bars_in_trade <= 5:
-            multiplier = params['day_5_mult']
-        elif bars_in_trade <= 10:
-            # Linear interpolation between day 5 and day 10
-            progress = (bars_in_trade - 5) / 5
-            multiplier = params['day_5_mult'] + progress * (params['day_10_mult'] - params['day_5_mult'])
-        elif bars_in_trade <= 15:
-            # Linear interpolation between day 10 and day 15
-            progress = (bars_in_trade - 10) / 5
-            multiplier = params['day_10_mult'] + progress * (params['day_15_mult'] - params['day_10_mult'])
-        else:
-            multiplier = params['day_15_mult']
-        
-        # Calculate stop
-        stop = pos['entry_price'] - (current_atr * multiplier)
-        
-        # Never lower the stop
-        stop = max(stop, pos['stop_price'])
-        
-        return stop
-    
-    def update_position_with_variable_stop(
-        self, 
-        ticker: str, 
-        current_date: pd.Timestamp, 
-        current_price: float, 
-        df: pd.DataFrame, 
-        current_idx: int
-    ) -> Dict:
-        """
-        Update position with variable stop loss calculation.
-        
-        This wraps the parent update_position and adds variable stop logic.
-        """
-        # First, update position using parent class
-        exit_signals = self.update_position(
-            ticker, current_date, current_price, df, current_idx
-        )
-        
-        # If position still active and not on entry bar, update stop
-        if ticker in self.active_positions and self.active_positions[ticker]['bars_in_trade'] > 0:
-            new_stop = self.calculate_variable_stop(ticker, df, current_idx)
-            
-            if new_stop is not None:
-                # Update position's stop price
-                self.active_positions[ticker]['stop_price'] = new_stop
-                
-                # Re-check if new stop was hit
-                if current_price < new_stop:
-                    exit_signals['should_exit'] = True
-                    exit_signals['exit_type'] = f'{self.stop_strategy.upper()}_STOP'
-                    exit_signals['exit_price'] = current_price
-                    exit_signals['reason'] = f"Variable stop ({self.stop_strategy}) hit at {new_stop:.2f}"
-        
-        return exit_signals
 
 
 def run_strategy_backtest(
@@ -312,7 +42,7 @@ def run_strategy_backtest(
     strategy: str,
     account_value: float = 100000,
     risk_pct: float = 0.75
-) -> Tuple[List[Dict], VariableStopRiskManager]:
+) -> Tuple[List[Dict], RiskManager]:
     """
     Run backtest with specific variable stop strategy.
     
@@ -326,8 +56,8 @@ def run_strategy_backtest(
     Returns:
         Tuple of (trades list, risk manager instance)
     """
-    # Initialize variable stop risk manager
-    risk_mgr = VariableStopRiskManager(
+    # Initialize production risk manager (now supports all variable stops)
+    risk_mgr = RiskManager(
         account_value=account_value,
         risk_pct_per_trade=risk_pct,
         stop_strategy=strategy
@@ -348,8 +78,7 @@ def run_strategy_backtest(
         
         # Update active positions
         if ticker in risk_mgr.active_positions:
-            # Use variable stop update method
-            exit_check = risk_mgr.update_position_with_variable_stop(
+            exit_check = risk_mgr.update_position(
                 ticker=ticker,
                 current_date=current_date,
                 current_price=current_price,
@@ -739,7 +468,8 @@ def main():
                        help='Ticker symbols to test')
     parser.add_argument('--file', '-f', 
                        help='Path to file containing ticker symbols (one per line). Overrides --tickers if provided.')
-    parser.add_argument('--period', default='1y', help='Data period (e.g., 1y, 2y)')
+    parser.add_argument('-p', '--period', default='12mo',
+                       help='Data period (e.g., 6mo, 12mo, 24mo). Legacy 1y/2y values are converted to months.')
     parser.add_argument('--strategies', nargs='+', 
                        default=['static', 'atr_dynamic', 'pct_trail', 'vol_regime', 'time_decay'],
                        help='Strategies to test')
@@ -759,18 +489,29 @@ def main():
     else:
         tickers = args.tickers
     
+    period = args.period.lower()
+    legacy_map = {'1y': '12mo', '2y': '24mo', '3y': '36mo'}
+    period = legacy_map.get(period, period)
+    
+    if not period.endswith('mo') and period not in {'1d','5d','ytd','max'}:
+        try:
+            if period.endswith('y'):
+                years = int(period[:-1])
+                period = f"{years * 12}mo"
+        except ValueError:
+            pass
+    
     print("=" * 80)
     print("VARIABLE STOP LOSS TESTING FRAMEWORK")
     print("=" * 80)
     print(f"\nTickers: {', '.join(tickers)}")
-    print(f"Period: {args.period}")
+    print(f"Period: {period}")
     print(f"Strategies: {', '.join(args.strategies)}")
     print("")
     
-    # Run comparison
     results_df = compare_stop_strategies(
         tickers=tickers,
-        period=args.period,
+        period=period,
         strategies=args.strategies
     )
     

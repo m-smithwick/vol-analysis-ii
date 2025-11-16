@@ -1197,6 +1197,7 @@ def run_risk_managed_backtest(
     ticker: str, 
     account_value: float = 100000,
     risk_pct: float = 0.75,
+    stop_strategy: str = 'time_decay',
     save_to_file: bool = True,
     output_dir: str = 'backtest_results'
 ) -> Dict:
@@ -1216,6 +1217,7 @@ def run_risk_managed_backtest(
         ticker: Stock symbol
         account_value: Starting account value for position sizing
         risk_pct: Risk percentage per trade (0.5-1.0% recommended)
+        stop_strategy: Stop-loss strategy (static, vol_regime, atr_dynamic, pct_trail, time_decay)
         save_to_file: Whether to save report to file
         output_dir: Directory to save reports
         
@@ -1232,11 +1234,16 @@ def run_risk_managed_backtest(
         raise ImportError("risk_manager module required for risk-managed backtesting")
     
     # Initialize RiskManager
-    risk_mgr = RiskManager(account_value=account_value, risk_pct_per_trade=risk_pct)
+    risk_mgr = RiskManager(
+        account_value=account_value,
+        risk_pct_per_trade=risk_pct,
+        stop_strategy=stop_strategy
+    )
     
     print(f"\n🎯 RISK-MANAGED BACKTEST: {ticker}")
     print(f"   Account Value: ${account_value:,.0f}")
     print(f"   Risk Per Trade: {risk_pct}%")
+    print(f"   Stop Strategy: {stop_strategy}")
     print("="*70)
     
     # Entry and exit signal columns to monitor

@@ -15,6 +15,7 @@ Last Updated: 2025-11-05
 
 import pandas as pd
 import yfinance as yf
+import numpy as np
 from typing import Dict, Optional
 import logging
 
@@ -344,9 +345,9 @@ def apply_regime_filter(df: pd.DataFrame, ticker: str, verbose: bool = False) ->
             df[raw_col] = df[signal_col].copy()
         
         # Apply regime filter to entry signals
-        # Ensure boolean types for proper AND operation
         signal_bool = df[raw_col].fillna(False).astype(bool)
-        df[signal_col] = signal_bool & regime['overall_regime_ok']
+        filtered = np.logical_and(signal_bool.to_numpy(dtype=bool), bool(regime['overall_regime_ok']))
+        df[signal_col] = pd.Series(filtered, index=df.index)
     
     return df
 

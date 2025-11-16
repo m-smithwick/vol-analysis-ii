@@ -47,6 +47,7 @@ Need the deeper architecture or indicator breakdown? See `docs/ARCHITECTURE_REFE
 
    # Batch backtest a watchlist
    python batch_backtest.py -f stocks.txt -p 24mo --risk-managed
+   # Risk-managed runs now default to time_decay stops; override via --stop-strategy
 
    # Sector dashboards
    python sector_dashboard.py --top 5 --compare
@@ -82,6 +83,7 @@ Full details and review cadence live in `docs/VALIDATION_STATUS.md`.
 - `--save-charts`: store PNG/HTML charts during batch runs.
 - `--chart-backend {matplotlib,plotly}`: control renderer (default `matplotlib`).
 - `--data-source {yfinance,massive}`: select data provider.
+- `--stop-strategy {static,vol_regime,atr_dynamic,pct_trail,time_decay}`: choose risk-managed stop logic (default `time_decay`).
 - `--multi`: run multi-timeframe analysis (single ticker only).
 - `--force-refresh`: bypass cache and redownload data.
 - `--clear-cache all|TICKER`: purge cache globally or per ticker.
@@ -105,6 +107,7 @@ Full details and review cadence live in `docs/VALIDATION_STATUS.md`.
 - `--end-date YYYY-MM-DD`: end date (requires `--start-date`).
 - `-o` / `--output-dir`: backtest output folder (default `backtest_results`).
 - `--risk-managed`: enable full RiskManager exit logic.
+- `--stop-strategy {static,vol_regime,atr_dynamic,pct_trail,time_decay}`: stop method when risk-managed (default `time_decay`).
 
 ### `sector_dashboard.py`
 - `-p` / `--period {1mo,3mo,6mo,12mo}`: scoring window (default `3mo`).
@@ -122,7 +125,7 @@ Full details and review cadence live in `docs/VALIDATION_STATUS.md`.
 ### `test_variable_stops.py`
 - `--tickers TICKER [TICKER ...]`: ticker symbols to test (default: AAPL MSFT NVDA TSLA AMD).
 - `-f` / `--file`: ticker file (one per line) - overrides `--tickers` if provided.
-- `--period`: data period for testing (default: 1y). Options: 1y, 2y, 3y, etc.
+- `-p` / `--period`: data period (default: 12mo). Legacy `1y/2y` inputs are converted to `mo` automatically.
 - `--strategies`: strategies to test (default: all 5). Options: static, atr_dynamic, pct_trail, vol_regime, time_decay.
 - `--output`: output file path (default: backtest_results/variable_stop_comparison.txt).
 
@@ -139,7 +142,7 @@ Refer to each script's `--help` flag for full descriptions and examples.
 | Massive.com integration | `MASSIVE_INTEGRATION.md` |
 | Sector rotation dashboard | `SECTOR_ROTATION_GUIDE.md` |
 | Sector-aware trading rules | `TRADING_STRATEGY_SECTOR_AWARE.md` |
-| Variable stop loss validation | `VARIABLE_STOP_LOSS_FINDINGS.md`, `README_VARIABLE_STOPS.md` |
+| Variable stop loss validation | `VARIABLE_STOP_LOSS_FINDINGS.md` |
 | Architecture & indicators | `docs/ARCHITECTURE_REFERENCE.md` |
 | Module responsibilities & dependencies | `CODE_MAP.txt` |
 | Cache schema & migrations | `docs/CACHE_SCHEMA.md` |

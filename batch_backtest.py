@@ -11,7 +11,6 @@ import os
 import sys
 from datetime import datetime
 from typing import Dict, List, Tuple
-import vol_analysis
 import backtest
 
 # Import error handling framework
@@ -23,6 +22,8 @@ from error_handler import (
 
 # Import empirical threshold filtering
 from signal_threshold_validator import apply_empirical_thresholds
+from analysis_service import prepare_analysis_dataframe
+from data_manager import read_ticker_file
 
 # Configure logging for this module
 setup_logging()
@@ -33,7 +34,8 @@ def run_batch_backtest(ticker_file: str, period: str = '12mo',
                       output_dir: str = 'backtest_results',
                       risk_managed: bool = False,
                       account_value: float = 100000,
-                      risk_pct: float = 0.75) -> Dict:
+                      risk_pct: float = 0.75,
+                      stop_strategy: str = 'time_decay') -> Dict:
     """
     Run backtests on all tickers in a file and aggregate results.
     
@@ -46,6 +48,7 @@ def run_batch_backtest(ticker_file: str, period: str = '12mo',
         risk_managed (bool): Use RiskManager for P&L-aware exits (default: False)
         account_value (float): Account value for position sizing (risk-managed only)
         risk_pct (float): Risk percentage per trade (risk-managed only)
+        stop_strategy (str): Stop strategy when using risk-managed mode
         
     Returns:
         Dict: Aggregated backtest results across all tickers
@@ -55,7 +58,7 @@ def run_batch_backtest(ticker_file: str, period: str = '12mo',
         validate_file_path(ticker_file, check_exists=True, check_readable=True)
         
         # Read tickers from file
-        tickers = vol_analysis.read_ticker_file(ticker_file)
+        tickers = read_ticker_file(ticker_file)
         
         if not tickers:
             raise DataValidationError("No valid tickers found in file")
@@ -112,16 +115,12 @@ def run_batch_backtest(ticker_file: str, period: str = '12mo',
                 try:
                     validate_ticker(ticker)
                     
-                    # Run analysis without chart display
-                    # Always get enough data to calculate indicators properly
-                    df = vol_analysis.analyze_ticker(
+                    df = prepare_analysis_dataframe(
                         ticker=ticker,
-                        period=period,  # Use user-specified period
-                        save_to_file=False,
-                        save_chart=False,
+                        period=period,
+                        data_source='yfinance',
                         force_refresh=False,
-                        show_chart=False,
-                        show_summary=False
+                        verbose=False
                     )
                     
                     # Filter to requested date range if specified
@@ -146,6 +145,7 @@ def run_batch_backtest(ticker_file: str, period: str = '12mo',
                             ticker=ticker,
                             account_value=account_value,
                             risk_pct=risk_pct,
+                            stop_strategy=stop_strategy,
                             save_to_file=True,
                             output_dir=output_dir
                         )
@@ -727,6 +727,13 @@ def main():
         help='Use RiskManager for P&L-aware exits (Item #5)'
     )
     
+    parser.add_argument(
+        '--stop-strategy',
+        choices=['static', 'vol_regime', 'atr_dynamic', 'pct_trail', 'time_decay'],
+        default='time_decay',
+        help='Stop-loss strategy when running risk-managed backtests (default: time_decay)'
+    )
+    
     args = parser.parse_args()
     
     # Validate date range if provided
@@ -740,7 +747,8 @@ def main():
         start_date=args.start_date,
         end_date=args.end_date,
         output_dir=args.output_dir,
-        risk_managed=args.risk_managed
+        risk_managed=args.risk_managed,
+        stop_strategy=args.stop_strategy
     )
     
     if not results or not results['all_paired_trades']:

@@ -1,6 +1,5 @@
 import pandas as pd
 import numpy as np
-import yfinance as yf
 import matplotlib.pyplot as plt
 import argparse
 import sys
@@ -18,7 +17,12 @@ from error_handler import (
 )
 
 # Import data manager for smart data retrieval with multiple sources
-from data_manager import get_smart_data
+from analysis_service import prepare_analysis_dataframe
+from data_manager import (
+    read_ticker_file as dm_read_ticker_file,
+    clear_cache as dm_clear_cache,
+    list_cache_info as dm_list_cache_info,
+)
 
 # Import backtest module if available
 try:
@@ -29,15 +33,6 @@ except ImportError:
     logger = get_logger()
     logger.warning("backtest.py not found - backtest functionality disabled")
 
-# Import indicators module for technical calculations (core functions)
-import indicators
-
-# Import modular feature modules (Item #7: Refactor/Integration Plan)
-import swing_structure
-import volume_features
-
-# Import signal generator module for buy/sell signals
-import signal_generator
 from signal_metadata import get_signal_meta
 
 # Import chart builder module for visualization
@@ -85,259 +80,23 @@ def resolve_chart_engine(chart_backend: str = 'matplotlib'):
     return chart_builder.generate_analysis_chart, 'png'
 
 def read_ticker_file(ticker_file: str) -> List[str]:
-    """
-    Read ticker symbols from a file (one per line).
-    
-    Args:
-        ticker_file (str): Path to file containing ticker symbols
-        
-    Returns:
-        List[str]: List of ticker symbols
-        
-    Raises:
-        FileOperationError: If file cannot be read
-        DataValidationError: If no valid tickers found
-    """
-    with ErrorContext("reading ticker file", ticker_file=ticker_file):
-        # Validate file path
-        validate_file_path(ticker_file, check_exists=True, check_readable=True)
-        
-        logger = get_logger()
-        tickers = []
-        
-        try:
-            with open(ticker_file, 'r') as f:
-                for line_num, line in enumerate(f, 1):
-                    ticker = line.strip().upper()
-                    
-                    # Skip empty lines and comments
-                    if not ticker or ticker.startswith('#'):
-                        continue
-                    
-                    # Basic ticker validation (alphanumeric, 1-5 chars)
-                    if ticker.isalpha() and 1 <= len(ticker) <= 5:
-                        tickers.append(ticker)
-                    else:
-                        logger.warning(f"Skipping invalid ticker on line {line_num}: '{ticker}'")
-            
-            if not tickers:
-                raise DataValidationError(f"No valid ticker symbols found in {ticker_file}")
-            
-            logger.info(f"Read {len(tickers)} ticker symbols from {ticker_file}")
-            return tickers
-            
-        except Exception as e:
-            if isinstance(e, (DataValidationError, FileOperationError)):
-                raise e
-            else:
-                raise FileOperationError(f"Failed to read ticker file {ticker_file}: {str(e)}")
+    """Proxy to the centralized ticker file reader."""
+    return dm_read_ticker_file(ticker_file)
 
-def get_cache_directory() -> str:
-    """Get or create the data cache directory."""
-    cache_dir = os.path.join(os.getcwd(), 'data_cache')
-    if not os.path.exists(cache_dir):
-        os.makedirs(cache_dir)
-        print(f"📁 Created cache directory: {cache_dir}")
-    return cache_dir
-
-def get_cache_filepath(ticker: str) -> str:
-    """Get the cache file path for a given ticker."""
-    cache_dir = get_cache_directory()
-    return os.path.join(cache_dir, f"{ticker}_data.csv")
-
-def load_cached_data(ticker: str) -> Optional[pd.DataFrame]:
-    """
-    Load cached data for a ticker if it exists and is valid.
-    
-    Args:
-        ticker (str): Stock symbol
-        
-    Returns:
-        Optional[pd.DataFrame]: Cached data if valid, None otherwise
-        
-    Raises:
-        CacheError: If cache corruption is detected and cannot be recovered
-    """
-    with ErrorContext("loading cached data", ticker=ticker):
-        # Validate ticker first
-        validate_ticker(ticker)
-        
-        cache_file = get_cache_filepath(ticker)
-        logger = get_logger()
-        
-        if not os.path.exists(cache_file):
-            return None
-        
-        # Validate file path and permissions
-        validate_file_path(cache_file, check_exists=True, check_readable=True)
-        
-        try:
-            df = pd.read_csv(cache_file, index_col=0, parse_dates=True)
-            
-            # Validate cached data structure
-            validate_dataframe(df, required_columns=['Open', 'High', 'Low', 'Close', 'Volume'])
-            
-            logger.info(f"Loaded cached data for {ticker}: {len(df)} days ({df.index[0].date()} to {df.index[-1].date()})")
-            return df
-            
-        except (pd.errors.EmptyDataError, pd.errors.ParserError) as e:
-            # Handle pandas-specific errors
-            logger.warning(f"Corrupted cache file for {ticker}: {str(e)}")
-            
-            # Attempt to recover by removing corrupted cache
-            recovery_result = safe_operation(
-                lambda: os.remove(cache_file),
-                f"removing corrupted cache file for {ticker}"
-            )
-            
-            if recovery_result['success']:
-                logger.info(f"Removed corrupted cache file for {ticker}")
-            else:
-                raise CacheError(f"Cache corruption detected for {ticker} and could not be cleaned up: {recovery_result['error']}")
-            
-            return None
-            
-        except Exception as e:
-            # Handle other file system or data validation errors
-            raise CacheError(f"Failed to load cached data for {ticker}: {str(e)}")
-
-def save_to_cache(ticker: str, df: pd.DataFrame) -> None:
-    """
-    Save DataFrame to cache.
-    
-    Args:
-        ticker (str): Stock symbol
-        df (pd.DataFrame): Data to cache
-        
-    Raises:
-        CacheError: If data cannot be saved to cache
-        DataValidationError: If DataFrame is invalid
-    """
-    with ErrorContext("saving data to cache", ticker=ticker):
-        # Validate inputs
-        validate_ticker(ticker)
-        validate_dataframe(df, required_columns=['Open', 'High', 'Low', 'Close', 'Volume'])
-        
-        cache_file = get_cache_filepath(ticker)
-        logger = get_logger()
-        
-        # Validate cache directory exists and is writable
-        cache_dir = os.path.dirname(cache_file)
-        validate_file_path(cache_dir, check_exists=True, check_writable=True)
-        
-        try:
-            df.to_csv(cache_file)
-            logger.info(f"Cached data for {ticker}: {len(df)} days saved to cache")
-            
-        except Exception as e:
-            raise CacheError(f"Failed to save cache for {ticker}: {str(e)}")
-
-def append_to_cache(ticker: str, new_data: pd.DataFrame) -> None:
-    """
-    Append new data to existing cache file.
-    
-    Args:
-        ticker (str): Stock symbol
-        new_data (pd.DataFrame): New data to append
-        
-    Raises:
-        CacheError: If data cannot be appended to cache
-        DataValidationError: If DataFrame is invalid
-    """
-    with ErrorContext("appending data to cache", ticker=ticker):
-        # Validate inputs
-        validate_ticker(ticker)
-        validate_dataframe(new_data, required_columns=['Open', 'High', 'Low', 'Close', 'Volume'])
-        
-        cache_file = get_cache_filepath(ticker)
-        logger = get_logger()
-        
-        # Validate cache file exists and is writable
-        validate_file_path(cache_file, check_exists=True, check_writable=True)
-        
-        try:
-            # Append new data to the CSV file
-            new_data.to_csv(cache_file, mode='a', header=False)
-            logger.info(f"Appended {len(new_data)} new days to {ticker} cache")
-            
-        except Exception as e:
-            raise CacheError(f"Failed to append to cache for {ticker}: {str(e)}")
 
 
 def clear_cache(ticker: str = None) -> None:
-    """
-    Clear cache for a specific ticker or all tickers.
-    
-    Args:
-        ticker (str, optional): Specific ticker to clear cache for. If None, clears entire cache.
-    """
-    cache_dir = get_cache_directory()
-    
+    """Clear cache for a ticker (1d) or wipe the entire cache."""
     if ticker:
-        # Clear specific ticker cache
-        cache_file = get_cache_filepath(ticker)
-        if os.path.exists(cache_file):
-            os.remove(cache_file)
-            print(f"🗑️  Cleared cache for {ticker}")
-        else:
-            print(f"ℹ️  No cache found for {ticker}")
+        dm_clear_cache(ticker.upper(), "1d")
+        print(f"🗑️  Cleared cache for {ticker.upper()}")
     else:
-        # Clear entire cache directory
-        if os.path.exists(cache_dir):
-            import shutil
-            shutil.rmtree(cache_dir)
-            print(f"🗑️  Cleared entire cache directory")
-        else:
-            print(f"ℹ️  No cache directory found")
+        dm_clear_cache()
+        print("🗑️  Cleared entire cache directory")
 
 def list_cache_info() -> None:
-    """Display information about cached data."""
-    cache_dir = get_cache_directory()
-    
-    if not os.path.exists(cache_dir):
-        print("ℹ️  No cache directory found")
-        return
-    
-    cache_files = [f for f in os.listdir(cache_dir) if f.endswith('_data.csv')]
-    
-    if not cache_files:
-        print("ℹ️  No cached data found")
-        return
-    
-    print(f"\n📁 CACHE INFORMATION ({len(cache_files)} tickers cached)")
-    print("="*60)
-    
-    total_size = 0
-    for cache_file in sorted(cache_files):
-        ticker = cache_file.replace('_data.csv', '')
-        cache_path = os.path.join(cache_dir, cache_file)
-        
-        try:
-            # Get file info
-            file_size = os.path.getsize(cache_path)
-            total_size += file_size
-            modified_time = datetime.fromtimestamp(os.path.getmtime(cache_path))
-            
-            # Read first and last dates
-            df = pd.read_csv(cache_path, index_col=0, parse_dates=True)
-            start_date = df.index[0].strftime('%Y-%m-%d')
-            end_date = df.index[-1].strftime('%Y-%m-%d')
-            days_count = len(df)
-            
-            # Calculate days behind
-            today = datetime.now().date()
-            last_date = df.index[-1].date()
-            days_behind = (today - last_date).days
-            
-            status = "🟢 Current" if days_behind <= 1 else f"🟡 {days_behind}d behind" if days_behind <= 7 else f"🔴 {days_behind}d behind"
-            
-            print(f"  {ticker:6s}: {days_count:4d} days ({start_date} to {end_date}) - {status}")
-            print(f"          Size: {file_size/1024:.1f}KB, Modified: {modified_time.strftime('%Y-%m-%d %H:%M')}")
-            
-        except Exception as e:
-            print(f"  {ticker:6s}: ❌ Error reading cache ({e})")
-    
-    print(f"\nTotal cache size: {total_size/1024:.1f}KB")
+    """Display cached file information using data_manager."""
+    dm_list_cache_info()
 
 
 def generate_analysis_text(ticker: str, df: pd.DataFrame, period: str) -> str:
@@ -565,169 +324,13 @@ def analyze_ticker(ticker: str, period='6mo', save_to_file=False, output_dir='.'
         
         logger = get_logger()
         
-        # --- Retrieve Data with Smart Caching ---
-        try:
-            df = get_smart_data(ticker, period, interval='1d', force_refresh=force_refresh, data_source=data_source)
-            logger.info(f"Retrieved {len(df)} days of data for {ticker} ({period}) from {data_source}")
-        except (DataValidationError, DataDownloadError, CacheError) as e:
-            # Re-raise specific error handling exceptions
-            raise e
-        except Exception as e:
-            # Catch any other unexpected errors
-            raise DataDownloadError(f"Failed to get data for {ticker}: {str(e)}")
-    
-    # --- CMF (Chaikin Money Flow) - Replaces OBV and A/D Line ---
-    # Item #10: Volume Flow Simplification (now in volume_features module)
-    df['CMF_20'] = volume_features.calculate_cmf(df, period=20)
-    df['CMF_Z'] = volume_features.calculate_cmf_zscore(df, cmf_period=20, zscore_window=20)
-    
-    # --- Rolling correlation between price and volume ---
-    df['PriceVolumeCorr'] = indicators.calculate_price_volume_correlation(df, window=20)
-    
-    # --- Enhanced Volume Flow Detection (using CMF) ---
-    
-    # 1. Price Trend Analysis (for divergence detection)
-    df['Price_MA'] = df['Close'].rolling(window=10).mean()
-    df['Price_Trend'] = df['Close'] > df['Price_MA']
-    df['Price_Rising'] = df['Close'] > df['Close'].shift(5)
-    
-    # 2. CMF-based divergence signals
-    # CMF positive indicates buying pressure, negative indicates selling pressure
-    df['CMF_Positive'] = df['CMF_Z'] > 0
-    df['CMF_Strong'] = df['CMF_Z'] > 1.0  # Strong buying pressure (>1 std dev)
-    
-    # --- Legacy columns for backward compatibility with exit signals ---
-    # Compute actual OBV and A/D Line values for chart display and legacy logic
-    price_delta = df['Close'].diff().fillna(0)
-    obv_direction = np.sign(price_delta).fillna(0)
-    df['OBV'] = (obv_direction * df['Volume']).fillna(0).cumsum()
-    df['OBV_MA'] = df['OBV'].rolling(window=10).mean()
-    df['OBV_Trend'] = (df['OBV'] > df['OBV_MA']).fillna(False)
-
-    high_low_range = (df['High'] - df['Low']).replace(0, np.nan)
-    money_flow_multiplier = ((df['Close'] - df['Low']) - (df['High'] - df['Close'])) / high_low_range
-    money_flow_multiplier = money_flow_multiplier.replace([np.inf, -np.inf], 0).fillna(0)
-    money_flow_volume = money_flow_multiplier * df['Volume']
-    df['AD_Line'] = money_flow_volume.cumsum()
-    df['AD_MA'] = df['AD_Line'].rolling(window=10).mean()
-    df['AD_Rising'] = df['AD_Line'].diff().fillna(0) > 0
-    
-    # 3. Volume Analysis (now using volume_features module)
-    df['Volume_MA'] = df['Volume'].rolling(window=20).mean()
-    df['Volume_Spike'] = df['Volume'] > (df['Volume_MA'] * 1.5)  # 50% above average
-    df['Relative_Volume'] = volume_features.calculate_volume_surprise(df, window=20)
-    
-    # 4. Smart Money Indicators (Anchored VWAP from meaningful pivots)
-    df['VWAP'] = indicators.calculate_anchored_vwap(df)
-    df['Above_VWAP'] = df['Close'] > df['VWAP']
-    
-    # 5. Swing-Based Support/Resistance Analysis (now using swing_structure module)
-    df['Recent_Swing_Low'], df['Recent_Swing_High'] = swing_structure.calculate_swing_levels(df, lookback=3)
-    df['Near_Support'], df['Lost_Support'], df['Near_Resistance'] = swing_structure.calculate_swing_proximity_signals(
-        df, df['Recent_Swing_Low'], df['Recent_Swing_High'], atr_series=None, use_volatility_aware=False
+    df = prepare_analysis_dataframe(
+        ticker,
+        period,
+        data_source=data_source,
+        force_refresh=force_refresh,
+        verbose=show_summary,
     )
-    
-    # Maintain backward compatibility by creating Support_Level alias
-    df['Support_Level'] = df['Recent_Swing_Low']
-    
-    # --- True Range and ATR for Event Day Detection (Item #3: News/Event Spike Filter) ---
-    df['TR'], df['ATR20'] = indicators.calculate_atr(df, period=20)
-    
-    # --- Event Day Detection (News/Earnings Spikes) - now using volume_features module ---
-    df['Event_Day'] = volume_features.detect_event_days(
-        df, 
-        atr_multiplier=2.5,  # ATR spike threshold 
-        volume_threshold=2.0  # Volume spike threshold
-    )
-    
-    # --- Feature Standardization (Item #12: Z-Score Normalization) ---
-    # Convert features to z-scores for consistent weighting across stocks
-    # This adds Volume_Z, CMF_Z, TR_Z, ATR_Z columns
-    df = indicators.standardize_features(df, window=20)
-    
-    # --- Pre-Trade Quality Filters (Item #11) ---
-    # Apply pre-filters to reject unfilterable signals:
-    # - Insufficient liquidity (< $5M average daily dollar volume)
-    # - Price too low (< $3.00)
-    # - Within earnings window (T-3 to T+3 around earnings dates)
-    df = indicators.apply_prefilters(
-        ticker=ticker,
-        df=df,
-        min_dollar_volume=5_000_000,  # $5M minimum
-        min_price=3.00,  # $3 minimum
-        earnings_window_days=3  # T-3 to T+3
-    )
-    
-    # --- Accumulation Signal Generation ---
-    accumulation_conditions = [
-        # Strong Accumulation: Multiple confirmations
-        (df['AD_Rising'] & ~df['Price_Rising'] & df['Volume_Spike'] & df['Above_VWAP']),
-        
-        # Moderate Accumulation: OBV divergence with volume
-        (df['OBV_Trend'] & ~df['Price_Trend'] & (df['Relative_Volume'] > 1.2)),
-        
-        # Support Accumulation: High volume near support
-        (df['Near_Support'] & df['Volume_Spike'] & (df['Close'] > df['Close'].shift(1))),
-        
-        # Distribution: Price down with high volume
-        ((df['Close'] < df['Close'].shift(1)) & df['Volume_Spike'] & ~df['AD_Rising'])
-    ]
-    
-    accumulation_choices = ['Strong_Accumulation', 'Moderate_Accumulation', 'Support_Accumulation', 'Distribution']
-    phase_categories = accumulation_choices + ['Neutral']
-    phase_values = np.select(accumulation_conditions, accumulation_choices, default='Neutral')
-    phase_categorical = pd.Categorical(phase_values, categories=phase_categories, ordered=False)
-    df['Phase'] = pd.Series(phase_categorical, index=df.index)
-    
-    # --- Use Signal Generator for Scoring ---
-    df['Accumulation_Score'] = signal_generator.calculate_accumulation_score(df)
-    df['Exit_Score'] = signal_generator.calculate_exit_score(df)
-    
-    # --- Calculate Empirical Signal Scores (Item #8) ---
-    df['Moderate_Buy_Score'] = signal_generator.calculate_moderate_buy_score(df)
-    df['Profit_Taking_Score'] = signal_generator.calculate_profit_taking_score(df)
-    df['Stealth_Accumulation_Score'] = signal_generator.calculate_stealth_accumulation_score(df)
-    
-    # --- Use Signal Generator for All Signal Detection ---
-    
-    # ENTRY SIGNALS - Generate all buy signals using signal_generator module
-    df['Strong_Buy'] = signal_generator.generate_strong_buy_signals(df)
-    df['Moderate_Buy'] = signal_generator.generate_moderate_buy_signals(df)
-    df['Stealth_Accumulation'] = signal_generator.generate_stealth_accumulation_signals(df)
-    df['Confluence_Signal'] = signal_generator.generate_confluence_signals(df)
-    df['Volume_Breakout'] = signal_generator.generate_volume_breakout_signals(df)
-    
-    # --- Market/Sector Regime Filter (Item #6) ---
-    # Apply regime filter to entry signals
-    # Requires: SPY > 200DMA AND Sector ETF > 50DMA
-    # This filter is applied AFTER all other signal generation
-    # Original signals preserved in *_raw columns for analysis
-    df = regime_filter.apply_regime_filter(df, ticker, verbose=show_summary)
-    
-    # EXIT SIGNALS - Generate all exit signals using signal_generator module
-    df['Profit_Taking'] = signal_generator.generate_profit_taking_signals(df)
-    df['Distribution_Warning'] = signal_generator.generate_distribution_warning_signals(df)
-    df['Sell_Signal'] = signal_generator.generate_sell_signals(df)
-    df['Momentum_Exhaustion'] = signal_generator.generate_momentum_exhaustion_signals(df)
-    df['Stop_Loss'] = signal_generator.generate_stop_loss_signals(df)
-    
-    # --- Add Next-Day Reference Levels and Display Columns ---
-    
-    # Create reference levels for next-day decision making (documentation/clarity)
-    df = indicators.create_next_day_reference_levels(df)
-    
-    # EXECUTION TIMING: Signals fire at close of day T, you act at open of day T+1
-    # Create display versions of signals that show markers on the ACTION day (T+1)
-    # This ensures chart markers appear when you would actually enter/exit
-    signal_columns = [
-        'Strong_Buy', 'Moderate_Buy', 'Stealth_Accumulation', 'Confluence_Signal', 
-        'Volume_Breakout', 'Profit_Taking', 'Distribution_Warning', 'Sell_Signal', 
-        'Momentum_Exhaustion', 'Stop_Loss'
-    ]
-    
-    for col in signal_columns:
-        # Shift signals by +1 day for chart display (marker shows on action day)
-        df[f'{col}_display'] = df[col].shift(1)
     
     # --- Generate Chart using selected Chart Builder Module ---
     if save_chart or show_chart:
@@ -1141,6 +744,13 @@ Note: Legacy periods (1y, 2y, 5y, etc.) are automatically converted to month equ
     )
     
     parser.add_argument(
+        '--stop-strategy',
+        choices=['static', 'vol_regime', 'atr_dynamic', 'pct_trail', 'time_decay'],
+        default='time_decay',
+        help='Stop-loss strategy for risk-managed backtests (default: time_decay)'
+    )
+    
+    parser.add_argument(
         '--multi',
         action='store_true',
         help='Run multi-timeframe analysis instead of single period (single ticker mode only)'
@@ -1267,6 +877,7 @@ Note: Legacy periods (1y, 2y, 5y, etc.) are automatically converted to month equ
                                 ticker=ticker,
                                 account_value=100000,
                                 risk_pct=0.75,
+                                stop_strategy=args.stop_strategy,
                                 save_to_file=True
                             )
                         except ImportError as e:

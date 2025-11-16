@@ -19,6 +19,8 @@ from typing import Dict, Optional, List
 
 
 class RiskManager:
+    SUPPORTED_STOP_STRATEGIES = {'static', 'vol_regime', 'atr_dynamic', 'pct_trail', 'time_decay'}
+
     """
     Unified risk management for all trades.
     
@@ -35,28 +37,47 @@ class RiskManager:
     """
     
     def __init__(self, account_value: float, risk_pct_per_trade: float = 0.75,
-                 stop_strategy: str = 'static'):
+                 stop_strategy: str = 'time_decay'):
         """
         Initialize risk manager.
         
         Args:
             account_value: Total account equity
             risk_pct_per_trade: Risk percentage per trade (0.5-1.0% recommended)
-            stop_strategy: Stop loss strategy - 'static' (default) or 'vol_regime'
+            stop_strategy: Stop loss strategy - 'static', 'vol_regime', 'atr_dynamic', 'pct_trail', 'time_decay'
         """
         self.account_value = account_value
         self.risk_pct = risk_pct_per_trade
-        self.stop_strategy = stop_strategy
+        strategy = (stop_strategy or 'static').lower()
+        if strategy not in self.SUPPORTED_STOP_STRATEGIES:
+            raise ValueError(f"Unsupported stop strategy '{stop_strategy}'. Choose from {sorted(self.SUPPORTED_STOP_STRATEGIES)}")
+        self.stop_strategy = strategy
         self.active_positions: Dict[str, Dict] = {}
         self.closed_trades: List[Dict] = []
         
-        # Volatility regime-adjusted stop parameters (validated with 371 trades)
-        self.vol_regime_params = {
-            'low_vol_mult': 1.5,      # Tighter stop in calm markets
-            'normal_vol_mult': 2.0,   # Standard stop
-            'high_vol_mult': 2.5,     # Wider stop in volatile markets
-            'low_threshold': -0.5,    # ATR_Z threshold for low volatility
-            'high_threshold': 0.5     # ATR_Z threshold for high volatility
+        # Stop strategy parameters (lifted from validation harness)
+        self.stop_params = {
+            'vol_regime': {
+                'low_vol_mult': 1.5,
+                'normal_vol_mult': 2.0,
+                'high_vol_mult': 2.5,
+                'low_threshold': -0.5,
+                'high_threshold': 0.5
+            },
+            'atr_dynamic': {
+                'multiplier': 2.0,
+                'min_multiplier': 1.5,
+                'max_multiplier': 3.0
+            },
+            'pct_trail': {
+                'trail_pct': 8.0,
+                'activation_r': 1.0
+            },
+            'time_decay': {
+                'day_5_mult': 2.5,
+                'day_10_mult': 2.0,
+                'day_15_mult': 1.5
+            }
         }
     
     def calculate_position_size(self, entry_price: float, stop_price: float) -> int:
@@ -154,7 +175,7 @@ class RiskManager:
         atr_z = df.iloc[current_idx].get('ATR_Z', 0)
         
         # Determine regime and multiplier
-        params = self.vol_regime_params
+        params = self.stop_params['vol_regime']
         if atr_z < params['low_threshold']:
             multiplier = params['low_vol_mult']
         elif atr_z > params['high_threshold']:
@@ -196,12 +217,81 @@ class RiskManager:
             return None
         
         pos = self.active_positions[ticker]
+        current_price = df.iloc[current_idx]['Close']
         
         if self.stop_strategy == 'vol_regime':
             return self.calculate_vol_regime_stop(pos, df, current_idx)
+        if self.stop_strategy == 'atr_dynamic':
+            return self._calculate_atr_dynamic_stop(pos, df, current_idx)
+        if self.stop_strategy == 'pct_trail':
+            return self._calculate_pct_trail_stop(pos, df, current_idx, current_price)
+        if self.stop_strategy == 'time_decay':
+            return self._calculate_time_decay_stop(pos, df, current_idx)
         
         # Unknown strategy - use static
         return None
+
+    def _calculate_atr_dynamic_stop(
+        self,
+        pos: Dict,
+        df: pd.DataFrame,
+        current_idx: int
+    ) -> float:
+        """
+        ATR-based dynamic stop: Adjusts between min/max multipliers.
+        """
+        params = self.stop_params['atr_dynamic']
+        current_atr = df.iloc[current_idx]['ATR20']
+        multiplier = params['multiplier']
+        stop = pos['entry_price'] - (current_atr * multiplier)
+        max_stop = pos['entry_price'] - (current_atr * params['min_multiplier'])
+        min_stop = pos['entry_price'] - (current_atr * params['max_multiplier'])
+        stop = max(min_stop, min(stop, max_stop))
+        return max(stop, pos['stop_price'])
+
+    def _calculate_pct_trail_stop(
+        self,
+        pos: Dict,
+        df: pd.DataFrame,
+        current_idx: int,
+        current_price: float
+    ) -> float:
+        """
+        Percentage-based trailing stop activated after reaching activation R.
+        """
+        params = self.stop_params['pct_trail']
+        if pos['current_r_multiple'] < params['activation_r']:
+            return pos['stop_price']
+        if 'peak_price' not in pos:
+            pos['peak_price'] = pos['entry_price']
+        pos['peak_price'] = max(pos['peak_price'], current_price)
+        trail_stop = pos['peak_price'] * (1 - params['trail_pct'] / 100)
+        return max(trail_stop, pos['stop_price'])
+
+    def _calculate_time_decay_stop(
+        self,
+        pos: Dict,
+        df: pd.DataFrame,
+        current_idx: int
+    ) -> float:
+        """
+        Time-decay stop: gradually tightens as the trade ages.
+        """
+        params = self.stop_params['time_decay']
+        bars_in_trade = pos['bars_in_trade']
+        current_atr = df.iloc[current_idx]['ATR20']
+        if bars_in_trade <= 5:
+            multiplier = params['day_5_mult']
+        elif bars_in_trade <= 10:
+            progress = (bars_in_trade - 5) / 5
+            multiplier = params['day_5_mult'] + progress * (params['day_10_mult'] - params['day_5_mult'])
+        elif bars_in_trade <= 15:
+            progress = (bars_in_trade - 10) / 5
+            multiplier = params['day_10_mult'] + progress * (params['day_15_mult'] - params['day_10_mult'])
+        else:
+            multiplier = params['day_15_mult']
+        stop = pos['entry_price'] - (current_atr * multiplier)
+        return max(stop, pos['stop_price'])
     
     def open_position(
         self, 
@@ -240,7 +330,8 @@ class RiskManager:
             'profit_taken_50pct': False,
             'trail_stop_active': False,
             'trail_stop_price': None,
-            'current_r_multiple': 0.0
+            'current_r_multiple': 0.0,
+            'peak_price': entry_price
         }
         
         self.active_positions[ticker] = position
@@ -322,8 +413,12 @@ class RiskManager:
         # 1. HARD STOP: Below initial stop (or variable stop if enabled)
         if current_price < pos['stop_price']:
             exit_signals['should_exit'] = True
-            exit_signals['exit_type'] = 'HARD_STOP'
-            exit_signals['reason'] = f"Hard stop hit at {pos['stop_price']:.2f}"
+            if self.stop_strategy == 'static':
+                exit_signals['exit_type'] = 'HARD_STOP'
+            else:
+                exit_signals['exit_type'] = f"{self.stop_strategy.upper()}_STOP"
+            exit_signals['exit_price'] = pos['stop_price']
+            exit_signals['reason'] = f"Stop hit at {pos['stop_price']:.2f}"
             return exit_signals
         
         # 2. TIME STOP: Exit after 12 bars if <+1R

@@ -94,7 +94,7 @@ def calculate_exit_score(df: pd.DataFrame) -> pd.Series:
     score = score + (df['Phase'] == 'Distribution').astype(float) * 2  # Distribution phase
     score = score + (~df['Above_VWAP']).astype(float) * 1.5  # Below VWAP
     score = score + (df['Close'] < df['Support_Level']).astype(float) * 2  # Below support
-    score = score + (df['Close'] < df['Close'].rolling(10).mean()).astype(float) * 0.5  # Below 10-day MA
+    score = score + (df['Close'] < df['Close'].rolling(10).mean()).fillna(False).astype(float) * 0.5  # Below 10-day MA
     
     # Volume and momentum factors (0-3 points)
     score = score + (df['Relative_Volume'] > 2.5).astype(float) * 1.5  # Very high volume
@@ -176,7 +176,8 @@ def generate_moderate_buy_signals(df: pd.DataFrame) -> pd.Series:
     ma_5 = df['Close'].rolling(5).mean()
     ma_20 = df['Close'].rolling(20).mean()
     
-    pullback_zone = (df['Close'] < ma_5) & (df['Close'] > ma_20)
+    # Handle NaN values in boolean operations
+    pullback_zone = (df['Close'] < ma_5).fillna(False) & (df['Close'] > ma_20).fillna(False)
     
     moderate_conditions = (
         (df['Accumulation_Score'] >= 5) &  # Removed upper limit
@@ -349,7 +350,7 @@ def generate_profit_taking_signals(df: pd.DataFrame) -> pd.Series:
         Boolean Series indicating profit taking signals
     """
     return (
-        (df['Close'] > df['Close'].rolling(20).max().shift(1)) &
+        (df['Close'] > df['Close'].rolling(20).max().shift(1)).fillna(False) &
         (df['Relative_Volume'] > 1.8) &
         df['Above_VWAP'] &
         (df['Accumulation_Score'] < 4) &
@@ -442,7 +443,7 @@ def generate_momentum_exhaustion_signals(df: pd.DataFrame) -> pd.Series:
         (df['Close'] > df['Close'].shift(5)) &
         (df['Relative_Volume'] < 0.8) &
         (df['Accumulation_Score'] < 3) &
-        (df['Close'] > df['Close'].rolling(10).mean() * 1.03) &
+        (df['Close'] > df['Close'].rolling(10).mean() * 1.03).fillna(False) &
         (df['Volume'] < df['Volume'].shift(3))
     )
 
@@ -469,7 +470,7 @@ def generate_stop_loss_signals(df: pd.DataFrame) -> pd.Series:
         (df['Close'] < df['Support_Level']) &
         (df['Relative_Volume'] > 1.8) &
         ~df['Above_VWAP'] &
-        (df['Close'] < df['Close'].rolling(5).mean() * 0.97) &
+        (df['Close'] < df['Close'].rolling(5).mean() * 0.97).fillna(False) &
         (df['Close'] < df['Close'].shift(1))
     )
 
@@ -592,7 +593,8 @@ def calculate_moderate_buy_score(df: pd.DataFrame) -> pd.Series:
     
     # Calculate pullback depth as % below 5-day MA
     pullback_depth = ((ma_5 - df['Close']) / ma_5) * 100
-    pullback_zone = (df['Close'] < ma_5) & (df['Close'] > ma_20)
+    # Handle NaN values in boolean operations
+    pullback_zone = (df['Close'] < ma_5).fillna(False) & (df['Close'] > ma_20).fillna(False)
     
     # More points for deeper pullbacks (up to 3% below 5-day MA)
     pullback_bonus = np.clip(pullback_depth, 0, 3) * pullback_zone.astype(float)

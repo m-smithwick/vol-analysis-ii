@@ -270,42 +270,9 @@ def update_position_with_time_decay(self, ticker, df, current_idx):
 
 ## Technical Implementation Notes
 
-### Comprehensive Test Architecture
-
-**Enhanced `test_variable_stops.py`:**
-- ✅ Extends RiskManager without modifying production code
-- ✅ Supports ticker file reading (`--file` parameter)
-- ✅ Tests all 5 strategies in parallel across any ticker list
-- ✅ Generates comprehensive statistical reports
-- ✅ **NEW**: Batch testing capabilities for massive validation
-
-### Code Organization
-
-```python
-class VariableStopRiskManager(RiskManager):
-    """Extends RiskManager with all variable stop strategies"""
-    
-    def calculate_variable_stop(self, strategy, ticker, df, current_idx):
-        if strategy == 'time_decay':
-            return self._calculate_time_decay_stop(...)
-        elif strategy == 'vol_regime':
-            return self._calculate_vol_regime_stop(...)
-        # ... other strategies
-    
-    def _calculate_time_decay_stop(self, pos, df, current_idx, current_price):
-        bars_in_trade = pos['bars_in_trade']
-        current_atr = df.iloc[current_idx]['ATR20']
-        
-        if bars_in_trade <= 5:
-            multiplier = 2.5
-        elif bars_in_trade <= 10:
-            multiplier = 2.0  
-        else:
-            multiplier = 1.5
-            
-        stop = pos['entry_price'] - (current_atr * multiplier)
-        return max(stop, pos['stop_price'])  # Never lower stops
-```
+- ✅ `RiskManager` now ships with `stop_strategy='time_decay'` as the production default
+- ✅ `vol_analysis.py` / `batch_backtest.py` / `test_variable_stops.py` expose `--stop-strategy` so ops can swap between time_decay, vol_regime, atr_dynamic, etc. without code changes
+- ✅ `test_variable_stops.py` uses the production RiskManager directly (no forked subclass), ensuring validation runs the same code path as live backtests
 
 ---
 

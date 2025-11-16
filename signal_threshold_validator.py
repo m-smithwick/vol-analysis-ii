@@ -50,20 +50,21 @@ def apply_empirical_thresholds(df: pd.DataFrame) -> pd.DataFrame:
     if 'Stealth_Accumulation_Score' not in df.columns:
         df['Stealth_Accumulation_Score'] = signal_generator.calculate_stealth_accumulation_score(df)
     
-    # Apply empirical thresholds
+    # Apply empirical thresholds with NaN handling
+    # Fix for: "Cannot perform 'rand_' with a dtyped [bool] array and scalar of type [bool]"
     df['Moderate_Buy_filtered'] = (
-        df['Moderate_Buy'] & 
-        (df['Moderate_Buy_Score'] >= moderate_threshold)
+        df['Moderate_Buy'].fillna(False) & 
+        (df['Moderate_Buy_Score'] >= moderate_threshold).fillna(False)
     )
     
     df['Profit_Taking_filtered'] = (
-        df['Profit_Taking'] & 
-        (df['Profit_Taking_Score'] >= profit_threshold)
+        df['Profit_Taking'].fillna(False) & 
+        (df['Profit_Taking_Score'] >= profit_threshold).fillna(False)
     )
     
     df['Stealth_Accumulation_filtered'] = (
-        df['Stealth_Accumulation'] & 
-        (df['Stealth_Accumulation_Score'] >= stealth_threshold)
+        df['Stealth_Accumulation'].fillna(False) & 
+        (df['Stealth_Accumulation_Score'] >= stealth_threshold).fillna(False)
     )
     
     return df
