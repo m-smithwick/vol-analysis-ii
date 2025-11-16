@@ -1,220 +1,74 @@
 # Volume Analysis Project - Code Map
 
-**Last Updated**: 2025-11-09
-**Purpose**: Quick reference for upgrade spec implementation and current modules
+**Last Updated**: 2025-11-16  
+**Purpose**: Fast lookup for where core behaviors live so humans (and LLMs) can jump directly to the right module.
 
 ---
 
 ## Core Analysis Pipeline
 
-**`vol_analysis.py`** - Main orchestrator
-- Entry point and CLI
-- Coordinates all modules
-- Single-ticker and batch analysis
-
-**`signal_generator.py`** - Entry/exit signal logic
-- Accumulation scoring (Strong Buy, Moderate Buy, Stealth)
-- Exit scoring (Profit Taking, Distribution, Stop Loss)
-- Operates on DataFrame columns (module-agnostic)
-
-**`indicators.py`** - Core technical indicators (REFACTORED - Item #7 ✅)
-- Anchored VWAP (Item #1 ✅)
-- ATR calculation
-- Z-score normalization (Item #12 ✅)
-- Feature standardization
-- Pre-trade quality filters (Item #11 ✅)
-- Next-day references (Item #4 ✅)
-
-**`swing_structure.py`** - Swing analysis module (NEW - Item #7 ✅)
-- Pivot detection (find_pivots)
-- Swing level calculation (Item #2 ✅)
-- Proximity signals (volatility-aware)
-- Swing failure patterns
-- Swing strength analysis
-
-**`volume_features.py`** - Volume analysis module (NEW - Item #7 ✅)
-- CMF calculation (Item #10 ✅)
-- CMF z-score normalization (minimum 40 days data required)
-- Volume surprise/relative volume
-- Event day detection (Item #3 ✅)
-- Volume divergence detection
-- Climax volume detection
-- **BUG FIX (2025-11-06)**: Improved z-score calculation to handle low variance periods
-
-**`chart_builder.py`** - Visualization
-- 3-panel charts with signal markers
-- Displays swing levels, event days, signals
-
-**`batch_processor.py`** - Multi-ticker processing
-- HTML summary generation
-- Batch ranking and scoring
-- Target for Item #11 (pre-filters)
+**`vol_analysis.py`** - CLI entry point; wires data loading, indicator prep, signal generation, charting, and reporting for single tickers or batches.  
+**`signal_generator.py`** - Implements entry/exit scoring, stealth accumulation flags, divergence checks, and publishes the per-bar signal payload.  
+**`indicators.py`** - Hosts technical indicator functions (Anchored VWAP, ATR, z-score utilities, pre-trade filters, next-day references) shared across the stack.  
+**`swing_structure.py`** - Detects pivots, builds swing levels, and emits proximity/failure signals used for stops and chart overlays.  
+**`volume_features.py`** - Computes CMF, CMF z-scores, volume surprise, event-day markers, and volume divergence features.  
+**`chart_builder.py`** - Renders three-panel matplotlib outputs with swing levels, event days, and entry/exit icons.  
+**`batch_processor.py`** - Multi-ticker execution layer that ranks outputs, builds HTML summaries, and orchestrates batch scorecards.
 
 ---
 
-## Risk & Testing
+## Data & Cache Layer
 
-**`backtest.py`** - Trade validation
-- Entry-to-exit pairing
-- Performance metrics
-- Primary target for Items #5, #13
-
-**`data_manager.py`** - Data fetch/cache (ENHANCED - Nov 9, 2025)
-- Yahoo Finance integration
-- Cache management with schema versioning
-- **NEW:** Date range query functions:
-  - query_cache_by_date_range() - Query specific date ranges
-  - get_cache_date_range() - Get cache coverage
-  - cache_covers_date_range() - Validate coverage
-- Foundation for future provider abstraction
-
-**`batch_backtest.py`** - Multi-ticker backtesting (ENHANCED - Nov 9, 2025)
-- Batch backtest orchestration
-- Aggregate report generation
-- **NEW:** Regime-aware backtesting:
-  - --start-date/--end-date parameters
-  - Date range filtering for regime analysis
-  - Supports both period and date range queries
-
-**`populate_cache.py`** - Cache population tool (NEW - Nov 9, 2025)
-- Batch download historical data for multiple ticker files
-- Smart caching (skips already cached)
-- Progress tracking and error handling
-- Supports single file or all ticker files
-
-**`query_cache_range.py`** - Cache query tool (NEW - Nov 9, 2025)
-- Interactive date range queries
-- Cache coverage verification
-- Price statistics and data preview
-- Testing tool for regime analysis
-
-**`threshold_config.py`** - Signal thresholds (NEW)
-- Empirically-validated thresholds (Item #8 ✅)
-- Target for optimization refinement
+**`data_manager.py`** - Unified data access layer (Yahoo Finance + cached data) with schema versioning and date-range helpers.  
+**`populate_cache.py` / `populate_cache_bulk.py`** - Populate or refresh cache files across ticker lists with progress reporting and error isolation.  
+**`query_cache_range.py`** - CLI tool to inspect cached coverage, preview stats, and validate regime windows.  
+**`schema_manager.py`** - Owns cache schema migrations and upgrade validation.  
+**`massive_data_provider.py`** - Legacy Massive.com fetcher kept for replaying archived tests.
 
 ---
 
-## Support Modules
+## Risk & Backtesting
 
-**`schema_manager.py`** - Cache schema management
-**`error_handler.py`** - Error handling framework
-**`utils.py`** - Utility functions
-**`regime_filter.py`** - Market/sector regime validation (NEW - Item #6 ✅)
-- SPY 200DMA and Sector ETF 50DMA checks
-- Comprehensive sector ETF mapping
-- Signal filtering based on regime
-
-**`risk_manager.py`** - Comprehensive risk management framework (NEW - Item #13 ✅)
-- RiskManager class for unified trade lifecycle management
-- Position sizing (0.5-1% risk per trade)
-- Stop placement: min(swing_low - 0.5*ATR, VWAP - 1*ATR)
-- Time stops, momentum failures, profit scaling at +2R
-- Trade analysis and performance reporting
-
-**`threshold_validation.py`** - Walk-forward threshold validation (Item #9 🚧)
-- Generates rolling train/test windows
-- Reuses optimization pipeline to evaluate thresholds out-of-sample
-- Flags degradation and produces summary reports
-
-## Test Modules (Item #7: Refactor/Integration)
-
-**`test_swing_structure.py`** - Unit tests for swing_structure module
-- Tests pivot detection
-- Tests swing level calculation
-- Tests proximity signals (legacy and volatility-aware)
-- Integration tests for complete swing workflow
-
-**`test_volume_features.py`** - Unit tests for volume_features module
-- Tests CMF calculation and z-score normalization
-- Tests volume surprise and event detection
-- Tests volume divergence patterns
-- Integration tests for complete volume workflow
-
-**`test_threshold_validation.py`** - Unit tests for Item #9 prototype
-- Validates walk-forward window creation
-- Confirms validation metrics/report generation
-
-**`test_risk_manager.py`** - Unit tests for risk_manager module (existing)
-**`test_schema_manager.py`** - Unit tests for schema_manager module (existing)
-**`test_error_framework.py`** - Unit tests for error_handler module (existing)
+**`risk_manager.py`** - Central trade lifecycle manager (position sizing, stop logic, time/momentum exits, performance rolls).  
+**`backtest.py`** - Entry-to-exit pairing engine with P&L attribution routed through `RiskManager`.  
+**`batch_backtest.py`** - Batch-oriented backtesting wrapper with regime/date filters and aggregate reporting.  
+**`threshold_config.py`** - Houses calibrated thresholds for entry, exit, and quality filters.  
+**`threshold_validation.py`** - Walk-forward framework that reuses the optimization pipeline to guard against drift.
 
 ---
 
-## Simplification Touchpoints (Priority Order)
+## Support Modules & Utilities
 
-1. Limit entries to `Confluence_Signal` + `Stealth_Accumulation` (`signal_generator.py`, `backtest.py`)
-2. Enforce bullish regime + liquidity minimums (`regime_filter.py`, signal prefilters)
-3. Raise accumulation thresholds (`threshold_config.py`)
-4. Make RiskManager path default for batch/CLI (`batch_backtest.py`, `backtest.py`)
-5. Tighten time-stop window (`risk_manager.py`)
-6. Tier position sizing by signal quality (`risk_manager.py`)
-7. Retire weak exit rules via aggregate stats (`backtest.py`)
+**`regime_filter.py`** - Market/sector regime checks (SPY 200DMA, sector ETF 50DMAs, ETF mappings).  
+**`utils.py`** - Generic helpers (I/O, formatting, math utilities).  
+**`error_handler.py`** - Standardized error capture/reporting for CLI tools.  
+**`chart_builder_plotly.py`** - Alternate visualization path for interactive dashboards.  
+**`sector_dashboard*.py` / `sector_rotation.py`** - Sector-level analytics, momentum ranking, and reporting.
 
 ---
 
-## Upgrade Status Matrix
+## Testing & Validation Toolkit
 
-### Completed
-- ✅ Item #1: Anchored VWAP (indicators.py, signal_generator.py)
-- ✅ Item #2: Swing Support/Resistance (indicators.py, chart_builder.py)
-- ✅ Item #3: Event Spike Filter (indicators.py, signal_generator.py)
-- ✅ Item #4: Next-Day Execution (indicators.py, backtest.py, chart_builder.py)
-- ✅ Item #6: Market/Sector Regime Filter (regime_filter.py, vol_analysis.py)
-  - Implemented: 2025-11-05
-  - SPY > 200DMA AND Sector ETF > 50DMA pre-filter
-  - Comprehensive sector mapping for all major stocks
-- ✅ Item #8: Threshold Optimization (threshold_config.py, signal_generator.py)
-- ✅ Item #10: CMF Replacement (indicators.py, signal_generator.py, vol_analysis.py, chart_builder.py)
-  - Implemented: 2025-11-05
-  - Added calculate_cmf() and calculate_cmf_zscore() functions
-  - Replaced A/D + OBV with single CMF indicator
-  - Fixed FutureWarnings in chart_builder.py
-- ✅ Item #11: Pre-Trade Quality Filters (indicators.py, signal_generator.py, vol_analysis.py)
-  - Implemented: 2025-11-05
-  - Three-layer filtering: liquidity ($5M), price ($3), earnings (T-3 to T+3)
-- ✅ Item #12: Z-Score Normalization (indicators.py, signal_generator.py, vol_analysis.py)
-  - Implemented: 2025-11-05
-  - Standardized feature weighting across different stocks
-- ✅ Item #13: RiskManager Framework (risk_manager.py, test_risk_manager.py)
-  - Implemented: 2025-11-05
-  - Complete trade lifecycle management from sizing to exit
-  - Risk-based position sizing, stop placement, exit conditions
-  - Profit scaling at +2R with trailing stops
-  - All tests passed ✓
-- ✅ Item #5: P&L-Aware Exit Logic (signal_generator.py, backtest.py, risk_manager.py)
-  - Implemented: 2025-11-05
-  - Batch and CLI backtests routed through RiskManager for execution realism
+**Unit / module tests**  
+- `test_swing_structure.py`, `test_volume_features.py`, `test_risk_manager.py`
 
-### Ready to Implement (Specs Complete)
-- ⏸️ Item #9: Validation Framework (prevent overfitting)
+**Variable stop loss validation**
+- `test_variable_stops.py` - Comprehensive testing framework for 5 stop strategies (4,249 trades validated)
+  - Extends RiskManager without modifying production code
+  - Time Decay winner: 1.52R avg (+22% vs 1.25R static baseline)  
+  - Supports batch testing via ticker files (`--file` parameter)
+  - Generates comparative reports and statistical validation
 
-### Planned
-- ⏸️ Item #7: Further modularization (optional)
+**Scenario / regression harness**  
+- `test_massive_*` scripts, `tests/` directory fixtures
+
+**Validation utilities**  
+- `validate_execution_timing.py`, `validate_outlier_impact.py`, `validate_signal_details.py`, `validate_walk_forward.py`  
+- `verify_threshold_disconnect.py`, `verify_trade_counts.py`, `explain_exit_returns.py`, `calculate_realistic_expectations.py`
 
 ---
 
-## File → Upgrade Item Quick Reference
-
-```
-indicators.py      → Items #10, #12 (CMF, z-scores)
-signal_generator.py → Items #5, #10, #12, #13 (exits, CMF, z-scores, risk)
-backtest.py        → Items #5, #13 (P&L exits, RiskManager)
-vol_analysis.py    → Items #6, #11 (regime filter, pre-filters)
-batch_processor.py → Item #11 (pre-filters)
-
-NEW FILES CREATED:
-- regime_filter.py → Item #6 ✅ (market/sector regime checks)
-- risk_manager.py → Item #13 ✅ (comprehensive risk framework)
-- test_risk_manager.py → Item #13 ✅ (risk manager test suite)
-- swing_structure.py → Item #7 ✅ (modular swing/pivot analysis)
-- volume_features.py → Item #7 ✅ (modular volume/CMF analysis)
-- test_swing_structure.py → Item #7 ✅ (swing module unit tests)
-- test_volume_features.py → Item #7 ✅ (volume module unit tests)
-```
-
----
-
-## Key Dependencies
+## Dependency Snapshot
 
 ```
 vol_analysis.py
@@ -226,7 +80,7 @@ vol_analysis.py
 └── backtest.py
 
 signal_generator.py
-└── indicators.py (uses calculated columns)
+└── indicators.py
 
 backtest.py
 └── schema_manager.py
@@ -234,61 +88,15 @@ backtest.py
 
 ---
 
-## Validation Tools (NEW - Nov 2025)
+## Documentation & Reference
 
-**`validate_execution_timing.py`** - Check for lookahead bias
-**`validate_outlier_impact.py`** - Analyze outlier effects on means
-**`validate_signal_details.py`** - Deep dive into specific signals
-**`validate_walk_forward.py`** - Period consistency testing
-**`verify_threshold_disconnect.py`** - Threshold validation
-**`verify_trade_counts.py`** - Trade counting verification
-**`explain_exit_returns.py`** - Entry vs exit metric explanation
-**`calculate_realistic_expectations.py`** - Weighted return calculator
+- `STRATEGY_VALIDATION_COMPLETE.md` - consolidated performance/validation findings  
+- `BACKTEST_VALIDATION_METHODOLOGY.md` - repeatable validation checklist  
+- `BULK_CACHE_POPULATION.md`, `docs/CACHE_SCHEMA.md` - cache architecture and schema notes  
+- `TRADING_STRATEGY.md`, `TRADING_STRATEGY_SECTOR_AWARE.md` - trading rules, risk logic, and sector overlays  
+- `SESSION_IMPROVEMENTS_SUMMARY.md`, `SESSION_COMPLETE_NOV_2025.md` - running changelog/session context  
+- `docs/architecture_reference.md` - conceptual overview complementing this code map
 
 ---
 
-## Documentation Structure (Updated Nov 9, 2025)
-
-### Primary Reference Documents:
-- **`STRATEGY_VALIDATION_COMPLETE.md`** - Master validation document (ALL performance insights)
-- **`BACKTEST_VALIDATION_METHODOLOGY.md`** - How to validate strategies
-- **`IBD_STOCK_LIST_COMPARISON.md`** - Stock universe selection guide
-- **`TRADING_STRATEGY.md`** - Trading implementation guide
-
-### Session Tracking:
-- **`SESSION_IMPROVEMENTS_SUMMARY.md`** - Issue-by-issue changelog (8 issues)
-- **`SESSION_COMPLETE_NOV_2025.md`** - Session records
-- **`NEXT_SESSION_TASKS.md`** - Future priorities (Phase 3 pending)
-
-### Technical Documentation:
-- **`THRESHOLD_DISCONNECT_FIX.md`** - Threshold issue resolution
-- **`CODE_MAP.txt`** - This file (module reference)
-- **`git-workflow.md`** - Git usage guide
-- **`tasks.md`** - General task tracking
-
-**Note:** 4 redundant performance reports deleted Nov 9, 2025 (consolidated into STRATEGY_VALIDATION_COMPLETE.md)
-
----
-
-## Implementation Priority Order
-
-Based on upgrade spec pragmatic sequence:
-
-1. ✅ **Item #10** (CMF) – Completed
-2. ✅ **Item #12** (Z-scores) – Completed
-3. ✅ **Item #11** (Pre-filters) – Completed
-4. ✅ **Item #6** (Regime) – Completed
-5. ✅ **Item #13** (RiskManager) – Completed
-6. ✅ **Item #5** (P&L Exits) – Completed
-7. **Item #9** (Validation) – Next major workstream
-
-### Recent Additions (Nov 9, 2025):
-- ✅ Date range cache queries (data_manager.py)
-- ✅ Regime-aware backtesting (batch_backtest.py)
-- ✅ Cache population tools (populate_cache.py, query_cache_range.py)
-- ✅ Market index data (SPY, QQQ, DIA cached)
-- ✅ Documentation consolidation (4 reports → 1 master)
-
----
-
-**Maintenance**: Update only when modules change or upgrades complete.
+**Maintenance**: Update when modules move, are renamed, or major tooling is added/removed—this file should stay lean and routing-focused.

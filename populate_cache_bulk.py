@@ -5,18 +5,24 @@ Downloads daily files containing all US stocks, splits by our tickers, and cache
 Supports sectional population with automatic duplicate detection.
 """
 
+import argparse
+import gzip
+import json
+import os
+import time
+from datetime import datetime, timedelta
+from io import BytesIO
+from pathlib import Path
+from typing import Set, List, Dict
+
 import boto3
+import pandas as pd
 from botocore.config import Config
 from botocore.exceptions import ClientError
-import pandas as pd
-import gzip
-from io import BytesIO
-from datetime import datetime, timedelta
-import os
-from pathlib import Path
-import time
-import argparse
-from typing import Set, List, Dict
+
+from schema_manager import SchemaManager
+
+schema_manager = SchemaManager()
 
 def read_ticker_file(filepath: str) -> List[str]:
     """Read tickers from a file."""
@@ -62,13 +68,42 @@ def get_existing_dates(cache_file: Path) -> Set[datetime]:
         return set()
     
     try:
-        df = pd.read_csv(cache_file, index_col=0, parse_dates=True)
+        df = pd.read_csv(cache_file, index_col=0, parse_dates=True, comment='#')
         # Convert index to set of dates (timezone-naive)
         dates = set(pd.to_datetime(df.index).tz_localize(None).date)
         return {datetime.combine(d, datetime.min.time()) for d in dates}
     except Exception as e:
         print(f"      Warning: Error reading {cache_file}: {e}")
         return set()
+
+def read_cache_dataframe(cache_file: Path) -> pd.DataFrame:
+    """Load existing cache data while ignoring metadata headers."""
+    try:
+        return pd.read_csv(cache_file, index_col=0, parse_dates=True, comment='#')
+    except Exception as e:
+        print(f"      Warning: Failed to load {cache_file}: {e}")
+        return pd.DataFrame()
+
+def write_cache_with_metadata(cache_file: Path, ticker: str, df: pd.DataFrame) -> None:
+    """
+    Persist cache data with metadata headers so downstream consumers can validate files.
+    """
+    df = df.sort_index()
+    metadata = schema_manager.create_metadata_header(
+        ticker=ticker,
+        df=df,
+        interval="1d",
+        data_source="massive_flatfile"
+    )
+    metadata_json = json.dumps(metadata, indent=2)
+    with open(cache_file, 'w', newline='') as f:
+        f.write("# Volume Analysis System - Cache File\n")
+        f.write(f"# Generated: {datetime.now().isoformat()}\n")
+        f.write("# Metadata (JSON format):\n")
+        for line in metadata_json.split('\n'):
+            f.write(f"# {line}\n")
+        f.write("#\n")
+        df.to_csv(f)
 
 def convert_to_yfinance_format(ticker_df: pd.DataFrame, ticker: str) -> pd.DataFrame:
     """Convert Massive format to yfinance format."""
@@ -125,7 +160,7 @@ def append_to_ticker_cache(ticker: str, date: datetime, ticker_data: pd.DataFram
         
         # Load existing data if file exists
         if cache_file.exists():
-            existing_df = pd.read_csv(cache_file, index_col=0, parse_dates=True)
+            existing_df = read_cache_dataframe(cache_file)
             # Combine and sort
             combined = pd.concat([existing_df, converted])
             combined = combined[~combined.index.duplicated(keep='last')]
@@ -134,7 +169,7 @@ def append_to_ticker_cache(ticker: str, date: datetime, ticker_data: pd.DataFram
             combined = converted
         
         # Save
-        combined.to_csv(cache_file)
+        write_cache_with_metadata(cache_file, ticker, combined)
         return 'ADDED'
         
     except Exception as e:
