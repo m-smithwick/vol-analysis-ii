@@ -576,6 +576,7 @@ def generate_analysis_chart(df: pd.DataFrame, ticker: str, period: str,
                 dict(count=1, label="1m", step="month", stepmode="backward"),
                 dict(count=3, label="3m", step="month", stepmode="backward"),
                 dict(count=6, label="6m", step="month", stepmode="backward"),
+                dict(count=12, label="12m", step="month", stepmode="backward"),
                 dict(step="all", label="All")
             ])
         )
