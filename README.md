@@ -33,17 +33,32 @@ Need the deeper architecture or indicator breakdown? See `docs/ARCHITECTURE_REFE
    pip install pandas numpy yfinance matplotlib boto3 requests
    ```
 2. **Populate cache (start small, then scale)**
+   
+   **Option A: Yahoo Finance (Recommended - No credentials needed)**
    ```bash
+   # Start with 1 month to test
+   python populate_cache.py --all -m 1
+   
+   # Scale up to 24 months
+   python populate_cache.py --all -m 24
+   ```
+   
+   **Option B: Massive.com (Advanced - Requires AWS S3 credentials and massive.com subscription)**
+   ```bash
+   # For users with Massive.com access (faster bulk downloads)
    python populate_cache_bulk.py --months 1
    python populate_cache_bulk.py --months 24
    ```
+   
+   > 💡 **New users**: Start with Option A (Yahoo Finance). It works immediately without any setup.
+   > Option B is for advanced users with Massive.com subscriptions who need to backfill years of data quickly.
 3. **Run analysis & dashboards**
    ```bash
    # Single ticker analysis
-   python vol_analysis.py --period 6mo --ticker AAPL 
+   python vol_analysis.py AAPL --period 6mo
 
    #file with tickers
-   python vol_analysis.py --period 24mo --file cmb.txt --chart-backend plotly --save-charts
+   python vol_analysis.py --file cmb.txt --period 24mo --chart-backend plotly --save-charts
 
    # Batch backtest a watchlist
    python batch_backtest.py -f stocks.txt -p 24mo --risk-managed
