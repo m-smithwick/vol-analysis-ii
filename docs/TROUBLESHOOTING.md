@@ -10,9 +10,9 @@ Centralized reference for diagnosing common failures and keeping caches healthy.
 ```
 ModuleNotFoundError: No module named 'boto3'
 ```
-Install the required library:
+Install all required dependencies:
 ```bash
-pip install boto3 pandas numpy
+pip install -r requirements.txt
 ```
 
 ### 403 Forbidden from Massive.com
@@ -81,4 +81,3 @@ Keep at least one off-machine copy before running destructive migrations.
 4. Capture logs and open an issue
 
 Need the operational routine instead? See `docs/USER_PLAYBOOK.md`.
-

@@ -8,7 +8,7 @@ Field guide for running the full workflow—from first-time setup to daily, mont
 
 ### 1️⃣ Install Dependencies
 ```bash
-pip install pandas numpy yfinance matplotlib boto3 requests
+pip install -r requirements.txt
 ```
 
 ### 2️⃣ Choose Your Data Source

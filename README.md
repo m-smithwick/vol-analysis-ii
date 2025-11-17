@@ -30,7 +30,7 @@ Need the deeper architecture or indicator breakdown? See `docs/ARCHITECTURE_REFE
 
 1. **Install dependencies**
    ```bash
-   pip install pandas numpy yfinance matplotlib boto3 requests
+   pip install -r requirements.txt
    ```
 2. **Populate cache (start small, then scale)**
    
