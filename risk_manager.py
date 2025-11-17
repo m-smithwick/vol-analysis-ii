@@ -47,6 +47,8 @@ class RiskManager:
             stop_strategy: Stop loss strategy - 'static', 'vol_regime', 'atr_dynamic', 'pct_trail', 'time_decay'
         """
         self.account_value = account_value
+        self.starting_equity = account_value
+        self.equity = account_value
         self.risk_pct = risk_pct_per_trade
         strategy = (stop_strategy or 'static').lower()
         if strategy not in self.SUPPORTED_STOP_STRATEGIES:
@@ -87,7 +89,7 @@ class RiskManager:
         From tweaks.txt: Risk 0.5-1.0% per trade
         
         Formula:
-        risk_amount = account_value * (risk_pct / 100)
+        risk_amount = current_equity * (risk_pct / 100)
         risk_per_share = entry_price - stop_price
         position_size = risk_amount / risk_per_share
         
@@ -103,8 +105,9 @@ class RiskManager:
         """
         if stop_price >= entry_price:
             raise ValueError(f"Stop price ({stop_price:.2f}) must be below entry price ({entry_price:.2f})")
-        
-        risk_amount = self.account_value * (self.risk_pct / 100)
+        risk_amount = self.equity * (self.risk_pct / 100)
+        if risk_amount <= 0:
+            raise ValueError("Account equity depleted; cannot calculate position size")
         risk_per_share = entry_price - stop_price
         
         position_size = risk_amount / risk_per_share
@@ -318,12 +321,16 @@ class RiskManager:
         """
         position_size = self.calculate_position_size(entry_price, stop_price)
         
+        if position_size <= 0:
+            raise ValueError("Calculated position size is zero - check risk parameters or stop distance")
+        
         position = {
             'ticker': ticker,
             'entry_date': entry_date,
             'entry_price': entry_price,
             'stop_price': stop_price,
             'position_size': position_size,
+            'original_position_size': position_size,
             'entry_idx': entry_idx,
             'bars_in_trade': 0,
             'peak_r_multiple': 0.0,
@@ -331,7 +338,8 @@ class RiskManager:
             'trail_stop_active': False,
             'trail_stop_price': None,
             'current_r_multiple': 0.0,
-            'peak_price': entry_price
+            'peak_price': entry_price,
+            'equity_at_entry': self.equity
         }
         
         self.active_positions[ticker] = position
@@ -511,6 +519,8 @@ class RiskManager:
             pos['position_size'] = pos['position_size'] - exit_size
             
             # Record partial exit as separate trade
+            pnl = exit_size * (exit_price - pos['entry_price'])
+            self.equity += pnl
             partial_trade = {
                 'ticker': ticker,
                 'entry_date': pos['entry_date'],
@@ -524,7 +534,10 @@ class RiskManager:
                 'position_size': exit_size,
                 'partial_exit': True,
                 'exit_pct': partial_exit_pct,
-                'peak_r_multiple': pos['peak_r_multiple']
+                'peak_r_multiple': pos['peak_r_multiple'],
+                'profit_taken_50pct': exit_type == 'PROFIT_TARGET',
+                'dollar_pnl': pnl,
+                'equity_after_trade': self.equity
             }
             
             self.closed_trades.append(partial_trade)
@@ -541,6 +554,10 @@ class RiskManager:
             else:
                 blended_r = r_multiple
             
+            exit_size = pos['position_size']
+            pnl = exit_size * (exit_price - pos['entry_price'])
+            self.equity += pnl
+            
             trade_result = {
                 'ticker': ticker,
                 'entry_date': pos['entry_date'],
@@ -555,7 +572,9 @@ class RiskManager:
                 'partial_exit': False,
                 'exit_pct': 1.0,
                 'profit_taken_50pct': pos['profit_taken_50pct'],
-                'peak_r_multiple': pos['peak_r_multiple']
+                'peak_r_multiple': pos['peak_r_multiple'],
+                'dollar_pnl': pnl,
+                'equity_after_trade': self.equity
             }
             
             self.closed_trades.append(trade_result)
@@ -590,6 +609,7 @@ class RiskManager:
         """Reset risk manager state (for testing/new analysis)."""
         self.active_positions = {}
         self.closed_trades = []
+        self.equity = self.starting_equity
 
 
 def analyze_risk_managed_trades(trades: List[Dict]) -> Dict:
@@ -615,13 +635,39 @@ def analyze_risk_managed_trades(trades: List[Dict]) -> Dict:
     
     trades_df = pd.DataFrame(trades)
     
+    # Ensure optional columns exist for downstream aggregation
+    if 'profit_taken_50pct' not in trades_df.columns:
+        trades_df['profit_taken_50pct'] = False
+    else:
+        trades_df['profit_taken_50pct'] = trades_df['profit_taken_50pct'].fillna(False)
+    
+    if 'dollar_pnl' not in trades_df.columns:
+        trades_df['dollar_pnl'] = 0.0
+    else:
+        trades_df['dollar_pnl'] = trades_df['dollar_pnl'].fillna(0.0)
+    
+    if 'equity_after_trade' not in trades_df.columns:
+        trades_df['equity_after_trade'] = np.nan
+    else:
+        trades_df['equity_after_trade'] = trades_df['equity_after_trade'].astype(float)
+    
+    if 'partial_exit' not in trades_df.columns:
+        trades_df['partial_exit'] = False
+    else:
+        trades_df['partial_exit'] = trades_df['partial_exit'].fillna(False)
+    
+    total_dollar_pnl = trades_df['dollar_pnl'].sum()
+    ending_equity = trades_df['equity_after_trade'].dropna().iloc[-1] if trades_df['equity_after_trade'].notna().any() else None
+    
     analysis = {
         'Total Trades': len(trades),
         'Win Rate': f"{(trades_df['r_multiple'] > 0).sum() / len(trades) * 100:.1f}%",
         'Average R-Multiple': f"{trades_df['r_multiple'].mean():.2f}R",
         'Average Profit %': f"{trades_df['profit_pct'].mean():.2f}%",
         'Average Bars Held': f"{trades_df['bars_held'].mean():.1f}",
-        'Profit Scaling Used': trades_df['profit_taken_50pct'].sum(),
+        'Profit Scaling Used': ((trades_df['profit_taken_50pct']) & (~trades_df['partial_exit'])).sum(),
+        'Total Dollar P&L': f"${total_dollar_pnl:,.0f}",
+        'Ending Equity': f"${ending_equity:,.0f}" if ending_equity is not None else "N/A",
         
         # By exit type
         'Exit Type Breakdown': {

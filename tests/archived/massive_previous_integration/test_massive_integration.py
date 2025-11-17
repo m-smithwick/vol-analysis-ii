@@ -9,6 +9,8 @@ with the existing data_manager module.
 import sys
 from datetime import datetime, timedelta
 
+import pytest
+
 # Add error handling
 try:
     from massive_data_provider import (
@@ -19,9 +21,7 @@ try:
     from data_manager import get_smart_data, clear_cache
     from error_handler import setup_logging, logger
 except ImportError as e:
-    print(f"❌ Import error: {e}")
-    print("Make sure all required modules are available")
-    sys.exit(1)
+    pytest.skip(f"Massive integration tests skipped: {e}", allow_module_level=True)
 
 # Configure logging
 setup_logging()

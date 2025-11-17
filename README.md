@@ -99,6 +99,7 @@ Full details and review cadence live in `docs/VALIDATION_STATUS.md`.
 - `--chart-backend {matplotlib,plotly}`: control renderer (default `matplotlib`).
 - `--data-source {yfinance,massive}`: select data provider.
 - `--stop-strategy {static,vol_regime,atr_dynamic,pct_trail,time_decay}`: choose risk-managed stop logic (default `time_decay`).
+- `--account-value`: starting account equity for risk-managed runs (default `100000`).
 - `--multi`: run multi-timeframe analysis (single ticker only).
 - `--force-refresh`: bypass cache and redownload data.
 - `--clear-cache all|TICKER`: purge cache globally or per ticker.
@@ -123,6 +124,7 @@ Full details and review cadence live in `docs/VALIDATION_STATUS.md`.
 - `-o` / `--output-dir`: backtest output folder (default `backtest_results`).
 - `--risk-managed`: enable full RiskManager exit logic.
 - `--stop-strategy {static,vol_regime,atr_dynamic,pct_trail,time_decay}`: stop method when risk-managed (default `time_decay`).
+- `--account-value`: starting account equity for risk-managed batch jobs (default `100000`).
 
 ### `sector_dashboard.py`
 - `-p` / `--period {1mo,3mo,6mo,12mo}`: scoring window (default `3mo`).

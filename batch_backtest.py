@@ -86,7 +86,8 @@ def run_batch_backtest(ticker_file: str, period: str = '12mo',
             'entry_signal_stats': {},
             'exit_signal_stats': {},
             'all_paired_trades': [],
-            'ticker_specific_results': {}
+            'ticker_specific_results': {},
+            'account_value': account_value
         }
         
         # Signal definitions - Using MULTI-TICKER VALIDATED filtered signals
@@ -298,6 +299,25 @@ def generate_risk_managed_aggregate_report(results: Dict, period: str, output_di
     if not risk_analysis:
         risk_analysis = analyze_risk_managed_trades(trades)
 
+    starting_equity = results.get("account_value", 100000)
+    portfolio_ledger = None
+    ending_equity = starting_equity
+    total_pnl = 0.0
+    return_pct = 0.0
+
+    if trades:
+        ledger_df = pd.DataFrame(trades).copy()
+        if 'dollar_pnl' not in ledger_df.columns:
+            ledger_df['dollar_pnl'] = 0.0
+        ledger_df['dollar_pnl'] = ledger_df['dollar_pnl'].fillna(0.0)
+        ledger_df['exit_date'] = pd.to_datetime(ledger_df.get('exit_date'), errors='coerce')
+        ledger_df = ledger_df.sort_values(by=['exit_date', 'ticker'], na_position='last')
+        ledger_df['portfolio_equity'] = starting_equity + ledger_df['dollar_pnl'].cumsum()
+        ending_equity = ledger_df['portfolio_equity'].iloc[-1] if not ledger_df.empty else starting_equity
+        total_pnl = ending_equity - starting_equity
+        return_pct = (total_pnl / starting_equity * 100) if starting_equity else 0.0
+        portfolio_ledger = ledger_df[['exit_date', 'ticker', 'dollar_pnl', 'portfolio_equity']]
+
     def _fmt_date(value):
         if isinstance(value, (pd.Timestamp, datetime)):
             return value.strftime("%Y-%m-%d")
@@ -339,6 +359,26 @@ def generate_risk_managed_aggregate_report(results: Dict, period: str, output_di
         report_lines.append("⚠️  No trades captured by the RiskManager.")
         report_lines.append("   Verify signal configuration or extend the analysis window.")
         return "\n".join(report_lines)
+
+    report_lines.append("=" * 80)
+    report_lines.append("💰 PORTFOLIO SUMMARY")
+    report_lines.append("=" * 80)
+    report_lines.append("")
+    report_lines.append(f"  Starting Equity: ${starting_equity:,.0f}")
+    report_lines.append(f"  Ending Equity: ${ending_equity:,.0f}")
+    report_lines.append(f"  Net Profit: ${total_pnl:,.0f} ({return_pct:.2f}%)")
+    report_lines.append(f"  Trades Counted (including partial exits): {len(trades)}")
+    report_lines.append("")
+    if portfolio_ledger is not None and not portfolio_ledger.empty:
+        report_lines.append("🧾 Latest Portfolio Movements:")
+        recent_rows = portfolio_ledger.tail(5)
+        for _, row in recent_rows.iterrows():
+            date_str = row['exit_date'].strftime("%Y-%m-%d") if pd.notnull(row['exit_date']) else "N/A"
+            report_lines.append(
+                f"  • {date_str} {row['ticker']}: "
+                f"${row['dollar_pnl']:,.0f}  ➜  Equity ${row['portfolio_equity']:,.0f}"
+            )
+        report_lines.append("")
 
     report_lines.append("=" * 80)
     report_lines.append("📈 R-MULTIPLE PERFORMANCE")
@@ -734,6 +774,13 @@ def main():
         help='Stop-loss strategy when running risk-managed backtests (default: time_decay)'
     )
     
+    parser.add_argument(
+        '--account-value',
+        type=float,
+        default=100000,
+        help='Starting account equity for risk-managed runs (default: 100000)'
+    )
+    
     args = parser.parse_args()
     
     # Validate date range if provided
@@ -748,6 +795,7 @@ def main():
         end_date=args.end_date,
         output_dir=args.output_dir,
         risk_managed=args.risk_managed,
+        account_value=args.account_value,
         stop_strategy=args.stop_strategy
     )
     

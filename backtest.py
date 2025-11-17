@@ -1241,7 +1241,7 @@ def run_risk_managed_backtest(
     )
     
     print(f"\n🎯 RISK-MANAGED BACKTEST: {ticker}")
-    print(f"   Account Value: ${account_value:,.0f}")
+    print(f"   Starting Account Value: ${account_value:,.0f}")
     print(f"   Risk Per Trade: {risk_pct}%")
     print(f"   Stop Strategy: {stop_strategy}")
     print("="*70)
@@ -1366,6 +1366,13 @@ def run_risk_managed_backtest(
     # Generate comprehensive analysis
     if all_trades:
         analysis = analyze_risk_managed_trades(all_trades)
+        ending_equity = risk_mgr.equity
+        net_profit = ending_equity - risk_mgr.starting_equity
+        analysis['Starting Equity'] = f"${risk_mgr.starting_equity:,.0f}"
+        analysis['Ending Equity'] = f"${ending_equity:,.0f}"
+        analysis['Net Profit $'] = f"${net_profit:,.0f}"
+        analysis['Return %'] = f"{(net_profit / risk_mgr.starting_equity * 100):.2f}%"
+        analysis.setdefault('Total Dollar P&L', analysis['Net Profit $'])
         report = generate_risk_managed_report(ticker, all_trades, analysis, account_value, risk_pct)
         
         print("\n" + report)
@@ -1428,9 +1435,11 @@ def generate_risk_managed_report(
     
     # Configuration
     report_lines.append("⚙️ RISK MANAGEMENT CONFIGURATION:")
-    report_lines.append(f"  Account Value: ${account_value:,.0f}")
-    report_lines.append(f"  Risk Per Trade: {risk_pct}%")
-    report_lines.append(f"  Max $ Risk Per Trade: ${account_value * (risk_pct/100):,.0f}")
+    report_lines.append(f"  Starting Equity: ${account_value:,.0f}")
+    report_lines.append(f"  Risk Per Trade: {risk_pct}% (initial ${account_value * (risk_pct/100):,.0f})")
+    report_lines.append(f"  Ending Equity: {analysis.get('Ending Equity', 'N/A')}")
+    report_lines.append(f"  Net Profit: {analysis.get('Net Profit $', 'N/A')} ({analysis.get('Return %', 'N/A')})")
+    report_lines.append(f"  Total Dollar P&L: {analysis.get('Total Dollar P&L', 'N/A')}")
     report_lines.append("")
     
     # Overall Performance
@@ -1487,6 +1496,11 @@ def generate_risk_managed_report(
         report_lines.append(f"  Result: {trade['profit_pct']:+.2f}% | {trade['r_multiple']:+.2f}R")
         report_lines.append(f"  Held: {trade['bars_held']} days")
         report_lines.append(f"  Position: {trade['position_size']} shares")
+        
+        if 'dollar_pnl' in trade:
+            report_lines.append(f"  Dollar P&L: ${trade['dollar_pnl']:,.2f}")
+        if 'equity_after_trade' in trade:
+            report_lines.append(f"  Equity After Trade: ${trade['equity_after_trade']:,.2f}")
         
         if trade.get('partial_exit', False):
             report_lines.append(f"  Note: Partial exit ({int(trade.get('exit_pct', 1.0)*100)}%)")

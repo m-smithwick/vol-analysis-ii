@@ -751,6 +751,13 @@ Note: Legacy periods (1y, 2y, 5y, etc.) are automatically converted to month equ
     )
     
     parser.add_argument(
+        '--account-value',
+        type=float,
+        default=100000,
+        help='Starting account equity for risk-managed backtests (default: 100000)'
+    )
+    
+    parser.add_argument(
         '--multi',
         action='store_true',
         help='Run multi-timeframe analysis instead of single period (single ticker mode only)'
@@ -875,7 +882,7 @@ Note: Legacy periods (1y, 2y, 5y, etc.) are automatically converted to month equ
                             result = backtest.run_risk_managed_backtest(
                                 df=df,
                                 ticker=ticker,
-                                account_value=100000,
+                                account_value=args.account_value,
                                 risk_pct=0.75,
                                 stop_strategy=args.stop_strategy,
                                 save_to_file=True
