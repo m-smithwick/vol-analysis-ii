@@ -46,6 +46,33 @@ def create_price_chart(fig, df: pd.DataFrame, ticker: str, period: str, row: int
     """
     labels = _signal_labels()
 
+    # === REGIME STATUS BACKGROUND SHADING ===
+    # Shows when market/sector regime allowed signals (green) vs blocked them (red)
+    if 'Overall_Regime_OK' in df.columns:
+        # Find regime change points
+        regime_changes = df['Overall_Regime_OK'].ne(df['Overall_Regime_OK'].shift()).fillna(True)
+        change_indices = df[regime_changes].index.tolist()
+        
+        # Add shaded regions as background shapes
+        for i in range(len(change_indices)):
+            start_idx = change_indices[i]
+            end_idx = change_indices[i + 1] if i + 1 < len(change_indices) else df.index[-1]
+            
+            regime_ok = df.loc[start_idx, 'Overall_Regime_OK']
+            
+            # Add shape to first subplot (price chart)
+            fig.add_shape(
+                type="rect",
+                xref="x", yref=f"y{'' if row == 1 else row} domain",
+                x0=start_idx, x1=end_idx,
+                y0=0, y1=1,
+                fillcolor="green" if regime_ok else "red",
+                opacity=0.15,
+                layer="below",
+                line_width=0,
+                row=row, col=1
+            )
+    
     # Main price line
     fig.add_trace(go.Scatter(
         x=df.index,

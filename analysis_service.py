@@ -198,7 +198,49 @@ def prepare_analysis_dataframe(
     )
     df["Stop_Loss"] = signal_generator.generate_stop_loss_signals(df)
 
-    df = regime_filter.apply_regime_filter(df, ticker, verbose=verbose)
+    # Apply historical regime filter (bar-by-bar for backtest accuracy)
+    # This eliminates lookahead bias by checking regime status for each historical date
+    try:
+        market_regime, sector_regime, overall_regime = (
+            regime_filter.calculate_historical_regime_series(ticker, df)
+        )
+        
+        # Add regime status columns
+        df['Market_Regime_OK'] = market_regime
+        df['Sector_Regime_OK'] = sector_regime
+        df['Overall_Regime_OK'] = overall_regime
+        
+        # Preserve raw signals before filtering
+        entry_signals = [
+            'Strong_Buy', 'Moderate_Buy', 'Stealth_Accumulation',
+            'Confluence_Signal', 'Volume_Breakout'
+        ]
+        
+        for signal_col in entry_signals:
+            # Preserve raw signal
+            df[f'{signal_col}_raw'] = df[signal_col].copy()
+            
+            # Apply regime filter bar-by-bar
+            df[signal_col] = df[signal_col] & df['Overall_Regime_OK']
+        
+        if verbose:
+            filtered_count = sum(
+                (df[f'{sig}_raw'].sum() - df[sig].sum()) 
+                for sig in entry_signals
+            )
+            total_raw = sum(df[f'{sig}_raw'].sum() for sig in entry_signals)
+            if filtered_count > 0:
+                logger.info(f"🌍 Regime filter: {filtered_count}/{total_raw} signals filtered ({filtered_count/total_raw*100:.1f}%)")
+            else:
+                logger.info(f"🌍 Regime filter: All {total_raw} signals passed")
+            
+    except Exception as e:
+        logger.warning(f"Failed to apply historical regime filter: {e}")
+        logger.warning("Continuing without regime filtering")
+        # Add default regime columns
+        df['Market_Regime_OK'] = True
+        df['Sector_Regime_OK'] = True
+        df['Overall_Regime_OK'] = True
 
     df = indicators.create_next_day_reference_levels(df)
 

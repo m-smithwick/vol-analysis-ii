@@ -303,7 +303,9 @@ class RiskManager:
         entry_price: float, 
         stop_price: float, 
         entry_idx: int,
-        df: pd.DataFrame
+        df: pd.DataFrame,
+        entry_signals: List[str] = None,
+        signal_scores: Dict = None
     ) -> Dict:
         """
         Open a new position with full risk management.
@@ -315,6 +317,8 @@ class RiskManager:
             stop_price: Initial stop price
             entry_idx: Index in df for entry
             df: DataFrame with indicators
+            entry_signals: List of signal names that triggered (e.g., ['Strong_Buy', 'Confluence_Signal'])
+            signal_scores: Dict of signal scores at entry (e.g., {'Accumulation_Score': 7.8})
             
         Returns:
             Position dictionary with all tracking fields
@@ -339,7 +343,10 @@ class RiskManager:
             'trail_stop_price': None,
             'current_r_multiple': 0.0,
             'peak_price': entry_price,
-            'equity_at_entry': self.equity
+            'equity_at_entry': self.equity,
+            # Signal metadata for trade quality analysis
+            'entry_signals': entry_signals or [],
+            'signal_scores': signal_scores or {}
         }
         
         self.active_positions[ticker] = position
@@ -537,7 +544,10 @@ class RiskManager:
                 'peak_r_multiple': pos['peak_r_multiple'],
                 'profit_taken_50pct': exit_type == 'PROFIT_TARGET',
                 'dollar_pnl': pnl,
-                'equity_after_trade': self.equity
+                'equity_after_trade': self.equity,
+                # Signal metadata
+                'entry_signals': pos.get('entry_signals', []),
+                'signal_scores': pos.get('signal_scores', {})
             }
             
             self.closed_trades.append(partial_trade)
@@ -574,7 +584,10 @@ class RiskManager:
                 'profit_taken_50pct': pos['profit_taken_50pct'],
                 'peak_r_multiple': pos['peak_r_multiple'],
                 'dollar_pnl': pnl,
-                'equity_after_trade': self.equity
+                'equity_after_trade': self.equity,
+                # Signal metadata
+                'entry_signals': pos.get('entry_signals', []),
+                'signal_scores': pos.get('signal_scores', {})
             }
             
             self.closed_trades.append(trade_result)

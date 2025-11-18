@@ -32,7 +32,7 @@ setup_logging()
 def run_batch_backtest(ticker_file: str, period: str = '12mo',
                       start_date: str = None, end_date: str = None,
                       output_dir: str = 'backtest_results',
-                      risk_managed: bool = False,
+                      risk_managed: bool = True,
                       account_value: float = 100000,
                       risk_pct: float = 0.75,
                       stop_strategy: str = 'time_decay') -> Dict:
@@ -45,7 +45,7 @@ def run_batch_backtest(ticker_file: str, period: str = '12mo',
         start_date (str): Start date for analysis (YYYY-MM-DD format, optional)
         end_date (str): End date for analysis (YYYY-MM-DD format, optional)
         output_dir (str): Directory to save backtest reports
-        risk_managed (bool): Use RiskManager for P&L-aware exits (default: False)
+        risk_managed (bool): Use RiskManager for P&L-aware exits (default: True)
         account_value (float): Account value for position sizing (risk-managed only)
         risk_pct (float): Risk percentage per trade (risk-managed only)
         stop_strategy (str): Stop strategy when using risk-managed mode
@@ -305,18 +305,67 @@ def generate_risk_managed_aggregate_report(results: Dict, period: str, output_di
     total_pnl = 0.0
     return_pct = 0.0
 
+    ledger_csv_path = None
+
     if trades:
         ledger_df = pd.DataFrame(trades).copy()
         if 'dollar_pnl' not in ledger_df.columns:
             ledger_df['dollar_pnl'] = 0.0
         ledger_df['dollar_pnl'] = ledger_df['dollar_pnl'].fillna(0.0)
         ledger_df['exit_date'] = pd.to_datetime(ledger_df.get('exit_date'), errors='coerce')
+        ledger_df['entry_date'] = pd.to_datetime(ledger_df.get('entry_date'), errors='coerce')
+        ledger_df['entry_price'] = ledger_df.get('entry_price', np.nan)
+        ledger_df['exit_price'] = ledger_df.get('exit_price', np.nan)
+        ledger_df['r_multiple'] = ledger_df.get('r_multiple', np.nan)
+        ledger_df['profit_pct'] = ledger_df.get('profit_pct', np.nan)
+        ledger_df['position_size'] = ledger_df.get('position_size', np.nan)
+        if 'partial_exit' not in ledger_df.columns:
+            ledger_df['partial_exit'] = False
+        else:
+            ledger_df['partial_exit'] = ledger_df['partial_exit'].fillna(False)
+        ledger_df['exit_pct'] = ledger_df.get('exit_pct', np.nan)
         ledger_df = ledger_df.sort_values(by=['exit_date', 'ticker'], na_position='last')
         ledger_df['portfolio_equity'] = starting_equity + ledger_df['dollar_pnl'].cumsum()
+        ledger_df['equity_before_trade'] = ledger_df['portfolio_equity'] - ledger_df['dollar_pnl']
         ending_equity = ledger_df['portfolio_equity'].iloc[-1] if not ledger_df.empty else starting_equity
         total_pnl = ending_equity - starting_equity
         return_pct = (total_pnl / starting_equity * 100) if starting_equity else 0.0
-        portfolio_ledger = ledger_df[['exit_date', 'ticker', 'dollar_pnl', 'portfolio_equity']]
+        
+        # Extract signal metadata for CSV export
+        # Convert entry_signals list to comma-separated string
+        ledger_df['entry_signals'] = ledger_df.get('entry_signals', pd.Series([[]] * len(ledger_df)))
+        ledger_df['entry_signals_str'] = ledger_df['entry_signals'].apply(
+            lambda x: ','.join(x) if isinstance(x, list) else ''
+        )
+        ledger_df['primary_signal'] = ledger_df['entry_signals'].apply(
+            lambda x: x[0] if isinstance(x, list) and len(x) > 0 else ''
+        )
+        
+        # Extract individual signal scores from signal_scores dict
+        ledger_df['signal_scores'] = ledger_df.get('signal_scores', pd.Series([{}] * len(ledger_df)))
+        ledger_df['accumulation_score'] = ledger_df['signal_scores'].apply(
+            lambda x: x.get('Accumulation_Score', np.nan) if isinstance(x, dict) else np.nan
+        )
+        ledger_df['moderate_buy_score'] = ledger_df['signal_scores'].apply(
+            lambda x: x.get('Moderate_Buy_Score', np.nan) if isinstance(x, dict) else np.nan
+        )
+        ledger_df['profit_taking_score'] = ledger_df['signal_scores'].apply(
+            lambda x: x.get('Profit_Taking_Score', np.nan) if isinstance(x, dict) else np.nan
+        )
+        
+        portfolio_ledger = ledger_df[['entry_date', 'exit_date', 'ticker', 'entry_price', 'exit_price',
+                                      'position_size', 'partial_exit', 'exit_pct', 'dollar_pnl',
+                                      'equity_before_trade', 'portfolio_equity', 'r_multiple', 'profit_pct',
+                                      'entry_signals_str', 'primary_signal', 'accumulation_score',
+                                      'moderate_buy_score', 'profit_taking_score']]
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        ledger_filename = f"PORTFOLIO_TRADE_LOG_{period.replace(' ', '_')}_{timestamp}.csv"
+        ledger_csv_path = os.path.join(output_dir, ledger_filename)
+        export_df = portfolio_ledger.copy()
+        for col in ['entry_date', 'exit_date']:
+            if export_df[col].notna().any():
+                export_df[col] = export_df[col].dt.strftime("%Y-%m-%d")
+        export_df.to_csv(ledger_csv_path, index=False)
 
     def _fmt_date(value):
         if isinstance(value, (pd.Timestamp, datetime)):
@@ -369,6 +418,9 @@ def generate_risk_managed_aggregate_report(results: Dict, period: str, output_di
     report_lines.append(f"  Net Profit: ${total_pnl:,.0f} ({return_pct:.2f}%)")
     report_lines.append(f"  Trades Counted (including partial exits): {len(trades)}")
     report_lines.append("")
+    if ledger_csv_path:
+        report_lines.append(f"  Trade Ledger CSV: {ledger_csv_path}")
+        report_lines.append("")
     if portfolio_ledger is not None and not portfolio_ledger.empty:
         report_lines.append("🧾 Latest Portfolio Movements:")
         recent_rows = portfolio_ledger.tail(5)
@@ -763,8 +815,16 @@ def main():
     
     parser.add_argument(
         '--risk-managed',
+        dest='risk_managed',
         action='store_true',
-        help='Use RiskManager for P&L-aware exits (Item #5)'
+        help='Use RiskManager for P&L-aware exits (default)'
+    )
+    
+    parser.add_argument(
+        '--simple',
+        dest='risk_managed',
+        action='store_false',
+        help='Use legacy entry/exit pairing (disables RiskManager)'
     )
     
     parser.add_argument(
@@ -773,6 +833,8 @@ def main():
         default='time_decay',
         help='Stop-loss strategy when running risk-managed backtests (default: time_decay)'
     )
+    
+    parser.set_defaults(risk_managed=True)
     
     parser.add_argument(
         '--account-value',

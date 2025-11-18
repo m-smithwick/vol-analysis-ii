@@ -59,9 +59,10 @@ Need the deeper architecture or indicator breakdown? See `docs/ARCHITECTURE_REFE
 
    #file with tickers
    python vol_analysis.py --file cmb.txt --period 24mo --chart-backend plotly --save-charts
+   python vol_analysis.py  --period 24mo --chart-backend plotly --save-charts --file ibd21-nov-17.txt
 
    # Batch backtest a watchlist
-   python batch_backtest.py -f stocks.txt -p 24mo --risk-managed
+  python batch_backtest.py -f stocks.txt -p 24mo
    # Risk-managed runs now default to time_decay stops; override via --stop-strategy
 
    # Sector dashboards
@@ -122,7 +123,8 @@ Full details and review cadence live in `docs/VALIDATION_STATUS.md`.
 - `--start-date YYYY-MM-DD`: begin date for regime analysis (requires `--end-date`).
 - `--end-date YYYY-MM-DD`: end date (requires `--start-date`).
 - `-o` / `--output-dir`: backtest output folder (default `backtest_results`).
-- `--risk-managed`: enable full RiskManager exit logic.
+- `--risk-managed`: (default) ensure RiskManager is active for all trades.
+- `--simple`: disable RiskManager and run legacy entry/exit pairing.
 - `--stop-strategy {static,vol_regime,atr_dynamic,pct_trail,time_decay}`: stop method when risk-managed (default `time_decay`).
 - `--account-value`: starting account equity for risk-managed batch jobs (default `100000`).
 

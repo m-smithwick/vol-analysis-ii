@@ -40,6 +40,27 @@ def create_price_chart(ax, df: pd.DataFrame, ticker: str, period: str) -> None:
         ticker (str): Stock ticker symbol
         period (str): Analysis period
     """
+    # === REGIME STATUS BACKGROUND SHADING ===
+    # Shows when market/sector regime allowed signals (green) vs blocked them (red)
+    if 'Overall_Regime_OK' in df.columns:
+        # Find regime change points
+        regime_changes = df['Overall_Regime_OK'].ne(df['Overall_Regime_OK'].shift()).fillna(True)
+        change_indices = df[regime_changes].index.tolist()
+        
+        # Draw shaded regions for each regime period
+        for i in range(len(change_indices)):
+            start_idx = change_indices[i]
+            end_idx = change_indices[i + 1] if i + 1 < len(change_indices) else df.index[-1]
+            
+            regime_ok = df.loc[start_idx, 'Overall_Regime_OK']
+            
+            if regime_ok:
+                # Green tint: Regime OK (signals allowed)
+                ax.axvspan(start_idx, end_idx, alpha=0.15, color='green', zorder=0, label='_nolegend_')
+            else:
+                # Red tint: Regime blocked signals
+                ax.axvspan(start_idx, end_idx, alpha=0.15, color='red', zorder=0, label='_nolegend_')
+    
     # Main price line and reference levels
     ax.plot(df.index, df['Close'], label='Close Price', color='black', linewidth=1.5)
     ax.plot(df.index, df['VWAP'], label='VWAP', color='purple', alpha=0.7, linestyle='--')

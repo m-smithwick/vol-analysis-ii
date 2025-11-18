@@ -1327,18 +1327,32 @@ def run_risk_managed_backtest(
                 entry_price = df.iloc[idx + 1]['Open']
                 entry_date = df.index[idx + 1]
                 
+                # Extract signal metadata at signal bar (idx, not idx+1)
+                triggered_entries = [sig for sig in entry_signals if df.iloc[idx][sig]]
+                
+                # Extract signal scores at signal bar
+                signal_scores = {}
+                if 'Accumulation_Score' in df.columns:
+                    signal_scores['Accumulation_Score'] = float(df.iloc[idx]['Accumulation_Score'])
+                if 'Moderate_Buy_Score' in df.columns and df.iloc[idx].get('Moderate_Buy', False):
+                    signal_scores['Moderate_Buy_Score'] = float(df.iloc[idx]['Moderate_Buy_Score'])
+                if 'Profit_Taking_Score' in df.columns:
+                    signal_scores['Profit_Taking_Score'] = float(df.iloc[idx]['Profit_Taking_Score'])
+                
                 # Calculate initial stop using RiskManager
                 try:
                     stop_price = risk_mgr.calculate_initial_stop(df, idx)
                     
-                    # Open position
+                    # Open position with signal metadata
                     position = risk_mgr.open_position(
                         ticker=ticker,
                         entry_date=entry_date,
                         entry_price=entry_price,
                         stop_price=stop_price,
                         entry_idx=idx + 1,  # Entry happens next day
-                        df=df
+                        df=df,
+                        entry_signals=triggered_entries,
+                        signal_scores=signal_scores
                     )
                     
                     print(f"✅ ENTRY: {entry_date.strftime('%Y-%m-%d')} @ ${entry_price:.2f}, Stop: ${stop_price:.2f}, Size: {position['position_size']} shares")
@@ -1490,12 +1504,29 @@ def generate_risk_managed_report(
         entry_date = trade['entry_date'].strftime('%Y-%m-%d')
         exit_date = trade['exit_date'].strftime('%Y-%m-%d') if trade.get('exit_date') else 'OPEN'
         
+        # Format entry signals for display
+        entry_signals = trade.get('entry_signals', [])
+        if entry_signals:
+            entry_signals_str = f" ({', '.join(entry_signals)})"
+        else:
+            entry_signals_str = ""
+        
         report_lines.append(f"\nTrade #{i}:")
-        report_lines.append(f"  Entry: {entry_date} @ ${trade['entry_price']:.2f}")
+        report_lines.append(f"  Entry: {entry_date} @ ${trade['entry_price']:.2f}{entry_signals_str}")
         report_lines.append(f"  Exit:  {exit_date} @ ${trade['exit_price']:.2f} ({trade['exit_type']})")
         report_lines.append(f"  Result: {trade['profit_pct']:+.2f}% | {trade['r_multiple']:+.2f}R")
         report_lines.append(f"  Held: {trade['bars_held']} days")
         report_lines.append(f"  Position: {trade['position_size']} shares")
+        
+        # Add signal scores if available
+        signal_scores = trade.get('signal_scores', {})
+        if signal_scores:
+            score_parts = []
+            for score_name, score_value in signal_scores.items():
+                if score_value and not pd.isna(score_value):
+                    score_parts.append(f"{score_name}: {score_value:.1f}")
+            if score_parts:
+                report_lines.append(f"  Signal Scores: {', '.join(score_parts)}")
         
         if 'dollar_pnl' in trade:
             report_lines.append(f"  Dollar P&L: ${trade['dollar_pnl']:,.2f}")

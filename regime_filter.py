@@ -86,13 +86,17 @@ def get_sector_etf(ticker: str) -> str:
     return SECTOR_ETFS.get(ticker.upper(), 'SPY')
 
 
-def load_benchmark_data(ticker: str, period: str = '12mo', end_date: Optional[pd.Timestamp] = None) -> Optional[pd.DataFrame]:
+def load_benchmark_data(ticker: str, 
+                       period: Optional[str] = '12mo',
+                       start_date: Optional[pd.Timestamp] = None,
+                       end_date: Optional[pd.Timestamp] = None) -> Optional[pd.DataFrame]:
     """
     Load benchmark data (SPY or sector ETF) from Yahoo Finance.
     
     Args:
         ticker: Benchmark symbol
-        period: Data period (e.g., '12mo', '6mo')
+        period: Data period (e.g., '12mo', '6mo') - ignored if start_date provided
+        start_date: Explicit start date (overrides period)
         end_date: Optional end date for historical analysis
         
     Returns:
@@ -101,12 +105,15 @@ def load_benchmark_data(ticker: str, period: str = '12mo', end_date: Optional[pd
     try:
         yticker = yf.Ticker(ticker)
         
-        if end_date is not None:
-            # Historical analysis - fetch up to end_date
-            start_date = end_date - pd.DateOffset(months=12)
+        if start_date is not None:
+            # Use explicit date range
             df = yticker.history(start=start_date, end=end_date)
+        elif end_date is not None:
+            # Use period ending at end_date
+            calc_start_date = end_date - pd.DateOffset(months=12)
+            df = yticker.history(start=calc_start_date, end=end_date)
         else:
-            # Current analysis - fetch recent data
+            # Use period from today
             df = yticker.history(period=period)
         
         if df.empty:
@@ -118,6 +125,119 @@ def load_benchmark_data(ticker: str, period: str = '12mo', end_date: Optional[pd
     except Exception as e:
         logger.error(f"Failed to fetch {ticker} data: {e}")
         return None
+
+
+def calculate_historical_regime_series(ticker: str, df: pd.DataFrame) -> tuple:
+    """
+    Calculate historical regime status for each bar in DataFrame.
+    
+    This function eliminates lookahead bias by checking regime status 
+    for each date in the backtest period, not just current regime.
+    
+    Args:
+        ticker: Stock symbol (determines sector ETF)
+        df: DataFrame with DatetimeIndex
+        
+    Returns:
+        Tuple of (market_regime_ok, sector_regime_ok, overall_regime_ok)
+        Each is a boolean Series aligned with df.index
+    """
+    try:
+        # Get date range from DataFrame with buffer for MA calculations
+        start_date = df.index.min() - pd.DateOffset(months=12)  # Extra buffer for 200-day MA
+        end_date = df.index.max()
+        
+        logger.info(f"Fetching historical regime data for {ticker} from {start_date.date()} to {end_date.date()}")
+        
+        # Fetch SPY historical data
+        spy_data = load_benchmark_data('SPY', period=None, 
+                                       start_date=start_date, 
+                                       end_date=end_date)
+        
+        if spy_data is None or len(spy_data) < 200:
+            logger.warning(f"Insufficient SPY data for historical regime calculation")
+            # Return all False (conservative - no signals allowed)
+            return (
+                pd.Series(False, index=df.index),
+                pd.Series(False, index=df.index),
+                pd.Series(False, index=df.index)
+            )
+        
+        # Fetch sector ETF historical data
+        sector_etf = get_sector_etf(ticker)
+        sector_data = load_benchmark_data(sector_etf, period=None,
+                                         start_date=start_date,
+                                         end_date=end_date)
+        
+        if sector_data is None or len(sector_data) < 50:
+            logger.warning(f"Insufficient {sector_etf} data for historical regime calculation")
+            # Return all False (conservative)
+            return (
+                pd.Series(False, index=df.index),
+                pd.Series(False, index=df.index),
+                pd.Series(False, index=df.index)
+            )
+        
+        # Calculate SPY 200-day MA
+        spy_data['MA200'] = spy_data['Close'].rolling(200, min_periods=200).mean()
+        spy_data['Market_Regime_OK'] = spy_data['Close'] > spy_data['MA200']
+        
+        # Calculate Sector 50-day MA
+        sector_data['MA50'] = sector_data['Close'].rolling(50, min_periods=50).mean()
+        sector_data['Sector_Regime_OK'] = sector_data['Close'] > sector_data['MA50']
+        
+        # Normalize timezones - convert all to timezone-naive for comparison
+        if spy_data.index.tz is not None:
+            spy_data.index = spy_data.index.tz_localize(None)
+        if sector_data.index.tz is not None:
+            sector_data.index = sector_data.index.tz_localize(None)
+        
+        # Also normalize the target DataFrame index
+        df_index_normalized = df.index
+        if df_index_normalized.tz is not None:
+            df_index_normalized = df_index_normalized.tz_localize(None)
+        
+        # Align with DataFrame dates (handles weekends/holidays)
+        market_regime = spy_data['Market_Regime_OK'].reindex(
+            df_index_normalized, 
+            method='ffill'  # Forward-fill for non-trading days
+        ).fillna(False)  # Conservative: missing data = regime FAIL
+        
+        # Restore original index (with timezone if it had one)
+        market_regime.index = df.index
+        
+        sector_regime = sector_data['Sector_Regime_OK'].reindex(
+            df_index_normalized,
+            method='ffill'
+        ).fillna(False)
+        
+        # Restore original index
+        sector_regime.index = df.index
+        
+        # Overall regime = both must be True
+        overall_regime = market_regime & sector_regime
+        
+        # Log summary
+        market_pass = market_regime.sum()
+        sector_pass = sector_regime.sum()
+        overall_pass = overall_regime.sum()
+        total_days = len(df)
+        
+        logger.info(f"Historical regime for {ticker}:")
+        logger.info(f"  Market (SPY): {market_pass}/{total_days} days PASS ({market_pass/total_days*100:.1f}%)")
+        logger.info(f"  Sector ({sector_etf}): {sector_pass}/{total_days} days PASS ({sector_pass/total_days*100:.1f}%)")
+        logger.info(f"  Overall: {overall_pass}/{total_days} days PASS ({overall_pass/total_days*100:.1f}%)")
+        
+        return market_regime, sector_regime, overall_regime
+        
+    except Exception as e:
+        logger.error(f"Failed to calculate historical regime series for {ticker}: {e}")
+        # Return all False on error (conservative)
+        return (
+            pd.Series(False, index=df.index),
+            pd.Series(False, index=df.index),
+            pd.Series(False, index=df.index)
+        )
 
 
 def check_market_regime(date: Optional[pd.Timestamp] = None) -> Dict:
@@ -278,6 +398,13 @@ def apply_regime_filter(df: pd.DataFrame, ticker: str, verbose: bool = False) ->
     """
     Apply regime filter to signal DataFrame.
     
+    ⚠️ DEPRECATED: This function uses current regime for all historical data.
+    Use calculate_historical_regime_series() instead for backtesting.
+    
+    This function is kept for backward compatibility and live trading where 
+    current regime is appropriate, but should NOT be used for historical backtesting
+    as it creates lookahead bias.
+    
     Creates regime status columns and filters entry signals when regime is not ok.
     Original signals preserved in *_raw columns for analysis.
     
@@ -289,6 +416,14 @@ def apply_regime_filter(df: pd.DataFrame, ticker: str, verbose: bool = False) ->
     Returns:
         DataFrame with regime-filtered signals
     """
+    import warnings
+    warnings.warn(
+        "apply_regime_filter() uses current regime for all dates. "
+        "For backtesting, use calculate_historical_regime_series() instead to avoid lookahead bias.",
+        DeprecationWarning,
+        stacklevel=2
+    )
+    
     # Get regime status (uses most recent data)
     regime = get_regime_status(ticker)
     
