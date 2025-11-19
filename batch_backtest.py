@@ -341,6 +341,15 @@ def generate_risk_managed_aggregate_report(results: Dict, period: str, output_di
             lambda x: x[0] if isinstance(x, list) and len(x) > 0 else ''
         )
         
+        # Convert exit_signals list to comma-separated string
+        ledger_df['exit_signals'] = ledger_df.get('exit_signals', pd.Series([[]] * len(ledger_df)))
+        ledger_df['exit_signals_str'] = ledger_df['exit_signals'].apply(
+            lambda x: ','.join(x) if isinstance(x, list) else ''
+        )
+        ledger_df['primary_exit_signal'] = ledger_df['exit_signals'].apply(
+            lambda x: x[0] if isinstance(x, list) and len(x) > 0 else ''
+        )
+        
         # Extract individual signal scores from signal_scores dict
         ledger_df['signal_scores'] = ledger_df.get('signal_scores', pd.Series([{}] * len(ledger_df)))
         ledger_df['accumulation_score'] = ledger_df['signal_scores'].apply(
@@ -354,10 +363,10 @@ def generate_risk_managed_aggregate_report(results: Dict, period: str, output_di
         )
         
         portfolio_ledger = ledger_df[['entry_date', 'exit_date', 'ticker', 'entry_price', 'exit_price',
-                                      'position_size', 'partial_exit', 'exit_pct', 'dollar_pnl',
+                                      'position_size', 'partial_exit', 'exit_pct', 'exit_type', 'dollar_pnl',
                                       'equity_before_trade', 'portfolio_equity', 'r_multiple', 'profit_pct',
-                                      'entry_signals_str', 'primary_signal', 'accumulation_score',
-                                      'moderate_buy_score', 'profit_taking_score']]
+                                      'entry_signals_str', 'primary_signal', 'exit_signals_str', 'primary_exit_signal',
+                                      'accumulation_score', 'moderate_buy_score', 'profit_taking_score']]
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
         ledger_filename = f"PORTFOLIO_TRADE_LOG_{period.replace(' ', '_')}_{timestamp}.csv"
         ledger_csv_path = os.path.join(output_dir, ledger_filename)

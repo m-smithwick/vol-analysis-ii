@@ -494,7 +494,8 @@ class RiskManager:
         exit_price: float, 
         exit_type: str, 
         exit_date: pd.Timestamp,
-        partial_exit_pct: float = 1.0
+        partial_exit_pct: float = 1.0,
+        exit_signals: List[str] = None
     ) -> Optional[Dict]:
         """
         Close position and calculate final P&L.
@@ -505,6 +506,7 @@ class RiskManager:
             exit_type: Reason for exit
             exit_date: Date of exit
             partial_exit_pct: Percentage of position exited (0.5 for 50%, 1.0 for full)
+            exit_signals: List of exit signal names that triggered (e.g., ['Distribution_Warning'])
             
         Returns:
             Trade result dictionary, or None if position doesn't exist
@@ -547,6 +549,7 @@ class RiskManager:
                 'equity_after_trade': self.equity,
                 # Signal metadata
                 'entry_signals': pos.get('entry_signals', []),
+                'exit_signals': exit_signals or [],
                 'signal_scores': pos.get('signal_scores', {})
             }
             
@@ -587,6 +590,7 @@ class RiskManager:
                 'equity_after_trade': self.equity,
                 # Signal metadata
                 'entry_signals': pos.get('entry_signals', []),
+                'exit_signals': exit_signals or [],
                 'signal_scores': pos.get('signal_scores', {})
             }
             

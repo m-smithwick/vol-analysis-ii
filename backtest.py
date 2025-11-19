@@ -1281,10 +1281,12 @@ def run_risk_managed_backtest(
             should_exit_signal = has_exit_signal
             
             if should_exit_risk_mgmt or should_exit_signal:
-                # Determine exit type and reason
+                # Determine exit type, reason, and capture exit signals
                 if should_exit_risk_mgmt:
                     exit_type = exit_check['exit_type']
                     exit_reason = exit_check['reason']
+                    # For risk management exits, no specific exit signals triggered
+                    exit_signals_list = []
                 else:
                     # Regular exit signal - use the first one that triggered
                     exit_type = 'SIGNAL_EXIT'
@@ -1292,6 +1294,12 @@ def run_risk_managed_backtest(
                     exit_check['exit_type'] = exit_type
                     exit_check['reason'] = exit_reason
                     exit_check['should_exit'] = True
+                    # Store the actual exit signals that triggered
+                    exit_signals_list = triggered_exits
+                
+                # Add exit signals to exit_check for passing to close_position
+                exit_check['exit_signals'] = exit_signals_list
+                
                 # Close position (use current price for signal exits)
                 exit_date = current_date
                 exit_price = current_price if should_exit_signal else exit_check['exit_price']
@@ -1302,7 +1310,8 @@ def run_risk_managed_backtest(
                     exit_price=exit_price,
                     exit_type=exit_check['exit_type'],
                     exit_date=exit_date,
-                    partial_exit_pct=exit_check.get('exit_pct', 1.0)
+                    partial_exit_pct=exit_check.get('exit_pct', 1.0),
+                    exit_signals=exit_signals_list
                 )
                 
                 if trade:
@@ -1511,9 +1520,16 @@ def generate_risk_managed_report(
         else:
             entry_signals_str = ""
         
+        # Format exit signals for display
+        exit_signals = trade.get('exit_signals', [])
+        if exit_signals:
+            exit_signals_str = f": {', '.join(exit_signals)}"
+        else:
+            exit_signals_str = ""
+        
         report_lines.append(f"\nTrade #{i}:")
         report_lines.append(f"  Entry: {entry_date} @ ${trade['entry_price']:.2f}{entry_signals_str}")
-        report_lines.append(f"  Exit:  {exit_date} @ ${trade['exit_price']:.2f} ({trade['exit_type']})")
+        report_lines.append(f"  Exit:  {exit_date} @ ${trade['exit_price']:.2f} ({trade['exit_type']}{exit_signals_str})")
         report_lines.append(f"  Result: {trade['profit_pct']:+.2f}% | {trade['r_multiple']:+.2f}R")
         report_lines.append(f"  Held: {trade['bars_held']} days")
         report_lines.append(f"  Position: {trade['position_size']} shares")
