@@ -36,16 +36,10 @@ def read_ticker_file(filepath: str) -> List[str]:
                 tickers.append(ticker)
     return tickers
 
-def collect_all_tickers() -> Set[str]:
-    """Collect all unique tickers from all ticker files."""
-    ticker_files = ['stocks.txt', 'ibd.txt', 'ibd20.txt', 'ltl.txt', 'cmb.txt', 'short.txt']
-    all_tickers = set()
-    
-    for file in ticker_files:
-        tickers = read_ticker_file(file)
-        all_tickers.update(tickers)
-    
-    return all_tickers
+def collect_all_tickers(ticker_file: str = 'stocks.txt') -> Set[str]:
+    """Collect all unique tickers from specified ticker file."""
+    tickers = read_ticker_file(ticker_file)
+    return set(tickers)
 
 def generate_trading_days(start_date: datetime, end_date: datetime) -> List[datetime]:
     """
@@ -179,6 +173,7 @@ def append_to_ticker_cache(ticker: str, date: datetime, ticker_data: pd.DataFram
 def populate_cache_bulk(
     start_date: datetime,
     end_date: datetime,
+    ticker_file: str = 'stocks.txt',
     save_others: bool = True
 ):
     """
@@ -187,6 +182,7 @@ def populate_cache_bulk(
     Args:
         start_date: Start date for data
         end_date: End date for data
+        ticker_file: Ticker file to read from
         save_others: If True, save non-tracked tickers to massive_cache/
     """
     print("="*70)
@@ -194,9 +190,9 @@ def populate_cache_bulk(
     print("="*70)
     
     # Collect tickers
-    print("\n1. Collecting tickers...")
-    all_tickers = collect_all_tickers()
-    print(f"   Found {len(all_tickers)} unique tickers across all ticker files")
+    print(f"\n1. Collecting tickers from {ticker_file}...")
+    all_tickers = collect_all_tickers(ticker_file)
+    print(f"   Found {len(all_tickers)} unique tickers")
     
     # Create directories
     cache_dir = Path('data_cache')
@@ -380,6 +376,12 @@ Examples:
         help='End date (YYYY-MM-DD), defaults to today'
     )
     parser.add_argument(
+        '--file',
+        type=str,
+        default='stocks.txt',
+        help='Ticker file to read from (default: stocks.txt)'
+    )
+    parser.add_argument(
         '--no-save-others',
         action='store_true',
         help='Do not save non-tracked tickers to massive_cache/'
@@ -401,6 +403,7 @@ Examples:
     populate_cache_bulk(
         start_date=start_date,
         end_date=end_date,
+        ticker_file=args.file,
         save_others=not args.no_save_others
     )
 

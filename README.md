@@ -39,15 +39,19 @@ Need the deeper architecture or indicator breakdown? See `docs/ARCHITECTURE_REFE
    # Start with 1 month to test
    python populate_cache.py --all -m 1
    
-   # Scale up to 24 months
-   python populate_cache.py --all -m 24
+   # Scale up to 12 months
+   python populate_cache.py --all -m 12
    ```
    
    **Option B: Massive.com (Advanced - Requires AWS S3 credentials and massive.com subscription)**
    ```bash
    # For users with Massive.com access (faster bulk downloads)
+   # Default: uses stocks.txt
    python populate_cache_bulk.py --months 1
    python populate_cache_bulk.py --months 24
+   
+   # Specify custom ticker file (e.g., just SPY for regime filtering)
+   python populate_cache_bulk.py --file indices.txt --months 1
    ```
    
    > 💡 **New users**: Start with Option A (Yahoo Finance). It works immediately without any setup.
@@ -57,8 +61,8 @@ Need the deeper architecture or indicator breakdown? See `docs/ARCHITECTURE_REFE
    # Single ticker analysis
    python vol_analysis.py AAPL --period 6mo
 
-   #file with tickers
-   python vol_analysis.py --file cmb.txt --period 24mo --chart-backend plotly --save-charts
+   #file with tickers (depending on the number of tickers in the file this can overwhelm yfinance's rate limits)
+   python vol_analysis.py  --period 24mo --chart-backend plotly --save-charts --file stocks_small.txt
    python vol_analysis.py  --period 24mo --chart-backend plotly --save-charts --file ibd21-nov-17.txt
 
    # Batch backtest a watchlist
@@ -115,6 +119,7 @@ Full details and review cadence live in `docs/VALIDATION_STATUS.md`.
 - `--months N`: number of months to backfill (mutually exclusive with `--start`).
 - `--start YYYY-MM-DD`: explicit start date.
 - `--end YYYY-MM-DD`: optional end date (defaults to today).
+- `--file FILE`: ticker file to read from (default: `stocks.txt`).
 - `--no-save-others`: skip writing non-tracked tickers to `massive_cache/`.
 
 ### `batch_backtest.py`

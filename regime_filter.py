@@ -18,6 +18,7 @@ import yfinance as yf
 import numpy as np
 from typing import Dict, Optional
 import logging
+from data_manager import get_smart_data
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -91,7 +92,10 @@ def load_benchmark_data(ticker: str,
                        start_date: Optional[pd.Timestamp] = None,
                        end_date: Optional[pd.Timestamp] = None) -> Optional[pd.DataFrame]:
     """
-    Load benchmark data (SPY or sector ETF) from Yahoo Finance.
+    Load benchmark data (SPY or sector ETF) from cache ONLY.
+    
+    This function requires pre-populated cache and will NOT fall back to yfinance.
+    This prevents rate limiting and ensures predictable data sources.
     
     Args:
         ticker: Benchmark symbol
@@ -100,31 +104,74 @@ def load_benchmark_data(ticker: str,
         end_date: Optional end date for historical analysis
         
     Returns:
-        DataFrame with OHLCV data, or None if fetch fails
+        DataFrame with OHLCV data
+        
+    Raises:
+        RuntimeError: If cache is missing or insufficient
     """
-    try:
-        yticker = yf.Ticker(ticker)
-        
-        if start_date is not None:
-            # Use explicit date range
-            df = yticker.history(start=start_date, end=end_date)
-        elif end_date is not None:
-            # Use period ending at end_date
-            calc_start_date = end_date - pd.DateOffset(months=12)
-            df = yticker.history(start=calc_start_date, end=end_date)
+    # Calculate required period
+    if start_date is not None or end_date is not None:
+        # Calculate period based on date range
+        if end_date is None:
+            end_date = pd.Timestamp.now()
+        if start_date is None:
+            # Default to 12 months if only end_date specified
+            required_period = '12mo'
         else:
-            # Use period from today
-            df = yticker.history(period=period)
+            # Calculate months between dates
+            months_diff = (end_date.year - start_date.year) * 12 + (end_date.month - start_date.month)
+            required_period = f'{max(12, months_diff + 2)}mo'  # Add buffer for MA calculations
+    else:
+        required_period = period
+    
+    logger.info(f"Loading {ticker} data from cache (required period: {required_period})")
+    
+    try:
+        # Load from cache only - no yfinance fallback
+        df = get_smart_data(ticker, period=required_period, force_refresh=False)
         
-        if df.empty:
-            logger.warning(f"No data returned for {ticker}")
-            return None
-            
+        # Filter to requested date range if needed
+        if df is not None and not df.empty:
+            if start_date is not None:
+                df = df[df.index >= start_date]
+            if end_date is not None:
+                df = df[df.index <= end_date]
+        
+        if df is None or df.empty:
+            # Cache is missing or insufficient - raise clear error
+            raise RuntimeError(
+                f"\n{'='*70}\n"
+                f"ERROR: Insufficient {ticker} cache for regime filtering\n"
+                f"{'='*70}\n"
+                f"Required: {required_period} of historical data\n"
+                f"Cache location: data_cache/{ticker}_1d_data.csv\n\n"
+                f"To fix this, populate the cache:\n"
+                f"  echo \"{ticker}\" > indices.txt\n"
+                f"  python populate_cache_bulk.py --file indices.txt --months {required_period.replace('mo', '')}\n"
+                f"\nOr use populate_cache.py:\n"
+                f"  python populate_cache.py {ticker} -m {required_period.replace('mo', '')}\n"
+                f"{'='*70}"
+            )
+        
+        logger.info(f"Successfully loaded {ticker} from cache: {len(df)} rows from {df.index.min().date()} to {df.index.max().date()}")
         return df
         
+    except RuntimeError:
+        # Re-raise our clear error message
+        raise
     except Exception as e:
-        logger.error(f"Failed to fetch {ticker} data: {e}")
-        return None
+        # Any other error - provide clear guidance
+        raise RuntimeError(
+            f"\n{'='*70}\n"
+            f"ERROR: Failed to load {ticker} data from cache\n"
+            f"{'='*70}\n"
+            f"Error: {str(e)}\n"
+            f"Cache location: data_cache/{ticker}_1d_data.csv\n\n"
+            f"To fix this, populate the cache:\n"
+            f"  echo \"{ticker}\" > indices.txt\n"
+            f"  python populate_cache_bulk.py --file indices.txt --months {required_period.replace('mo', '')}\n"
+            f"{'='*70}"
+        )
 
 
 def calculate_historical_regime_series(ticker: str, df: pd.DataFrame) -> tuple:
