@@ -14,7 +14,6 @@ Last Updated: 2025-11-05
 """
 
 import pandas as pd
-import yfinance as yf
 import numpy as np
 from typing import Dict, Optional
 import logging

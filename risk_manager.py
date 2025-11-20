@@ -328,6 +328,18 @@ class RiskManager:
         if position_size <= 0:
             raise ValueError("Calculated position size is zero - check risk parameters or stop distance")
         
+        # Extract regime filter status from DataFrame at entry
+        market_regime_ok = None
+        sector_regime_ok = None  
+        overall_regime_ok = None
+        
+        if 'Market_Regime_OK' in df.columns:
+            market_regime_ok = bool(df.iloc[entry_idx]['Market_Regime_OK'])
+        if 'Sector_Regime_OK' in df.columns:
+            sector_regime_ok = bool(df.iloc[entry_idx]['Sector_Regime_OK'])
+        if 'Overall_Regime_OK' in df.columns:
+            overall_regime_ok = bool(df.iloc[entry_idx]['Overall_Regime_OK'])
+        
         position = {
             'ticker': ticker,
             'entry_date': entry_date,
@@ -346,7 +358,11 @@ class RiskManager:
             'equity_at_entry': self.equity,
             # Signal metadata for trade quality analysis
             'entry_signals': entry_signals or [],
-            'signal_scores': signal_scores or {}
+            'signal_scores': signal_scores or {},
+            # Regime filter status at entry
+            'market_regime_ok': market_regime_ok,
+            'sector_regime_ok': sector_regime_ok,
+            'overall_regime_ok': overall_regime_ok
         }
         
         self.active_positions[ticker] = position
@@ -550,7 +566,11 @@ class RiskManager:
                 # Signal metadata
                 'entry_signals': pos.get('entry_signals', []),
                 'exit_signals': exit_signals or [],
-                'signal_scores': pos.get('signal_scores', {})
+                'signal_scores': pos.get('signal_scores', {}),
+                # Regime filter data at entry
+                'market_regime_ok': pos.get('market_regime_ok'),
+                'sector_regime_ok': pos.get('sector_regime_ok'), 
+                'overall_regime_ok': pos.get('overall_regime_ok')
             }
             
             self.closed_trades.append(partial_trade)
@@ -591,7 +611,11 @@ class RiskManager:
                 # Signal metadata
                 'entry_signals': pos.get('entry_signals', []),
                 'exit_signals': exit_signals or [],
-                'signal_scores': pos.get('signal_scores', {})
+                'signal_scores': pos.get('signal_scores', {}),
+                # Regime filter data at entry
+                'market_regime_ok': pos.get('market_regime_ok'),
+                'sector_regime_ok': pos.get('sector_regime_ok'), 
+                'overall_regime_ok': pos.get('overall_regime_ok')
             }
             
             self.closed_trades.append(trade_result)

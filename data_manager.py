@@ -6,7 +6,6 @@ from typing import List, Optional, Dict, Any
 import pandas as pd
 import numpy as np
 import os
-import yfinance as yf
 from datetime import datetime, timedelta
 from pathlib import Path
 
@@ -214,14 +213,14 @@ def append_to_cache(ticker: str, new_data: pd.DataFrame, interval: str = "1d") -
 
 def normalize_period(period: str) -> str:
     """
-    Normalize period parameter to ensure compatibility with yfinance.
-    Converts user-friendly periods to yfinance-compatible format.
+    Normalize period parameter to ensure compatibility.
+    Converts user-friendly periods to standard format.
     
     Args:
         period (str): User input period
         
     Returns:
-        str: Normalized period compatible with yfinance
+        str: Normalized period
     """
     with ErrorContext("normalizing period", period=period):
         if not isinstance(period, str) or not period.strip():
@@ -246,28 +245,44 @@ def normalize_period(period: str) -> str:
 
 def get_smart_data(ticker: str, period: str, interval: str = "1d", force_refresh: bool = False, data_source: str = "yfinance") -> pd.DataFrame:
     """
-    Smart data fetching with caching support.
+    Cache-only data fetching with clear error messages when data is missing.
+    
+    This function ONLY returns cached data. For batch operations, this prevents
+    yfinance API failures from breaking regime filters and other calculations.
     
     Args:
         ticker (str): Stock symbol
-        period (str): Requested period (e.g., '6mo', '12mo')
+        period (str): Requested period (e.g., '6mo', '12mo') 
         interval (str): Data interval ('1d', '1h', '30m', '15m', etc.)
-        force_refresh (bool): If True, ignore cache and download fresh data
-        data_source (str): Data source to use ('yfinance' or 'massive')
+        force_refresh (bool): DEPRECATED - Use populate_cache.py to refresh data
+        data_source (str): Data source preference ('yfinance' or 'massive')
         
     Returns:
-        pd.DataFrame: Stock data with OHLCV columns
+        pd.DataFrame: Stock data with OHLCV columns from cache
         
     Raises:
-        DataValidationError: If no valid data is available for the ticker
+        DataValidationError: If cache is missing or insufficient for the request
     """
     with ErrorContext("smart data retrieval", ticker=ticker, period=period, interval=interval, data_source=data_source):
         validate_ticker(ticker)
+        
+        if force_refresh:
+            raise DataValidationError(
+                f"\n{'='*70}\n"
+                f"ERROR: force_refresh=True not supported in cache-only mode\n"
+                f"{'='*70}\n"
+                f"To refresh data for {ticker}, use:\n"
+                f"  python populate_cache.py {ticker} --period {period} --force\n"
+                f"\nFor batch refresh:\n"
+                f"  echo \"{ticker}\" > refresh.txt\n"
+                f"  python populate_cache_bulk.py --file refresh.txt --force\n"
+                f"{'='*70}"
+            )
     
     # Handle Massive.com data source
     if data_source == "massive":
         if interval != "1d":
-            logger.warning(f"Massive.com only supports daily data. Interval '{interval}' not supported, falling back to yfinance")
+            raise DataValidationError(f"Massive.com only supports daily data. Interval '{interval}' not supported")
         else:
             try:
                 from massive_data_provider import get_massive_daily_data
@@ -278,177 +293,72 @@ def get_smart_data(ticker: str, period: str, interval: str = "1d", force_refresh
                     save_to_cache(ticker, df, interval)
                     return df
                 else:
-                    logger.warning(f"No data from Massive.com for {ticker}, falling back to yfinance")
+                    raise DataValidationError(f"No data available from Massive.com for {ticker}")
             except Exception as e:
-                logger.warning(f"Error fetching from Massive.com: {e}, falling back to yfinance")
+                raise DataValidationError(f"Error fetching from Massive.com for {ticker}: {e}")
     
-    # Continue with yfinance (original logic)
+    # CACHE-ONLY MODE: Only return data from cache
     # Normalize the period first
     period = normalize_period(period)
-    
-    # Convert period to days for calculations (adjust for intraday data)
-    if interval == "1d":
-        period_days = {
-            '1d': 1, '5d': 5, '1mo': 30, '3mo': 90, '6mo': 180, 
-            '12mo': 365, '24mo': 730, '36mo': 1095, '60mo': 1825, '120mo': 3650, 
-            'ytd': 365, 'max': 7300
-        }
-        requested_days = period_days.get(period, 365)
-    else:
-        # For intraday, Yahoo Finance has limitations on history
-        # Typically only ~60 days for 1h, less for smaller intervals
-        if interval == "1h":
-            max_days = 60
-        elif interval == "30m":
-            max_days = 30
-        elif interval == "15m":
-            max_days = 10
-        elif interval in ["5m", "1m"]:
-            max_days = 5
-        else:
-            max_days = 30  # Default for unknown intraday intervals
-        
-        # Map period to days but cap at maximum available for interval
-        period_days = {
-            '1d': 1, '5d': 5, '1mo': 30, '3mo': 60, '6mo': 60, 
-            '12mo': 60, '24mo': 60, '36mo': 60, '60mo': 60, 
-            'ytd': min(datetime.now().timetuple().tm_yday, max_days), 
-            'max': max_days
-        }
-        requested_days = min(period_days.get(period, 30), max_days)
-    
-    cutoff_date = datetime.now() - timedelta(days=requested_days)
-    
-    if force_refresh:
-        logger.info(f"Force refresh enabled - downloading fresh data for {ticker} ({interval})")
-        df = yf.download(ticker, period=period, interval=interval, auto_adjust=True)
-        if isinstance(df.columns, pd.MultiIndex):
-            df.columns = df.columns.droplevel(1)
-        df.dropna(inplace=True)
-        
-        # Validate downloaded data
-        if df.empty:
-            raise DataValidationError(f"No data available for {ticker} (possibly delisted or invalid symbol)")
-        
-        save_to_cache(ticker, df, interval)
-        return df
     
     # Try to load cached data
     cached_df = load_cached_data(ticker, interval)
     
     if cached_df is None:
-        # No cache exists - download full period
-        logger.info(f"No cache found for {ticker} ({interval}) - downloading {period} data from Yahoo Finance")
-        df = yf.download(ticker, period=period, interval=interval, auto_adjust=True)
-        if isinstance(df.columns, pd.MultiIndex):
-            df.columns = df.columns.droplevel(1)
-        df.dropna(inplace=True)
-        
-        # Validate downloaded data
-        if df.empty:
-            raise DataValidationError(f"No data available for {ticker} (possibly delisted or invalid symbol)")
-        
-        save_to_cache(ticker, df, interval)
-        return df
+        # No cache exists - provide clear error with populate instructions
+        raise DataValidationError(
+            f"\n{'='*70}\n"
+            f"ERROR: No cache data found for {ticker}\n"
+            f"{'='*70}\n"
+            f"Requested: {period} of {interval} data\n"
+            f"Cache location: data_cache/{ticker}_{interval}_data.csv\n\n"
+            f"To fix this, populate the cache:\n"
+            f"  python populate_cache.py {ticker} --period {period}\n"
+            f"\nFor batch population:\n"
+            f"  echo \"{ticker}\" > missing_data.txt\n"
+            f"  python populate_cache_bulk.py --file missing_data.txt --months {period.replace('mo', '')}\n\n"
+            f"Or use Massive.com data source:\n"
+            f"  python populate_cache.py {ticker} --period {period} --data-source massive\n"
+            f"{'='*70}"
+        )
+    
+    # Calculate requested date range
+    period_days = {
+        '1d': 1, '5d': 5, '1mo': 30, '3mo': 90, '6mo': 180, 
+        '12mo': 365, '24mo': 730, '36mo': 1095, '60mo': 1825, '120mo': 3650, 
+        'ytd': 365, 'max': 7300
+    }
+    requested_days = period_days.get(period, 365)
+    cutoff_date = datetime.now() - timedelta(days=requested_days)
     
     # Check if cached data covers the requested period
     cache_start_date = cached_df.index[0]
     cache_end_date = cached_df.index[-1]
     
-    # For intraday data, we need to be more careful about updates
-    # Since Yahoo only provides limited history, we might need complete refreshes
-    if interval != "1d":
-        # Check if our cache is too old (more than 1 day old for intraday data)
-        today = datetime.now().date()
-        last_cached_date = cache_end_date.date()
-        days_behind = (today - last_cached_date).days
-        
-        if days_behind > 1:
-            # For intraday data more than a day old, simply refresh entirely
-            logger.info(f"Intraday cache outdated ({days_behind}d old) - downloading fresh data for {ticker} ({interval})")
-            df = yf.download(ticker, period=period, interval=interval, auto_adjust=True)
-            if isinstance(df.columns, pd.MultiIndex):
-                df.columns = df.columns.droplevel(1)
-            df.dropna(inplace=True)
-            
-            if not df.empty:
-                save_to_cache(ticker, df, interval)
-                return df
-            else:
-                # If download fails, use cached data as fallback
-                logger.warning(f"Failed to download fresh data - using cached data as fallback")
-                return cached_df
-    
-    # For daily data or current intraday data, handle incremental updates
-    # Check if we need to download more recent data
-    today = datetime.now().date()
-    last_cached_date = cache_end_date.date()
-    days_behind = (today - last_cached_date).days
-    
-    # For daily data, update if behind by 1+ days
-    # For intraday, update if it's the same day (to get most recent bars)
-    update_needed = (interval == "1d" and days_behind >= 1) or (interval != "1d" and today == last_cached_date)
-    
-    if not update_needed:
-        # Cache is up to date
-        logger.info(f"Cache is current for {ticker} ({interval}) - using cached data")
-        # Filter cached data to requested period if needed
-        filtered_df = cached_df[cached_df.index >= cutoff_date] if cutoff_date > cache_start_date else cached_df
-        return filtered_df
-    
-    # Need to download recent data
-    logger.info(f"Cache is {days_behind} days behind - downloading recent data for {ticker} ({interval})")
-    
-    try:
-        # Try using period parameter instead of start/end dates to avoid timezone conflicts
-        days_to_download = days_behind + 1  # +1 to include today
-        period_param = f"{min(days_to_download, 60)}d"  # Cap at 60d for safety with intraday data
-        logger.debug(f"Using period parameter: {period_param} instead of explicit dates to avoid timezone issues")
-        
-        new_data = yf.download(ticker, period=period_param, interval=interval, auto_adjust=True)
-        
-        # If nothing was returned or the download failed, try the old way as fallback
-        if new_data.empty:
-            logger.debug(f"Period-based download returned no data, trying date-based download as fallback")
-            # Download from day after last cached date to today
-            # Ensure we're using timezone-naive dates for Yahoo Finance API
-            start_date = (cache_end_date + timedelta(days=1)).replace(tzinfo=None).strftime('%Y-%m-%d')
-            new_data = yf.download(ticker, start=start_date, interval=interval, auto_adjust=True)
-    except Exception as e:
-        logger.warning(f"Error downloading recent data: {str(e)}")
-        logger.info(f"Falling back to cached data")
-        filtered_df = cached_df[cached_df.index >= cutoff_date] if cutoff_date > cache_start_date else cached_df
-        return filtered_df
-    
-    if isinstance(new_data.columns, pd.MultiIndex):
-        new_data.columns = new_data.columns.droplevel(1)
-    new_data.dropna(inplace=True)
-    
-    if not new_data.empty:
-        # Ensure both dataframes have timezone-naive index for consistent comparison
-        if cached_df.index.tzinfo is not None:
-            cached_df.index = cached_df.index.tz_localize(None)
-        if new_data.index.tzinfo is not None:
-            new_data.index = new_data.index.tz_localize(None)
-            
-        # Append new data to cache
-        append_to_cache(ticker, new_data, interval)
-        
-        # Combine cached and new data
-        combined_df = pd.concat([cached_df, new_data])
-        combined_df = combined_df[~combined_df.index.duplicated(keep='last')]  # Remove any duplicates
-        combined_df.sort_index(inplace=True)
-        
-        # Update the cache with the complete dataset
-        save_to_cache(ticker, combined_df, interval)
-        
-        # Filter to requested period
-        filtered_df = combined_df[combined_df.index >= cutoff_date] if cutoff_date > combined_df.index[0] else combined_df
-        return filtered_df
+    # Filter cached data to requested period
+    if cutoff_date > cache_start_date:
+        filtered_df = cached_df[cached_df.index >= cutoff_date]
     else:
-        logger.info(f"No new data available for {ticker}")
-        filtered_df = cached_df[cached_df.index >= cutoff_date] if cutoff_date > cache_start_date else cached_df
-        return filtered_df
+        filtered_df = cached_df
+    
+    if filtered_df.empty:
+        raise DataValidationError(
+            f"\n{'='*70}\n"
+            f"ERROR: Insufficient cache data for {ticker}\n"
+            f"{'='*70}\n"
+            f"Requested: {period} ({requested_days} days) of {interval} data\n"
+            f"Cache contains: {len(cached_df)} periods from {cache_start_date.date()} to {cache_end_date.date()}\n"
+            f"Cache location: data_cache/{ticker}_{interval}_data.csv\n\n"
+            f"To fix this, populate more historical data:\n"
+            f"  python populate_cache.py {ticker} --period {period}\n"
+            f"\nFor batch population:\n"
+            f"  echo \"{ticker}\" > extend_data.txt\n" 
+            f"  python populate_cache_bulk.py --file extend_data.txt --months {period.replace('mo', '')}\n"
+            f"{'='*70}"
+        )
+    
+    logger.info(f"Retrieved {len(filtered_df)} periods from cache for {ticker} ({period}) - using cache-only mode")
+    return filtered_df
 
 def get_intraday_data(ticker: str, days: int = 5, interval: str = "1h", force_refresh: bool = False) -> pd.DataFrame:
     """

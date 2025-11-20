@@ -362,11 +362,21 @@ def generate_risk_managed_aggregate_report(results: Dict, period: str, output_di
             lambda x: x.get('Profit_Taking_Score', np.nan) if isinstance(x, dict) else np.nan
         )
         
+        # Extract regime filter columns if they exist (added for regime filter support)
+        regime_columns = []
+        for col in ['market_regime_ok', 'sector_regime_ok', 'overall_regime_ok']:
+            if col in ledger_df.columns:
+                regime_columns.append(col)
+            else:
+                # Add missing regime columns as None for compatibility
+                ledger_df[col] = None
+                regime_columns.append(col)
+        
         portfolio_ledger = ledger_df[['entry_date', 'exit_date', 'ticker', 'entry_price', 'exit_price',
                                       'position_size', 'partial_exit', 'exit_pct', 'exit_type', 'dollar_pnl',
                                       'equity_before_trade', 'portfolio_equity', 'r_multiple', 'profit_pct',
                                       'entry_signals_str', 'primary_signal', 'exit_signals_str', 'primary_exit_signal',
-                                      'accumulation_score', 'moderate_buy_score', 'profit_taking_score']]
+                                      'accumulation_score', 'moderate_buy_score', 'profit_taking_score'] + regime_columns]
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
         ledger_filename = f"PORTFOLIO_TRADE_LOG_{period.replace(' ', '_')}_{timestamp}.csv"
         ledger_csv_path = os.path.join(output_dir, ledger_filename)

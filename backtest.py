@@ -467,6 +467,11 @@ def pair_entry_exit_signals(df: pd.DataFrame, entry_signals: List[str],
             # Calculate holding period
             holding_days = (actual_exit_date - actual_entry_date).days
             
+            # Get regime filter status at entry
+            market_regime = df.loc[actual_entry_date, 'Market_Regime_OK'] if 'Market_Regime_OK' in df.columns else None
+            sector_regime = df.loc[actual_entry_date, 'Sector_Regime_OK'] if 'Sector_Regime_OK' in df.columns else None
+            overall_regime = df.loc[actual_entry_date, 'Overall_Regime_OK'] if 'Overall_Regime_OK' in df.columns else None
+            
             paired_trades.append({
                 'entry_signal_date': entry_signal_date,  # When signal fired
                 'entry_date': actual_entry_date,         # When you actually entered
@@ -477,7 +482,10 @@ def pair_entry_exit_signals(df: pd.DataFrame, entry_signals: List[str],
                 'return_pct': return_pct,
                 'holding_days': holding_days,
                 'entry_signals': triggered_entries,
-                'exit_signals': triggered_exits
+                'exit_signals': triggered_exits,
+                'market_regime_ok': market_regime,       # SPY > 200 MA at entry
+                'sector_regime_ok': sector_regime,       # Sector ETF > 50 MA at entry
+                'overall_regime_ok': overall_regime      # Both conditions met at entry
             })
         else:
             # No exit signal found - trade still open or data ended
@@ -486,6 +494,11 @@ def pair_entry_exit_signals(df: pd.DataFrame, entry_signals: List[str],
             last_date = df.index[-1]
             return_pct = ((last_price - entry_price) / entry_price) * 100
             holding_days = (last_date - actual_entry_date).days
+            
+            # Get regime filter status at entry
+            market_regime = df.loc[actual_entry_date, 'Market_Regime_OK'] if 'Market_Regime_OK' in df.columns else None
+            sector_regime = df.loc[actual_entry_date, 'Sector_Regime_OK'] if 'Sector_Regime_OK' in df.columns else None
+            overall_regime = df.loc[actual_entry_date, 'Overall_Regime_OK'] if 'Overall_Regime_OK' in df.columns else None
             
             paired_trades.append({
                 'entry_signal_date': entry_signal_date,
@@ -498,7 +511,10 @@ def pair_entry_exit_signals(df: pd.DataFrame, entry_signals: List[str],
                 'holding_days': holding_days,
                 'entry_signals': triggered_entries,
                 'exit_signals': ['Open Position'],
-                'is_open': True
+                'is_open': True,
+                'market_regime_ok': market_regime,       # SPY > 200 MA at entry
+                'sector_regime_ok': sector_regime,       # Sector ETF > 50 MA at entry
+                'overall_regime_ok': overall_regime      # Both conditions met at entry
             })
     
     return paired_trades

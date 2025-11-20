@@ -1,0 +1,3 @@
+entry_date,exit_date,ticker,entry_price,exit_price,position_size,partial_exit,exit_pct,exit_type,dollar_pnl,equity_before_trade,portfolio_equity,r_multiple,profit_pct,entry_signals_str,primary_signal,exit_signals_str,primary_exit_signal,accumulation_score,moderate_buy_score,profit_taking_score,market_regime_ok,sector_regime_ok,overall_regime_ok
+2025-09-12,2025-09-19,AAPL,230.35,231.48,68,False,1.0,SIGNAL_EXIT,76.84,100000.0,100076.84,0.1,0.49,Moderate_Buy,Moderate_Buy,Distribution_Warning,Distribution_Warning,7.18,4.75,,True,True,True
+2025-09-16,2025-09-22,MSFT,502.25,514.6,55,False,1.0,TIME_STOP,679.25,100076.84,100756.09,0.91,2.46,Strong_Buy,Strong_Buy,,,9.12,,,False,True,False
