@@ -1198,6 +1198,7 @@ def run_risk_managed_backtest(
     account_value: float = 100000,
     risk_pct: float = 0.75,
     stop_strategy: str = 'time_decay',
+    time_stop_bars: int = 12,
     save_to_file: bool = True,
     output_dir: str = 'backtest_results'
 ) -> Dict:
@@ -1242,7 +1243,8 @@ def run_risk_managed_backtest(
     risk_mgr = RiskManager(
         account_value=account_value,
         risk_pct_per_trade=risk_pct,
-        stop_strategy=stop_strategy
+        stop_strategy=stop_strategy,
+        time_stop_bars=time_stop_bars
     )
     
     print(f"\n🎯 RISK-MANAGED BACKTEST: {ticker}")

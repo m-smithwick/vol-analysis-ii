@@ -37,7 +37,7 @@ class RiskManager:
     """
     
     def __init__(self, account_value: float, risk_pct_per_trade: float = 0.75,
-                 stop_strategy: str = 'time_decay'):
+                 stop_strategy: str = 'time_decay', time_stop_bars: int = 20):
         """
         Initialize risk manager.
         
@@ -45,6 +45,7 @@ class RiskManager:
             account_value: Total account equity
             risk_pct_per_trade: Risk percentage per trade (0.5-1.0% recommended)
             stop_strategy: Stop loss strategy - 'static', 'vol_regime', 'atr_dynamic', 'pct_trail', 'time_decay'
+            time_stop_bars: Number of bars before TIME_STOP exit if <+1R (default: 20, optimized from 12/15/20 testing)
         """
         self.account_value = account_value
         self.starting_equity = account_value
@@ -54,6 +55,7 @@ class RiskManager:
         if strategy not in self.SUPPORTED_STOP_STRATEGIES:
             raise ValueError(f"Unsupported stop strategy '{stop_strategy}'. Choose from {sorted(self.SUPPORTED_STOP_STRATEGIES)}")
         self.stop_strategy = strategy
+        self.time_stop_bars = time_stop_bars
         self.active_positions: Dict[str, Dict] = {}
         self.closed_trades: List[Dict] = []
         
@@ -125,6 +127,9 @@ class RiskManager:
         1. Swing low minus 0.5 ATR (structure-based)
         2. Anchored VWAP minus 1 ATR (cost basis)
         
+        IMPORTANT: For time_decay strategy, uses wider initial stop (2.5*ATR)
+        to allow stops to tighten over time (2.5 → 2.0 → 1.5 ATR).
+        
         Args:
             df: DataFrame with price data and indicators
             entry_idx: Integer position in DataFrame (use .iloc)
@@ -140,9 +145,20 @@ class RiskManager:
         if missing_cols:
             raise KeyError(f"Missing required columns: {missing_cols}")
         
+        entry_price = df.iloc[entry_idx]['Close']
+        current_atr = df.iloc[entry_idx]['ATR20']
+        
+        # For time_decay strategy, start with wider stop to allow tightening
+        if self.stop_strategy == 'time_decay':
+            # Start at 2.5*ATR (widest point in time decay curve)
+            # This allows stops to tighten to 2.0 → 1.5 ATR over time
+            initial_stop = entry_price - (2.5 * current_atr)
+            return initial_stop
+        
+        # For other strategies, use standard tight stop calculation
         # Use .iloc for integer positions
-        swing_stop = df.iloc[entry_idx]['Recent_Swing_Low'] - (0.5 * df.iloc[entry_idx]['ATR20'])
-        vwap_stop = df.iloc[entry_idx]['VWAP'] - (1.0 * df.iloc[entry_idx]['ATR20'])
+        swing_stop = df.iloc[entry_idx]['Recent_Swing_Low'] - (0.5 * current_atr)
+        vwap_stop = df.iloc[entry_idx]['VWAP'] - (1.0 * current_atr)
         
         initial_stop = min(swing_stop, vwap_stop)
         
@@ -439,11 +455,11 @@ class RiskManager:
             exit_signals['reason'] = f"Stop hit at {pos['stop_price']:.2f}"
             return exit_signals
         
-        # 2. TIME STOP: Exit after 12 bars if <+1R
-        if pos['bars_in_trade'] >= 12 and r_multiple < 1.0:
+        # 2. TIME STOP: Exit after N bars if <+1R (configurable, default 12)
+        if pos['bars_in_trade'] >= self.time_stop_bars and r_multiple < 1.0:
             exit_signals['should_exit'] = True
             exit_signals['exit_type'] = 'TIME_STOP'
-            exit_signals['reason'] = f"Time stop: {pos['bars_in_trade']} bars, {r_multiple:.2f}R"
+            exit_signals['reason'] = f"Time stop: {pos['bars_in_trade']} bars (threshold: {self.time_stop_bars}), {r_multiple:.2f}R"
             return exit_signals
         
         # NOTE: Momentum failure check removed - use regular exit signals instead

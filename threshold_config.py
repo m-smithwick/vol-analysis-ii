@@ -18,6 +18,10 @@ Last Updated: 2025-11-04
 from datetime import datetime
 from typing import Dict, Any
 
+# Global minimum accumulation score for all trades
+# Updated 2025-11-22: Based on 694-trade analysis showing ≥7.0 optimizes expectancy
+MINIMUM_ACCUMULATION_SCORE = 7.0
+
 # Empirically validated optimal thresholds based on backtest performance
 OPTIMAL_THRESHOLDS: Dict[str, Dict[str, Any]] = {
     'moderate_buy': {

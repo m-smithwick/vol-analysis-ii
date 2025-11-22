@@ -8,11 +8,14 @@ This module contains all buy/sell signal detection logic, including:
 - Exit signal detection (Profit Taking, Distribution Warning, Sell, etc.)
 
 All functions operate on pandas DataFrames with OHLCV data and technical indicators.
+
+Updated 2025-11-22: Applied MINIMUM_ACCUMULATION_SCORE = 7.0 global filter
 """
 
 import pandas as pd
 import numpy as np
 from typing import Tuple
+from threshold_config import MINIMUM_ACCUMULATION_SCORE
 
 
 def calculate_accumulation_score(df: pd.DataFrame) -> pd.Series:
@@ -483,6 +486,8 @@ def generate_all_entry_signals(df: pd.DataFrame, apply_prefilters: bool = True) 
     column exists, raw signals are preserved with _raw suffix and filtered signals
     are created that respect liquidity, price, and earnings window filters.
     
+    Updated 2025-11-22: Applies MINIMUM_ACCUMULATION_SCORE global threshold to all signals.
+    
     This convenience function generates:
     - Accumulation Score
     - Strong Buy signals
@@ -512,6 +517,14 @@ def generate_all_entry_signals(df: pd.DataFrame, apply_prefilters: bool = True) 
     df['Stealth_Accumulation'] = generate_stealth_accumulation_signals(df)
     df['Confluence_Signal'] = generate_confluence_signals(df)
     df['Volume_Breakout'] = generate_volume_breakout_signals(df)
+    
+    # Apply GLOBAL MINIMUM ACCUMULATION SCORE threshold (2025-11-22)
+    # Based on 694-trade analysis showing ≥7.0 optimizes expectancy (+8.57% vs +7.92%)
+    # This filters out weak signals to reduce TIME_STOP rate from 40% to target <25%
+    accumulation_filter = df['Accumulation_Score'] >= MINIMUM_ACCUMULATION_SCORE
+    
+    for col in signal_columns:
+        df[col] = df[col] & accumulation_filter
     
     # Apply pre-filters if available and requested
     if apply_prefilters and 'Pre_Filter_OK' in df.columns:

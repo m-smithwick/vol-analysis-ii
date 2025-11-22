@@ -35,7 +35,8 @@ def run_batch_backtest(ticker_file: str, period: str = '12mo',
                       risk_managed: bool = True,
                       account_value: float = 100000,
                       risk_pct: float = 0.75,
-                      stop_strategy: str = 'time_decay') -> Dict:
+                      stop_strategy: str = 'time_decay',
+                      time_stop_bars: int = 12) -> Dict:
     """
     Run backtests on all tickers in a file and aggregate results.
     
@@ -49,6 +50,7 @@ def run_batch_backtest(ticker_file: str, period: str = '12mo',
         account_value (float): Account value for position sizing (risk-managed only)
         risk_pct (float): Risk percentage per trade (risk-managed only)
         stop_strategy (str): Stop strategy when using risk-managed mode
+        time_stop_bars (int): Number of bars before TIME_STOP exit if <+1R (default: 12)
         
     Returns:
         Dict: Aggregated backtest results across all tickers
@@ -147,6 +149,7 @@ def run_batch_backtest(ticker_file: str, period: str = '12mo',
                             account_value=account_value,
                             risk_pct=risk_pct,
                             stop_strategy=stop_strategy,
+                            time_stop_bars=time_stop_bars,
                             save_to_file=True,
                             output_dir=output_dir
                         )
@@ -889,6 +892,13 @@ def main():
         help='Stop-loss strategy when running risk-managed backtests (default: time_decay)'
     )
     
+    parser.add_argument(
+        '--time-stop-bars',
+        type=int,
+        default=12,
+        help='Number of bars before TIME_STOP exit if <+1R (default: 12, try 15 or 20)'
+    )
+    
     parser.set_defaults(risk_managed=True)
     
     parser.add_argument(
@@ -913,7 +923,8 @@ def main():
         output_dir=args.output_dir,
         risk_managed=args.risk_managed,
         account_value=args.account_value,
-        stop_strategy=args.stop_strategy
+        stop_strategy=args.stop_strategy,
+        time_stop_bars=args.time_stop_bars
     )
     
     if not results or not results['all_paired_trades']:

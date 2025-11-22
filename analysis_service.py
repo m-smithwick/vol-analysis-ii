@@ -23,6 +23,7 @@ import regime_filter
 import signal_generator
 import swing_structure
 import volume_features
+import momentum_confirmation
 
 
 def prepare_analysis_dataframe(
@@ -172,6 +173,7 @@ def prepare_analysis_dataframe(
         default="Neutral",
     )
 
+    # Generate scores first (used for display and analysis)
     df["Accumulation_Score"] = signal_generator.calculate_accumulation_score(df)
     df["Exit_Score"] = signal_generator.calculate_exit_score(df)
     df["Moderate_Buy_Score"] = signal_generator.calculate_moderate_buy_score(df)
@@ -180,23 +182,10 @@ def prepare_analysis_dataframe(
         signal_generator.calculate_stealth_accumulation_score(df)
     )
 
-    df["Strong_Buy"] = signal_generator.generate_strong_buy_signals(df)
-    df["Moderate_Buy"] = signal_generator.generate_moderate_buy_signals(df)
-    df["Stealth_Accumulation"] = (
-        signal_generator.generate_stealth_accumulation_signals(df)
-    )
-    df["Confluence_Signal"] = signal_generator.generate_confluence_signals(df)
-    df["Volume_Breakout"] = signal_generator.generate_volume_breakout_signals(df)
-
-    df["Profit_Taking"] = signal_generator.generate_profit_taking_signals(df)
-    df["Distribution_Warning"] = (
-        signal_generator.generate_distribution_warning_signals(df)
-    )
-    df["Sell_Signal"] = signal_generator.generate_sell_signals(df)
-    df["Momentum_Exhaustion"] = (
-        signal_generator.generate_momentum_exhaustion_signals(df)
-    )
-    df["Stop_Loss"] = signal_generator.generate_stop_loss_signals(df)
+    # Generate all signals using unified function (applies MINIMUM_ACCUMULATION_SCORE filter)
+    # Updated 2025-11-22: Uses generate_all_entry_signals() which applies global threshold
+    df = signal_generator.generate_all_entry_signals(df, apply_prefilters=False)
+    df = signal_generator.generate_all_exit_signals(df)
 
     # Apply historical regime filter (bar-by-bar for backtest accuracy)
     # This eliminates lookahead bias by checking regime status for each historical date
@@ -241,6 +230,10 @@ def prepare_analysis_dataframe(
         df['Market_Regime_OK'] = True
         df['Sector_Regime_OK'] = True
         df['Overall_Regime_OK'] = True
+    
+    # Apply momentum confirmation filter (2025-11-22)
+    # Requires price above 20-day MA and positive CMF to reduce TIME_STOP rate
+    df = momentum_confirmation.apply_momentum_filter(df, verbose=verbose)
 
     df = indicators.create_next_day_reference_levels(df)
 
