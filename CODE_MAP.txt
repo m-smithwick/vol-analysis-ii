@@ -47,6 +47,49 @@
 
 ---
 
+## Performance Analysis & Optimization
+
+**Professional Evaluation**
+- `analyze_professional_metrics.py` (NEW) - Calculates institutional-grade metrics
+  - Maximum Drawdown (peak-to-trough equity decline)
+  - Sharpe Ratio (risk-adjusted returns)
+  - Win/Loss Ratio, Monthly consistency, Consecutive streaks
+  - Professional grading (retail vs institutional assessment)
+  - Outputs: `professional_evaluation.txt` with comprehensive report
+  - Current Results: Grade A- (Sharpe 3.35, Drawdown -9.37%)
+
+**Signal Quality Analysis**
+- `analyze_trade_quality.py` - Signal optimization and threshold tuning
+  - Performance by score buckets (0-4, 4-6, 6-8, 8-10)
+  - Threshold optimization (find optimal cutoff points)
+  - Entry-exit pairing analysis
+  - Generates visualizations (scatter, box plots, heatmaps)
+  - Helps identify which signals have statistical significance
+
+**Portfolio Size Analysis**
+- `analyze_portfolio_decomposition.py` - Portfolio size sensitivity analysis
+  - Decomposes returns into Volume Effect (more trades) vs Sizing Effect (better trades)
+  - Compares concentrated (10 tickers) vs diversified (40 tickers) portfolios
+  - Shows if trade quality degrades with portfolio size
+  - Helps decide optimal ticker count
+
+**Expected Value Analysis**
+- `calculate_realistic_expectations.py` - Weighted expected value calculator
+  - Entry-exit path frequency matrix
+  - Calculates what you'll ACTUALLY experience (weighted by probability)
+  - Best-case vs typical-case scenarios
+  - Shows exit path probabilities (e.g., Momentum only fires 20% of time)
+
+**Educational Tools**
+- `explain_exit_returns.py` - Explains entry vs exit return confusion
+  - Why exit signals show higher returns than entry signals
+  - Entry measures ALL trades, Exit measures filtered subset
+  - Educational tool for interpreting backtest reports
+
+**See:** `ANALYSIS_SCRIPTS_OVERLAP.md` for detailed purposes and workflow recommendations
+
+---
+
 ## Testing & Validation Toolkit
 
 **Unit / module tests**  
@@ -63,8 +106,12 @@
 - `test_massive_*` scripts, `tests/` directory fixtures
 
 **Validation utilities**  
-- `validate_execution_timing.py`, `validate_outlier_impact.py`, `validate_signal_details.py`, `validate_walk_forward.py`  
-- `verify_threshold_disconnect.py`, `verify_trade_counts.py`, `explain_exit_returns.py`, `calculate_realistic_expectations.py`
+- `validate_execution_timing.py` - Check lookahead bias in execution
+- `validate_outlier_impact.py` - Analyze extreme trade effects on averages
+- `validate_signal_details.py` - Deep dive into specific signal performance
+- `validate_walk_forward.py` - Test consistency across time periods
+- `verify_threshold_disconnect.py` - Ensure threshold configs match actual usage
+- `verify_trade_counts.py` - Reconcile trade counts across reports
 
 ---
 
@@ -90,12 +137,27 @@ backtest.py
 
 ## Documentation & Reference
 
-- `STRATEGY_VALIDATION_COMPLETE.md` - consolidated performance/validation findings  
-- `BACKTEST_VALIDATION_METHODOLOGY.md` - repeatable validation checklist  
-- `BULK_CACHE_POPULATION.md`, `docs/CACHE_SCHEMA.md` - cache architecture and schema notes  
-- `TRADING_STRATEGY.md`, `TRADING_STRATEGY_SECTOR_AWARE.md` - trading rules, risk logic, and sector overlays  
-- `SESSION_IMPROVEMENTS_SUMMARY.md`, `SESSION_COMPLETE_NOV_2025.md` - running changelog/session context  
-- `docs/architecture_reference.md` - conceptual overview complementing this code map
+**Performance Analysis**
+- `PROFESSIONAL_ANALYSIS_PLAN.md` - Professional metrics implementation plan
+- `professional_evaluation.txt` - Current system evaluation (Grade A-, Institutional Quality)
+- `ANALYSIS_SCRIPTS_OVERLAP.md` - Script purposes and overlap assessment
+
+**Validation & Methodology**
+- `STRATEGY_VALIDATION_COMPLETE.md` - Consolidated performance/validation findings  
+- `BACKTEST_VALIDATION_METHODOLOGY.md` - Repeatable 4-step validation checklist  
+
+**Cache & Data**
+- `BULK_CACHE_POPULATION.md`, `docs/CACHE_SCHEMA.md` - Cache architecture and schema notes  
+
+**Trading Strategy**
+- `TRADING_STRATEGY.md`, `TRADING_STRATEGY_SECTOR_AWARE.md` - Trading rules, risk logic, and sector overlays  
+
+**Session History**
+- `SESSION_IMPROVEMENTS_SUMMARY.md`, `SESSION_COMPLETE_NOV_2025.md` - Running changelog/session context  
+
+**Architecture**
+- `docs/ARCHITECTURE_REFERENCE.md` - Conceptual overview complementing this code map
+- `CODE_MAP.txt` - This file (module responsibilities and dependencies)
 
 ---
 

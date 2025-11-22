@@ -78,6 +78,63 @@ Need the full operational routine (daily/monthly/quarterly)? See `docs/USER_PLAY
 
 ---
 
+## Performance Analysis & Optimization
+
+After running backtests, use these tools to evaluate and optimize your strategy:
+
+### Professional Evaluation
+```bash
+# Calculate institutional-grade metrics (Sharpe, drawdown, etc.)
+python analyze_professional_metrics.py --csv backtest_results/LOG_FILE_cmb_24mo.csv
+```
+**Outputs:** Sharpe ratio (3.35), maximum drawdown (-9.37%), monthly consistency (73.9%),  
+loss streaks (16 max), professional grading (Institutional Quality: Grade A-)
+
+**Use when:** Evaluating system for real money trading, comparing to professional standards
+
+### Signal Optimization
+```bash
+# Find optimal thresholds and best-performing signals
+python analyze_trade_quality.py backtest_results/LOG_FILE_cmb_24mo.csv -o backtest_results
+```
+**Outputs:** Threshold analysis, signal comparisons, entry-exit pairings, visualizations (charts/heatmaps)
+
+**Use when:** Deciding which signals to trade, tuning score thresholds, optimizing entry criteria
+
+### Portfolio Sizing
+```bash
+# Understand if you should trade 10, 25, or 40 tickers
+# First run sensitivity test:
+python test_portfolio_size_sensitivity.py
+# Then analyze:
+python analyze_portfolio_decomposition.py
+```
+**Outputs:** Volume vs sizing effect decomposition, trade quality by portfolio size
+
+**Use when:** Deciding optimal ticker count, understanding concentration vs diversification trade-offs
+
+### Realistic Expectations
+```bash
+# Calculate weighted expected returns by exit path frequency
+python calculate_realistic_expectations.py
+```
+**Outputs:** Entry-exit frequency matrix, weighted expectations, best-case vs typical-case comparison
+
+**Use when:** Setting performance expectations, understanding exit path probabilities
+
+### Understanding Results
+```bash
+# Explains why exit returns differ from entry returns
+python explain_exit_returns.py
+```
+**Outputs:** Educational explanation of entry vs exit metrics
+
+**Use when:** Confused about why exit signal returns are higher than entry returns
+
+For detailed script purposes and overlap analysis, see `ANALYSIS_SCRIPTS_OVERLAP.md`.
+
+---
+
 ## Validation Status
 
 - **Moderate Buy** – ✅ Live, but expect +2‑3% median returns (see `OUT_OF_SAMPLE_VALIDATION_REPORT.md`).
@@ -158,6 +215,8 @@ Refer to each script's `--help` flag for full descriptions and examples.
 | Topic | Reference |
 |-------|-----------|
 | Operational workflow | `docs/USER_PLAYBOOK.md` |
+| Professional performance analysis | `PROFESSIONAL_ANALYSIS_PLAN.md`, `professional_evaluation.txt` |
+| Analysis scripts (purposes & overlap) | `ANALYSIS_SCRIPTS_OVERLAP.md` |
 | Cache architecture & benchmarks | `BULK_CACHE_POPULATION.md` |
 | Massive.com integration | `MASSIVE_INTEGRATION.md` |
 | Sector rotation dashboard | `SECTOR_ROTATION_GUIDE.md` |
@@ -167,6 +226,7 @@ Refer to each script's `--help` flag for full descriptions and examples.
 | Module responsibilities & dependencies | `CODE_MAP.txt` |
 | Cache schema & migrations | `docs/CACHE_SCHEMA.md` |
 | Validation history | `STRATEGY_VALIDATION_COMPLETE.md`, `docs/VALIDATION_STATUS.md` |
+| Backtest validation methodology | `BACKTEST_VALIDATION_METHODOLOGY.md` |
 | Troubleshooting | `docs/TROUBLESHOOTING.md` |
 
 ---
