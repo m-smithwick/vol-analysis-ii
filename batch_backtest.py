@@ -37,7 +37,8 @@ def run_batch_backtest(ticker_file: str, period: str = '12mo',
                       account_value: float = 100000,
                       risk_pct: float = 0.75,
                       stop_strategy: str = 'time_decay',
-                      time_stop_bars: int = DEFAULT_TIME_STOP_BARS) -> Dict:
+                      time_stop_bars: int = DEFAULT_TIME_STOP_BARS,
+                      save_individual_reports: bool = True) -> Dict:
     """
     Run backtests on all tickers in a file and aggregate results.
     
@@ -52,6 +53,7 @@ def run_batch_backtest(ticker_file: str, period: str = '12mo',
         risk_pct (float): Risk percentage per trade (risk-managed only)
         stop_strategy (str): Stop strategy when using risk-managed mode
         time_stop_bars (int): Number of bars before TIME_STOP exit if <+1R (default from risk_constants.py)
+        save_individual_reports (bool): Save individual text reports per ticker (default: True)
         
     Returns:
         Dict: Aggregated backtest results across all tickers
@@ -151,8 +153,9 @@ def run_batch_backtest(ticker_file: str, period: str = '12mo',
                             risk_pct=risk_pct,
                             stop_strategy=stop_strategy,
                             time_stop_bars=time_stop_bars,
-                            save_to_file=True,
-                            output_dir=output_dir
+                            save_to_file=save_individual_reports,
+                            output_dir=output_dir,
+                            verbose=save_individual_reports
                         )
                         
                         # Extract trades from risk manager
@@ -201,25 +204,26 @@ def run_batch_backtest(ticker_file: str, period: str = '12mo',
                             'exit_performance': exit_comparison
                         }
                         
-                        # Generate and save individual backtest report
-                        strategy_report = backtest.generate_strategy_comparison_report(
-                            paired_trades, 
-                            entry_signals, 
-                            exit_signals
-                        )
-                        
-                        # Save individual report
-                        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-                        filename = f"{ticker}_{period}_backtest_{timestamp}.txt"
-                        filepath = os.path.join(output_dir, filename)
-                        
-                        def _save_report():
-                            with open(filepath, 'w') as f:
-                                f.write(f"📊 BACKTEST REPORT: {ticker} ({period})\n")
-                                f.write("="*70 + "\n\n")
-                                f.write(strategy_report)
-                        
-                        safe_operation(f"saving backtest report for {ticker}", _save_report)
+                        # Generate and save individual backtest report (if enabled)
+                        if save_individual_reports:
+                            strategy_report = backtest.generate_strategy_comparison_report(
+                                paired_trades, 
+                                entry_signals, 
+                                exit_signals
+                            )
+                            
+                            # Save individual report
+                            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+                            filename = f"{ticker}_{period}_backtest_{timestamp}.txt"
+                            filepath = os.path.join(output_dir, filename)
+                            
+                            def _save_report():
+                                with open(filepath, 'w') as f:
+                                    f.write(f"📊 BACKTEST REPORT: {ticker} ({period})\n")
+                                    f.write("="*70 + "\n\n")
+                                    f.write(strategy_report)
+                            
+                            safe_operation(f"saving backtest report for {ticker}", _save_report)
                     
                     aggregated_results['tickers_processed'].append(ticker)
                     logger.info(f"Completed {ticker}: {len(paired_trades)} trades generated")
@@ -470,6 +474,9 @@ def generate_risk_managed_aggregate_report(results: Dict, period: str, output_di
                         col_name = export_df.columns[c_idx - 1]
                         if col_name in dollar_cols:
                             cell.number_format = '#,##0'  # Integer format with thousand separators
+            
+            # Enable AutoFilter on header row for easy sorting/filtering
+            ws.auto_filter.ref = ws.dimensions
             
             # Auto-size columns
             for column in ws.columns:
@@ -965,7 +972,14 @@ def main():
         help=f'Number of bars before TIME_STOP exit if <+1R (default: {DEFAULT_TIME_STOP_BARS}, set to 0 to disable time stops)'
     )
     
-    parser.set_defaults(risk_managed=True)
+    parser.add_argument(
+        '--no-individual-reports',
+        dest='save_individual_reports',
+        action='store_false',
+        help='Skip creating individual text files per ticker (saves disk space when using XLSX output)'
+    )
+    
+    parser.set_defaults(risk_managed=True, save_individual_reports=True)
     
     parser.add_argument(
         '--account-value',
@@ -990,7 +1004,8 @@ def main():
         risk_managed=args.risk_managed,
         account_value=args.account_value,
         stop_strategy=args.stop_strategy,
-        time_stop_bars=args.time_stop_bars
+        time_stop_bars=args.time_stop_bars,
+        save_individual_reports=args.save_individual_reports
     )
     
     if not results or not results['all_paired_trades']:

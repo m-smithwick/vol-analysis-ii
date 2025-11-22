@@ -53,7 +53,7 @@ Need the deeper architecture or indicator breakdown? See `docs/ARCHITECTURE_REFE
    python populate_cache_bulk.py --months 24 --ticker-files ticker_lists/ibd20.txt
    
    # Use multiple ticker files
-   python populate_cache_bulk.py --months 24 --ticker-files ticker_lists/stocks.txt ticker_lists/ibd20.txt
+   python populate_cache_bulk.py --months 36 --ticker-files ticker_lists/indices.txt ticker_lists/sector_etfs.txt
    ```
    
    > 💡 **New users**: Start with Option A (Yahoo Finance). It works immediately without any setup.
@@ -68,7 +68,7 @@ Need the deeper architecture or indicator breakdown? See `docs/ARCHITECTURE_REFE
    python vol_analysis.py  --period 24mo --chart-backend plotly --save-charts --file cmb.txt
 
    # Batch backtest a watchlist
-  python batch_backtest.py -f cmb.txt -p 24mo
+  python batch_backtest.py  -p 24mo -f cmb.txt
    # Risk-managed runs now default to time_decay stops; override via --stop-strategy
 
    # Sector dashboards
@@ -91,7 +91,7 @@ After running backtests, use these tools to evaluate and optimize your strategy:
 ### Professional Evaluation
 ```bash
 # Calculate institutional-grade metrics (Sharpe, drawdown, etc.)
-python analyze_professional_metrics.py --csv backtest_results/LOG_FILE_cmb_24mo.csv
+python analyze_professional_metrics.py --csv backtest_results/LOG_FILE_cmb_36mo_20251122_124411.csv
 ```
 **Outputs:** Sharpe ratio (3.35), maximum drawdown (-9.37%), monthly consistency (73.9%),  
 loss streaks (16 max), professional grading (Institutional Quality: Grade A-)
@@ -191,6 +191,7 @@ Full details and review cadence live in `docs/VALIDATION_STATUS.md`.
 - `--simple`: disable RiskManager and run legacy entry/exit pairing.
 - `--stop-strategy {static,vol_regime,atr_dynamic,pct_trail,time_decay}`: stop method when risk-managed (default `time_decay`).
 - `--time-stop-bars N`: number of bars before TIME_STOP exit if <+1R (default `12`, set to `0` to disable time stops).
+- `--no-individual-reports`: skip creating individual text files per ticker (saves disk space; XLSX ledger contains all trade details).
 - `--account-value`: starting account equity for risk-managed batch jobs (default `100000`).
 
 ### `sector_dashboard.py`

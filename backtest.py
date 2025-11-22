@@ -1201,7 +1201,8 @@ def run_risk_managed_backtest(
     stop_strategy: str = 'time_decay',
     time_stop_bars: int = DEFAULT_TIME_STOP_BARS,
     save_to_file: bool = True,
-    output_dir: str = 'backtest_results'
+    output_dir: str = 'backtest_results',
+    verbose: bool = True
 ) -> Dict:
     """
     Run backtest using RiskManager for position management and exit logic.
@@ -1248,11 +1249,12 @@ def run_risk_managed_backtest(
         time_stop_bars=time_stop_bars
     )
     
-    print(f"\n🎯 RISK-MANAGED BACKTEST: {ticker}")
-    print(f"   Starting Account Value: ${account_value:,.0f}")
-    print(f"   Risk Per Trade: {risk_pct}%")
-    print(f"   Stop Strategy: {stop_strategy}")
-    print("="*70)
+    if verbose:
+        print(f"\n🎯 RISK-MANAGED BACKTEST: {ticker}")
+        print(f"   Starting Account Value: ${account_value:,.0f}")
+        print(f"   Risk Per Trade: {risk_pct}%")
+        print(f"   Stop Strategy: {stop_strategy}")
+        print("="*70)
     
     # Entry and exit signal columns to monitor
     entry_signals = ['Strong_Buy', 'Moderate_Buy', 'Stealth_Accumulation', 
@@ -1325,11 +1327,12 @@ def run_risk_managed_backtest(
                 if trade:
                     all_trades.append(trade)
                     
-                    if exit_check.get('partial_exit', False):
-                        print(f"📊 PARTIAL EXIT ({int(exit_check['exit_pct']*100)}%): {exit_date.strftime('%Y-%m-%d')} @ ${exit_price:.2f} - {exit_check['exit_type']} - {exit_check['reason']}")
-                    else:
-                        print(f"🚪 EXIT: {exit_date.strftime('%Y-%m-%d')} @ ${exit_price:.2f} - {exit_check['exit_type']} - {exit_check['reason']}")
-                        print(f"   Return: {trade['profit_pct']:.2f}%, R-Multiple: {trade['r_multiple']:.2f}R, Held: {trade['bars_held']} days")
+                    if verbose:
+                        if exit_check.get('partial_exit', False):
+                            print(f"📊 PARTIAL EXIT ({int(exit_check['exit_pct']*100)}%): {exit_date.strftime('%Y-%m-%d')} @ ${exit_price:.2f} - {exit_check['exit_type']} - {exit_check['reason']}")
+                        else:
+                            print(f"🚪 EXIT: {exit_date.strftime('%Y-%m-%d')} @ ${exit_price:.2f} - {exit_check['exit_type']} - {exit_check['reason']}")
+                            print(f"   Return: {trade['profit_pct']:.2f}%, R-Multiple: {trade['r_multiple']:.2f}R, Held: {trade['bars_held']} days")
         
         # Check for entry signals on this bar (only if no active position)
         if ticker not in risk_mgr.active_positions:
@@ -1394,10 +1397,12 @@ def run_risk_managed_backtest(
                         regime_status=regime_status
                     )
                     
-                    print(f"✅ ENTRY: {entry_date.strftime('%Y-%m-%d')} @ ${entry_price:.2f}, Stop: ${stop_price:.2f}, Size: {position['position_size']} shares")
+                    if verbose:
+                        print(f"✅ ENTRY: {entry_date.strftime('%Y-%m-%d')} @ ${entry_price:.2f}, Stop: ${stop_price:.2f}, Size: {position['position_size']} shares")
                     
                 except (KeyError, ValueError) as e:
-                    print(f"⚠️ Could not open position on {current_date.strftime('%Y-%m-%d')}: {e}")
+                    if verbose:
+                        print(f"⚠️ Could not open position on {current_date.strftime('%Y-%m-%d')}: {e}")
                     continue
     
     # Close any remaining open positions at last price
@@ -1414,7 +1419,8 @@ def run_risk_managed_backtest(
         
         if trade:
             all_trades.append(trade)
-            print(f"⏸️ Position closed at end of data: {last_date.strftime('%Y-%m-%d')} @ ${last_price:.2f}")
+            if verbose:
+                print(f"⏸️ Position closed at end of data: {last_date.strftime('%Y-%m-%d')} @ ${last_price:.2f}")
     
     # Generate comprehensive analysis
     if all_trades:
@@ -1428,7 +1434,8 @@ def run_risk_managed_backtest(
         analysis.setdefault('Total Dollar P&L', analysis['Net Profit $'])
         report = generate_risk_managed_report(ticker, all_trades, analysis, account_value, risk_pct)
         
-        print("\n" + report)
+        if verbose:
+            print("\n" + report)
         
         # Save to file if requested
         if save_to_file:
@@ -1440,7 +1447,8 @@ def run_risk_managed_backtest(
             with open(filepath, 'w') as f:
                 f.write(report)
             
-            print(f"\n💾 Risk-managed backtest report saved: {filename}")
+            if verbose:
+                print(f"\n💾 Risk-managed backtest report saved: {filename}")
         
         return {
             'trades': all_trades,
