@@ -12,7 +12,7 @@ import sys
 from datetime import datetime
 from typing import Dict, List, Tuple
 import backtest
-from risk_constants import DEFAULT_TIME_STOP_BARS
+from risk_constants import DEFAULT_TIME_STOP_BARS, DEFAULT_STOP_STRATEGY
 
 # Import error handling framework
 from error_handler import (
@@ -36,7 +36,7 @@ def run_batch_backtest(ticker_file: str, period: str = '12mo',
                       risk_managed: bool = True,
                       account_value: float = 100000,
                       risk_pct: float = 0.75,
-                      stop_strategy: str = 'time_decay',
+                      stop_strategy: str = DEFAULT_STOP_STRATEGY,
                       time_stop_bars: int = DEFAULT_TIME_STOP_BARS,
                       save_individual_reports: bool = True) -> Dict:
     """
@@ -961,8 +961,8 @@ def main():
     parser.add_argument(
         '--stop-strategy',
         choices=['static', 'vol_regime', 'atr_dynamic', 'pct_trail', 'time_decay'],
-        default='time_decay',
-        help='Stop-loss strategy when running risk-managed backtests (default: time_decay)'
+        default=DEFAULT_STOP_STRATEGY,
+        help=f'Stop-loss strategy when running risk-managed backtests (default: {DEFAULT_STOP_STRATEGY} - RECOMMENDED). See STOP_STRATEGY_VALIDATION.md for performance comparison.'
     )
     
     parser.add_argument(

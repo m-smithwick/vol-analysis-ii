@@ -493,6 +493,122 @@ Combined Performance: 86% win rate, +6.18% expectancy
 - Acts as a "smart stop" that considers market context
 - Prevents getting stopped out on random volatility
 
+### Stop Strategy Selection (VALIDATED NOV 2025)
+
+**The system supports 5 stop strategies. Recent validation across 982 trades (36-month period) identified clear performance differences:**
+
+#### ✅ STATIC (RECOMMENDED - Default)
+
+**How it works:**
+- Initial stop calculated once: min(swing_low - 0.5*ATR, VWAP - 1*ATR)
+- Stop price NEVER moves (no tightening)
+- Exits only on hard stop violation or regular exit signals
+
+**Performance (387 trades, 36-month period):**
+- Total P&L: $161,278
+- Stop-out rate: 15% (58 stops)
+- Average per trade: $417
+- TIME_STOP performance: +$10,851 (143 trades reaching 20-bar limit)
+
+**Why it works:**
+- Gives trades room to develop without premature stops
+- Lets exit signals (PROFIT_TARGET, TRAIL_STOP, SIGNAL_EXIT) do their job
+- Combined profit exits generate $206k vs only $45k in stop losses (4.6:1 ratio)
+- Simple, predictable, and proven effective
+
+**Best for:** All trading styles - this is the recommended default
+
+---
+
+#### ⚠️ TIME_DECAY (Original Default - NOT RECOMMENDED)
+
+**How it works:**
+- Starts at 2.5 ATR stop width at entry
+- Tightens to 2.0 ATR at day 10
+- Tightens to 1.5 ATR at day 15
+- Continues tightening as trade ages
+
+**Performance (167 trades):**
+- Total P&L: $53,359 (3x worse than static)
+- Stop-out rate: 23% (39 stops)
+- Average per trade: $319
+- TIME_DECAY_STOP losses: -$29,780
+
+**Why it underperforms:**
+- Tightening schedule too aggressive for swing trading
+- Cuts winners short before they reach profit targets
+- Trades that would have hit +2R PROFIT_TARGET get stopped out at breakeven
+- The "lock in gains" logic backfires in practice
+
+**Example failure:**
+```
+Day 1: Entry at $50, stop at $47.50 (2.5 ATR)
+Day 10: Price at $52, stop tightens to $50.00 (2.0 ATR)
+Day 12: Price pulls back to $49.50 → STOPPED OUT
+Day 15: Price recovers to $54 → Would have hit PROFIT_TARGET
+
+Result: -1% loss instead of +8% win
+```
+
+**Recommendation:** Do not use. Switch to static strategy.
+
+---
+
+#### ⚠️ VOL_REGIME (NOT RECOMMENDED)
+
+**How it works:**
+- Adjusts stop based on ATR z-score (volatility regime)
+- Low volatility (ATR_Z < -0.5): 1.5 ATR stop (tighter)
+- Normal volatility: 2.0 ATR stop
+- High volatility (ATR_Z > 0.5): 2.5 ATR stop (wider)
+
+**Performance (428 trades):**
+- Total P&L: $146,572 (10% worse than static despite 2.5x more trades)
+- Stop-out rate: 32% (137 stops) ⚠️ **HIGHEST**
+- Average per trade: $342
+- VOL_REGIME_STOP losses: -$58,259
+
+**Why it underperforms:**
+- Despite "smart" volatility adjustment, creates HIGHEST stop rate
+- The adaptive nature makes it too sensitive to market conditions
+- Stops out winners during normal market volatility
+- Higher trade volume doesn't compensate for excessive stops
+
+**The Vol_regime Paradox:**
+- Sounds sophisticated (adjusts to market conditions)
+- Actually performs worse (32% stop rate vs 15% for static)
+- Theory vs reality disconnect
+
+**Recommendation:** Avoid. Static outperforms by 10% with half the stop rate.
+
+---
+
+#### 🧪 OTHER STRATEGIES (EXPERIMENTAL)
+
+**ATR_DYNAMIC:** Dynamic adjustment between 1.5-3.0 ATR multipliers based on trade progression.
+
+**PCT_TRAIL:** Percentage-based trailing stop activated after reaching +1R profit.
+
+**Status:** Not validated at scale. Use at your own risk. Static strategy is proven superior.
+
+---
+
+### Stop Strategy Performance Summary
+
+| Strategy | Total P&L | Trades | Stop Rate | Avg/Trade | Win:Loss Ratio | Recommendation |
+|----------|-----------|--------|-----------|-----------|----------------|----------------|
+| **STATIC** | **$161,278** | 387 | **15%** | **$417** | **4.6:1** | ✅ **USE THIS** |
+| VOL_REGIME | $146,572 | 428 | 32% ⚠️ | $342 | 3.5:1 | ❌ Avoid |
+| TIME_DECAY | $53,359 | 167 | 23% | $319 | 2.8:1 | ❌ Avoid |
+
+**Key Insight:** Variable stop strategies sound sophisticated but hurt performance. Simple static stops let your profitable exit signals (PROFIT_TARGET, TRAIL_STOP, SIGNAL_EXIT) work as designed. The best stop strategy is the one that gets out of the way and lets your edge work.
+
+**Implementation:** System now defaults to static stops. No configuration changes needed unless explicitly testing alternatives.
+
+**Validation Details:** See `STOP_STRATEGY_VALIDATION.md` for complete analysis including trade-by-trade breakdowns and failure mode analysis.
+
+---
+
 ### Portfolio-Level Risk
 
 **Diversification**:

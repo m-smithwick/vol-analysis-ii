@@ -5,7 +5,26 @@ These constants define default values for risk management parameters across the 
 Values are determined through empirical testing and optimization.
 
 See TIME_STOP_OPTIMIZATION_RESULTS.md for detailed analysis and validation.
+See STOP_STRATEGY_VALIDATION.md for stop strategy performance comparison (Nov 2025).
 """
+
+# Stop Strategy Default
+# Default stop-loss strategy for risk-managed backtests
+#
+# EMPIRICALLY VALIDATED: Static stops outperform variable strategies
+#
+# Validation Results (982 trades, 36-month test):
+# - STATIC: $161,278 P&L, 15% stop rate, $417/trade avg (RECOMMENDED)
+# - TIME_DECAY: $53,359 P&L, 23% stop rate (3x worse than static)
+# - VOL_REGIME: $146,572 P&L, 32% stop rate (excessive stops)
+#
+# Why static wins:
+# - Gives trades room to develop without premature stops
+# - Lets exit signals (PROFIT_TARGET, TRAIL_STOP) work properly
+# - Variable stops tighten too aggressively, cutting winners short
+#
+# Last validated: November 2025
+DEFAULT_STOP_STRATEGY = 'static'
 
 # Time Stop Threshold
 # Exit after N bars if position has not reached +1R profit

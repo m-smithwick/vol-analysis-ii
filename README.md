@@ -68,8 +68,9 @@ Need the deeper architecture or indicator breakdown? See `docs/ARCHITECTURE_REFE
    python vol_analysis.py  --period 24mo --chart-backend plotly --save-charts --file cmb.txt
 
    # Batch backtest a watchlist
-  python batch_backtest.py  -p 24mo -f cmb.txt
-   # Risk-managed runs now default to time_decay stops; override via --stop-strategy
+  python batch_backtest.py  -p 12mo -f cmb.txt --no-individual-reports
+   # Risk-managed runs default to static stops (optimal performance validated Nov 2025)
+   # Override via --stop-strategy if testing alternatives
 
    # Sector dashboards
    python sector_dashboard.py --top 5 --compare
@@ -145,6 +146,12 @@ For detailed script purposes and overlap analysis, see `ANALYSIS_SCRIPTS_OVERLAP
 
 - **Moderate Buy** – ✅ Live, but expect +2‑3% median returns (see `OUT_OF_SAMPLE_VALIDATION_REPORT.md`).
 - **Variable Stop Loss** – ✅ Validated with 4,249 trades. Time Decay winner: **+22% improvement** (1.52R vs 1.25R static).
+- **Stop Strategy** – ✅ **CRITICAL UPDATE (Nov 2025)**: Validated across 982 trades, 36-month period
+  * **STATIC (RECOMMENDED)**: $161,278 P&L, 15% stop rate, $417/trade avg — **New default**
+  * Time_decay: $53,359 P&L, 23% stop rate (3x worse than static) — **Not recommended**
+  * Vol_regime: $146,572 P&L, 32% stop rate (excessive stops) — **Not recommended**
+  * **Key finding**: Variable stops tighten too aggressively, cutting winners short
+  * See `STOP_STRATEGY_VALIDATION.md` for complete analysis
 - **Stealth Accumulation** – ❌ Failed out-of-sample; do not use.
 - **Others (Strong Buy, Confluence, Breakout)** – 🚧 Require fresh validation.
 
@@ -162,7 +169,7 @@ Full details and review cadence live in `docs/VALIDATION_STATUS.md`.
 - `--save-charts`: store PNG/HTML charts during batch runs.
 - `--chart-backend {matplotlib,plotly}`: control renderer (default `matplotlib`).
 - `--data-source {yfinance,massive}`: select data provider.
-- `--stop-strategy {static,vol_regime,atr_dynamic,pct_trail,time_decay}`: choose risk-managed stop logic (default `time_decay`).
+- `--stop-strategy {static,vol_regime,atr_dynamic,pct_trail,time_decay}`: choose risk-managed stop logic (default `static` - RECOMMENDED). Performance: static=$161k/15% stops, time_decay=$53k/23% stops, vol_regime=$147k/32% stops. See `STOP_STRATEGY_VALIDATION.md`.
 - `--account-value`: starting account equity for risk-managed runs (default `100000`).
 - `--multi`: run multi-timeframe analysis (single ticker only).
 - `--force-refresh`: bypass cache and redownload data.
@@ -189,7 +196,7 @@ Full details and review cadence live in `docs/VALIDATION_STATUS.md`.
 - `-o` / `--output-dir`: backtest output folder (default `backtest_results`).
 - `--risk-managed`: (default) ensure RiskManager is active for all trades.
 - `--simple`: disable RiskManager and run legacy entry/exit pairing.
-- `--stop-strategy {static,vol_regime,atr_dynamic,pct_trail,time_decay}`: stop method when risk-managed (default `time_decay`).
+- `--stop-strategy {static,vol_regime,atr_dynamic,pct_trail,time_decay}`: stop method when risk-managed (default `static` - RECOMMENDED). See `STOP_STRATEGY_VALIDATION.md` for validation results.
 - `--time-stop-bars N`: number of bars before TIME_STOP exit if <+1R (default `12`, set to `0` to disable time stops).
 - `--no-individual-reports`: skip creating individual text files per ticker (saves disk space; XLSX ledger contains all trade details).
 - `--account-value`: starting account equity for risk-managed batch jobs (default `100000`).
@@ -230,6 +237,7 @@ Refer to each script's `--help` flag for full descriptions and examples.
 | Sector rotation dashboard | `SECTOR_ROTATION_GUIDE.md` |
 | Sector-aware trading rules | `TRADING_STRATEGY_SECTOR_AWARE.md` |
 | Variable stop loss validation | `VARIABLE_STOP_LOSS_FINDINGS.md` |
+| **Stop strategy validation (Nov 2025)** | `STOP_STRATEGY_VALIDATION.md` |
 | Architecture & indicators | `docs/ARCHITECTURE_REFERENCE.md` |
 | Module responsibilities & dependencies | `CODE_MAP.txt` |
 | Cache schema & migrations | `docs/CACHE_SCHEMA.md` |
