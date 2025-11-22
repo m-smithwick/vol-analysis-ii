@@ -16,6 +16,7 @@ Updated Nov 2025: Removed aggressive momentum checks, uses regular exit signals
 import pandas as pd
 import numpy as np
 from typing import Dict, Optional, List
+from risk_constants import DEFAULT_TIME_STOP_BARS
 
 
 class RiskManager:
@@ -37,7 +38,7 @@ class RiskManager:
     """
     
     def __init__(self, account_value: float, risk_pct_per_trade: float = 0.75,
-                 stop_strategy: str = 'time_decay', time_stop_bars: int = 20):
+                 stop_strategy: str = 'time_decay', time_stop_bars: int = DEFAULT_TIME_STOP_BARS):
         """
         Initialize risk manager.
         
@@ -45,7 +46,7 @@ class RiskManager:
             account_value: Total account equity
             risk_pct_per_trade: Risk percentage per trade (0.5-1.0% recommended)
             stop_strategy: Stop loss strategy - 'static', 'vol_regime', 'atr_dynamic', 'pct_trail', 'time_decay'
-            time_stop_bars: Number of bars before TIME_STOP exit if <+1R (default: 20, set to 0 or negative to disable)
+            time_stop_bars: Number of bars before TIME_STOP exit if <+1R (default from risk_constants.py, set to 0 or negative to disable)
         """
         self.account_value = account_value
         self.starting_equity = account_value

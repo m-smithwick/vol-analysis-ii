@@ -11,6 +11,7 @@ from datetime import datetime
 from typing import Dict, List, Tuple, Optional
 
 from signal_metadata import get_display_name
+from risk_constants import DEFAULT_TIME_STOP_BARS
 
 
 def calculate_forward_returns(df: pd.DataFrame, periods: List[int] = [1, 10]) -> pd.DataFrame:
@@ -1198,7 +1199,7 @@ def run_risk_managed_backtest(
     account_value: float = 100000,
     risk_pct: float = 0.75,
     stop_strategy: str = 'time_decay',
-    time_stop_bars: int = 12,
+    time_stop_bars: int = DEFAULT_TIME_STOP_BARS,
     save_to_file: bool = True,
     output_dir: str = 'backtest_results'
 ) -> Dict:

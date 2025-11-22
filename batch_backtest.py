@@ -12,6 +12,7 @@ import sys
 from datetime import datetime
 from typing import Dict, List, Tuple
 import backtest
+from risk_constants import DEFAULT_TIME_STOP_BARS
 
 # Import error handling framework
 from error_handler import (
@@ -36,7 +37,7 @@ def run_batch_backtest(ticker_file: str, period: str = '12mo',
                       account_value: float = 100000,
                       risk_pct: float = 0.75,
                       stop_strategy: str = 'time_decay',
-                      time_stop_bars: int = 12) -> Dict:
+                      time_stop_bars: int = DEFAULT_TIME_STOP_BARS) -> Dict:
     """
     Run backtests on all tickers in a file and aggregate results.
     
@@ -50,7 +51,7 @@ def run_batch_backtest(ticker_file: str, period: str = '12mo',
         account_value (float): Account value for position sizing (risk-managed only)
         risk_pct (float): Risk percentage per trade (risk-managed only)
         stop_strategy (str): Stop strategy when using risk-managed mode
-        time_stop_bars (int): Number of bars before TIME_STOP exit if <+1R (default: 12)
+        time_stop_bars (int): Number of bars before TIME_STOP exit if <+1R (default from risk_constants.py)
         
     Returns:
         Dict: Aggregated backtest results across all tickers
@@ -960,8 +961,8 @@ def main():
     parser.add_argument(
         '--time-stop-bars',
         type=int,
-        default=12,
-        help='Number of bars before TIME_STOP exit if <+1R (default: 12, set to 0 to disable time stops)'
+        default=DEFAULT_TIME_STOP_BARS,
+        help=f'Number of bars before TIME_STOP exit if <+1R (default: {DEFAULT_TIME_STOP_BARS}, set to 0 to disable time stops)'
     )
     
     parser.set_defaults(risk_managed=True)
