@@ -305,7 +305,8 @@ class RiskManager:
         entry_idx: int,
         df: pd.DataFrame,
         entry_signals: List[str] = None,
-        signal_scores: Dict = None
+        signal_scores: Dict = None,
+        regime_status: Dict = None
     ) -> Dict:
         """
         Open a new position with full risk management.
@@ -319,6 +320,7 @@ class RiskManager:
             df: DataFrame with indicators
             entry_signals: List of signal names that triggered (e.g., ['Strong_Buy', 'Confluence_Signal'])
             signal_scores: Dict of signal scores at entry (e.g., {'Accumulation_Score': 7.8})
+            regime_status: Dict of regime filter status at entry (SPY and sector ETF regimes)
             
         Returns:
             Position dictionary with all tracking fields
@@ -346,7 +348,8 @@ class RiskManager:
             'equity_at_entry': self.equity,
             # Signal metadata for trade quality analysis
             'entry_signals': entry_signals or [],
-            'signal_scores': signal_scores or {}
+            'signal_scores': signal_scores or {},
+            'regime_status': regime_status or {}
         }
         
         self.active_positions[ticker] = position
@@ -550,7 +553,8 @@ class RiskManager:
                 # Signal metadata
                 'entry_signals': pos.get('entry_signals', []),
                 'exit_signals': exit_signals or [],
-                'signal_scores': pos.get('signal_scores', {})
+                'signal_scores': pos.get('signal_scores', {}),
+                'regime_status': pos.get('regime_status', {})
             }
             
             self.closed_trades.append(partial_trade)
@@ -591,7 +595,8 @@ class RiskManager:
                 # Signal metadata
                 'entry_signals': pos.get('entry_signals', []),
                 'exit_signals': exit_signals or [],
-                'signal_scores': pos.get('signal_scores', {})
+                'signal_scores': pos.get('signal_scores', {}),
+                'regime_status': pos.get('regime_status', {})
             }
             
             self.closed_trades.append(trade_result)

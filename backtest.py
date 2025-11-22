@@ -1233,6 +1233,11 @@ def run_risk_managed_backtest(
     except ImportError:
         raise ImportError("risk_manager module required for risk-managed backtesting")
     
+    # PERFORMANCE OPTIMIZATION: Pre-compute regime data
+    # Add regime columns to DataFrame BEFORE backtest loop to eliminate API calls
+    from regime_filter import add_regime_columns_to_df
+    df = add_regime_columns_to_df(df, ticker)
+    
     # Initialize RiskManager
     risk_mgr = RiskManager(
         account_value=account_value,
@@ -1348,11 +1353,32 @@ def run_risk_managed_backtest(
                 if 'Profit_Taking_Score' in df.columns:
                     signal_scores['Profit_Taking_Score'] = float(df.iloc[idx]['Profit_Taking_Score'])
                 
+                # Capture regime status from pre-computed DataFrame columns
+                # This avoids API calls during backtest loop (data was pre-fetched)
+                regime_status = {
+                    'ticker': ticker,
+                    'market_regime_ok': bool(df.iloc[idx].get('spy_regime_ok', False)),
+                    'sector_etf': str(df.iloc[idx].get('sector_etf', 'SPY')),
+                    'sector_regime_ok': bool(df.iloc[idx].get('primary_sector_regime_ok', False)),
+                    # All 11 sector ETF regimes
+                    'xlk_regime_ok': bool(df.iloc[idx].get('xlk_regime_ok', False)),
+                    'xlf_regime_ok': bool(df.iloc[idx].get('xlf_regime_ok', False)),
+                    'xlv_regime_ok': bool(df.iloc[idx].get('xlv_regime_ok', False)),
+                    'xle_regime_ok': bool(df.iloc[idx].get('xle_regime_ok', False)),
+                    'xly_regime_ok': bool(df.iloc[idx].get('xly_regime_ok', False)),
+                    'xlp_regime_ok': bool(df.iloc[idx].get('xlp_regime_ok', False)),
+                    'xli_regime_ok': bool(df.iloc[idx].get('xli_regime_ok', False)),
+                    'xlu_regime_ok': bool(df.iloc[idx].get('xlu_regime_ok', False)),
+                    'xlre_regime_ok': bool(df.iloc[idx].get('xlre_regime_ok', False)),
+                    'xlb_regime_ok': bool(df.iloc[idx].get('xlb_regime_ok', False)),
+                    'xlc_regime_ok': bool(df.iloc[idx].get('xlc_regime_ok', False))
+                }
+                
                 # Calculate initial stop using RiskManager
                 try:
                     stop_price = risk_mgr.calculate_initial_stop(df, idx)
                     
-                    # Open position with signal metadata
+                    # Open position with signal metadata including regime status
                     position = risk_mgr.open_position(
                         ticker=ticker,
                         entry_date=entry_date,
@@ -1361,7 +1387,8 @@ def run_risk_managed_backtest(
                         entry_idx=idx + 1,  # Entry happens next day
                         df=df,
                         entry_signals=triggered_entries,
-                        signal_scores=signal_scores
+                        signal_scores=signal_scores,
+                        regime_status=regime_status
                     )
                     
                     print(f"✅ ENTRY: {entry_date.strftime('%Y-%m-%d')} @ ${entry_price:.2f}, Stop: ${stop_price:.2f}, Size: {position['position_size']} shares")
@@ -1529,6 +1556,19 @@ def generate_risk_managed_report(
         
         report_lines.append(f"\nTrade #{i}:")
         report_lines.append(f"  Entry: {entry_date} @ ${trade['entry_price']:.2f}{entry_signals_str}")
+        
+        # Add regime status at entry
+        regime_status = trade.get('regime_status', {})
+        if regime_status:
+            spy_ok = regime_status.get('market_regime_ok', False)
+            sector_ok = regime_status.get('sector_regime_ok', False)
+            sector_etf = regime_status.get('sector_etf', 'N/A')
+            
+            spy_icon = '✅' if spy_ok else '❌'
+            sector_icon = '✅' if sector_ok else '❌'
+            
+            report_lines.append(f"  Regime: SPY {spy_icon} | {sector_etf} {sector_icon}")
+        
         report_lines.append(f"  Exit:  {exit_date} @ ${trade['exit_price']:.2f} ({trade['exit_type']}{exit_signals_str})")
         report_lines.append(f"  Result: {trade['profit_pct']:+.2f}% | {trade['r_multiple']:+.2f}R")
         report_lines.append(f"  Held: {trade['bars_held']} days")

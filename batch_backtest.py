@@ -341,15 +341,6 @@ def generate_risk_managed_aggregate_report(results: Dict, period: str, output_di
             lambda x: x[0] if isinstance(x, list) and len(x) > 0 else ''
         )
         
-        # Convert exit_signals list to comma-separated string
-        ledger_df['exit_signals'] = ledger_df.get('exit_signals', pd.Series([[]] * len(ledger_df)))
-        ledger_df['exit_signals_str'] = ledger_df['exit_signals'].apply(
-            lambda x: ','.join(x) if isinstance(x, list) else ''
-        )
-        ledger_df['primary_exit_signal'] = ledger_df['exit_signals'].apply(
-            lambda x: x[0] if isinstance(x, list) and len(x) > 0 else ''
-        )
-        
         # Extract individual signal scores from signal_scores dict
         ledger_df['signal_scores'] = ledger_df.get('signal_scores', pd.Series([{}] * len(ledger_df)))
         ledger_df['accumulation_score'] = ledger_df['signal_scores'].apply(
@@ -362,11 +353,66 @@ def generate_risk_managed_aggregate_report(results: Dict, period: str, output_di
             lambda x: x.get('Profit_Taking_Score', np.nan) if isinstance(x, dict) else np.nan
         )
         
+        # Extract regime status from regime_status dict
+        ledger_df['regime_status'] = ledger_df.get('regime_status', pd.Series([{}] * len(ledger_df)))
+        
+        # SPY market regime
+        ledger_df['spy_regime_ok'] = ledger_df['regime_status'].apply(
+            lambda x: x.get('market_regime_ok', np.nan) if isinstance(x, dict) else np.nan
+        )
+        
+        # Stock's assigned sector ETF (for reference)
+        ledger_df['sector_etf'] = ledger_df['regime_status'].apply(
+            lambda x: x.get('sector_etf', '') if isinstance(x, dict) else ''
+        )
+        ledger_df['sector_regime_ok'] = ledger_df['regime_status'].apply(
+            lambda x: x.get('sector_regime_ok', np.nan) if isinstance(x, dict) else np.nan
+        )
+        
+        # All 11 sector ETF regime flags
+        ledger_df['xlk_regime_ok'] = ledger_df['regime_status'].apply(
+            lambda x: x.get('xlk_regime_ok', np.nan) if isinstance(x, dict) else np.nan
+        )
+        ledger_df['xlf_regime_ok'] = ledger_df['regime_status'].apply(
+            lambda x: x.get('xlf_regime_ok', np.nan) if isinstance(x, dict) else np.nan
+        )
+        ledger_df['xlv_regime_ok'] = ledger_df['regime_status'].apply(
+            lambda x: x.get('xlv_regime_ok', np.nan) if isinstance(x, dict) else np.nan
+        )
+        ledger_df['xle_regime_ok'] = ledger_df['regime_status'].apply(
+            lambda x: x.get('xle_regime_ok', np.nan) if isinstance(x, dict) else np.nan
+        )
+        ledger_df['xly_regime_ok'] = ledger_df['regime_status'].apply(
+            lambda x: x.get('xly_regime_ok', np.nan) if isinstance(x, dict) else np.nan
+        )
+        ledger_df['xlp_regime_ok'] = ledger_df['regime_status'].apply(
+            lambda x: x.get('xlp_regime_ok', np.nan) if isinstance(x, dict) else np.nan
+        )
+        ledger_df['xli_regime_ok'] = ledger_df['regime_status'].apply(
+            lambda x: x.get('xli_regime_ok', np.nan) if isinstance(x, dict) else np.nan
+        )
+        ledger_df['xlu_regime_ok'] = ledger_df['regime_status'].apply(
+            lambda x: x.get('xlu_regime_ok', np.nan) if isinstance(x, dict) else np.nan
+        )
+        ledger_df['xlre_regime_ok'] = ledger_df['regime_status'].apply(
+            lambda x: x.get('xlre_regime_ok', np.nan) if isinstance(x, dict) else np.nan
+        )
+        ledger_df['xlb_regime_ok'] = ledger_df['regime_status'].apply(
+            lambda x: x.get('xlb_regime_ok', np.nan) if isinstance(x, dict) else np.nan
+        )
+        ledger_df['xlc_regime_ok'] = ledger_df['regime_status'].apply(
+            lambda x: x.get('xlc_regime_ok', np.nan) if isinstance(x, dict) else np.nan
+        )
+        
         portfolio_ledger = ledger_df[['entry_date', 'exit_date', 'ticker', 'entry_price', 'exit_price',
                                       'position_size', 'partial_exit', 'exit_pct', 'exit_type', 'dollar_pnl',
                                       'equity_before_trade', 'portfolio_equity', 'r_multiple', 'profit_pct',
-                                      'entry_signals_str', 'primary_signal', 'exit_signals_str', 'primary_exit_signal',
-                                      'accumulation_score', 'moderate_buy_score', 'profit_taking_score']]
+                                      'entry_signals_str', 'primary_signal',
+                                      'accumulation_score', 'moderate_buy_score', 'profit_taking_score',
+                                      'spy_regime_ok', 'sector_etf', 'sector_regime_ok',
+                                      'xlk_regime_ok', 'xlf_regime_ok', 'xlv_regime_ok', 'xle_regime_ok',
+                                      'xly_regime_ok', 'xlp_regime_ok', 'xli_regime_ok', 'xlu_regime_ok',
+                                      'xlre_regime_ok', 'xlb_regime_ok', 'xlc_regime_ok']]
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
         ledger_filename = f"PORTFOLIO_TRADE_LOG_{period.replace(' ', '_')}_{timestamp}.csv"
         ledger_csv_path = os.path.join(output_dir, ledger_filename)
