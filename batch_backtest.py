@@ -426,11 +426,67 @@ def generate_risk_managed_aggregate_report(results: Dict, period: str, output_di
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
         ledger_filename = f"LOG_FILE_{stock_file_base}_{period}_{timestamp}.csv"
         ledger_csv_path = os.path.join(output_dir, ledger_filename)
+        ledger_xlsx_path = os.path.join(output_dir, ledger_filename.replace('.csv', '.xlsx'))
+        
         export_df = portfolio_ledger.copy()
+        
+        # Format dates as strings for CSV
         for col in ['entry_date', 'exit_date']:
             if export_df[col].notna().any():
                 export_df[col] = export_df[col].dt.strftime("%Y-%m-%d")
+        
+        # Round dollar fields to integers (no decimals)
+        dollar_cols = ['entry_price', 'exit_price', 'position_size', 'dollar_pnl', 
+                       'equity_before_trade', 'portfolio_equity']
+        for col in dollar_cols:
+            if col in export_df.columns:
+                export_df[col] = export_df[col].round(0).astype('Int64')  # Int64 handles NaN
+        
+        # Export to CSV
         export_df.to_csv(ledger_csv_path, index=False)
+        
+        # Export to Excel with proper formatting
+        try:
+            from openpyxl import Workbook
+            from openpyxl.styles import Font, Alignment, numbers
+            from openpyxl.utils.dataframe import dataframe_to_rows
+            
+            wb = Workbook()
+            ws = wb.active
+            ws.title = "Trade Log"
+            
+            # Write data
+            for r_idx, row in enumerate(dataframe_to_rows(export_df, index=False, header=True), 1):
+                for c_idx, value in enumerate(row, 1):
+                    cell = ws.cell(row=r_idx, column=c_idx, value=value)
+                    
+                    # Format header row
+                    if r_idx == 1:
+                        cell.font = Font(bold=True)
+                        cell.alignment = Alignment(horizontal='center')
+                    else:
+                        # Format dollar columns as integers
+                        col_name = export_df.columns[c_idx - 1]
+                        if col_name in dollar_cols:
+                            cell.number_format = '#,##0'  # Integer format with thousand separators
+            
+            # Auto-size columns
+            for column in ws.columns:
+                max_length = 0
+                column_letter = column[0].column_letter
+                for cell in column:
+                    try:
+                        if len(str(cell.value)) > max_length:
+                            max_length = len(str(cell.value))
+                    except:
+                        pass
+                adjusted_width = min(max_length + 2, 50)  # Cap at 50
+                ws.column_dimensions[column_letter].width = adjusted_width
+            
+            wb.save(ledger_xlsx_path)
+            logger.info(f"Excel file saved: {ledger_xlsx_path}")
+        except Exception as e:
+            logger.warning(f"Failed to create Excel file: {e}")
 
     def _fmt_date(value):
         if isinstance(value, (pd.Timestamp, datetime)):
@@ -485,6 +541,8 @@ def generate_risk_managed_aggregate_report(results: Dict, period: str, output_di
     report_lines.append("")
     if ledger_csv_path:
         report_lines.append(f"  Trade Ledger CSV: {ledger_csv_path}")
+        ledger_xlsx_path_report = ledger_csv_path.replace('.csv', '.xlsx')
+        report_lines.append(f"  Trade Ledger XLSX: {ledger_xlsx_path_report}")
         report_lines.append("")
     if portfolio_ledger is not None and not portfolio_ledger.empty:
         report_lines.append("🧾 Latest Portfolio Movements:")
@@ -965,11 +1023,7 @@ def main():
         f.write(aggregate_report)
     
     print(f"\n✅ Aggregate report saved: {agg_filepath}")
-    
-    # Print report to console
-    print("\n" + aggregate_report)
-    
-    print(f"\n✅ Batch backtesting complete!")
+    print(f"✅ Batch backtesting complete!")
     print(f"📁 All reports saved to: {os.path.abspath(args.output_dir)}")
 
 

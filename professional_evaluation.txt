@@ -1,10 +1,10 @@
 ================================================================================
 PROFESSIONAL TRADING PERFORMANCE EVALUATION
 ================================================================================
-Analysis Date: 2025-11-22 10:29:19
-Data Period: 2023-12-27 to 2025-11-21
-Total Trades: 441
-Equity: $99,698 → $244,454 (+145.20%)
+Analysis Date: 2025-11-22 12:56:58
+Data Period: 2024-01-24 to 2025-11-21
+Total Trades: 410
+Equity: $99,310 → $228,374 (+129.96%)
 
 ================================================================================
 EXECUTIVE SUMMARY
@@ -21,17 +21,17 @@ KEY FINDINGS
 ================================================================================
 
 Strengths:
-  • Exceptional returns: +145.2% over 24 months (61.7% annualized)
-  • Elite Sharpe Ratio: 3.35 (>2.0 is excellent)
-  • Minimal drawdown: -9.37% (institutional grade)
-  • High consistency: 73.9% positive months
+  • Exceptional returns: +130.0% over 24 months (58.7% annualized)
+  • Elite Sharpe Ratio: 3.40 (>2.0 is excellent)
+  • Minimal drawdown: -8.69% (institutional grade)
+  • High consistency: 71.4% positive months
   • Professional win rate: 63.9%
   • Regime-agnostic: Works in choppy and rally markets
 
 Concerns:
-  • Long loss streak: 16 consecutive losses
+  • Long loss streak: 9 consecutive losses
   • Psychological challenge: Requires exceptional discipline
-  • W/L ratio modest: 1.47x (acceptable but not exceptional)
+  • W/L ratio modest: 1.65x (acceptable but not exceptional)
 
 Critical Notes:
   • Use MEDIAN not MEAN: Outliers inflate averages 3-20x (validated)
@@ -42,10 +42,10 @@ Critical Notes:
 SECTION 1: RETURN ANALYSIS
 ================================================================================
 
-Total Return:        +145.20%
-Time Period:         1.87 years
-Annualized Return:   61.66%
-Annual Volatility:   13.92%
+Total Return:        +129.96%
+Time Period:         1.80 years
+Annualized Return:   58.65%
+Annual Volatility:   13.13%
 
 Comparison to Benchmarks:
   vs Retail Traders:     EXCEPTIONAL (typical: 10-20% annual)
@@ -53,9 +53,9 @@ Comparison to Benchmarks:
   vs Professional Avg:   ELITE (hedge funds: 8-15% annual)
 
 Trade Statistics:
-  Total Trades:         441
-  Wins:                 282 (63.9%)
-  Losses:               159 (36.1%)
+  Total Trades:         410
+  Wins:                 262 (63.9%)
+  Losses:               148 (36.1%)
 
 Grade: A+ (Exceptional returns by any standard)
 
@@ -64,29 +64,29 @@ SECTION 2: RISK ANALYSIS
 ================================================================================
 
 Maximum Drawdown:
-  Peak Equity:         $137,675.06
-  Peak Date:           2024-07-19
-  Trough Equity:       $124,780.33
+  Peak Equity:         $129,157.89
+  Peak Date:           2024-07-18
+  Trough Equity:       $117,933.89
   Trough Date:         2024-09-06
-  Maximum Drawdown:    -9.37%
-  Duration:            49 days
-  Recovery Date:       2024-11-01
-  Recovery Time:       56 days
+  Maximum Drawdown:    -8.69%
+  Duration:            50 days
+  Recovery Date:       2024-10-23
+  Recovery Time:       47 days
   Assessment:          EXCELLENT (Institutional grade)
   Grade:               A
 
 Sharpe Ratio:
-  Annual Return:       61.66%
-  Annual Volatility:   13.92%
+  Annual Return:       58.65%
+  Annual Volatility:   13.13%
   Risk-Free Rate:      4.0%
-  Sharpe Ratio:        3.35
+  Sharpe Ratio:        3.40
   Assessment:          EXCELLENT (Elite performance)
   Grade:               A
 
 Risk Assessment: INSTITUTIONAL QUALITY
   • <10% drawdown on 145% returns is exceptional
   • Sharpe 3.35 indicates elite risk-adjusted performance
-  • Low volatility (13.9%) for high returns
+  • Low volatility (13.1%) for high returns
 
 Grade: A (Exceptional risk management)
 
@@ -96,18 +96,18 @@ SECTION 3: CONSISTENCY ANALYSIS
 
 Win Rate Analysis:
   Overall Win Rate:    63.9%
-  Win/Loss Ratio:      1.47x
-  Average Win:         $830.60 (20.80%)
-  Average Loss:        $-564.62 (-6.84%)
+  Win/Loss Ratio:      1.65x
+  Average Win:         $746.05 (17.76%)
+  Average Loss:        $-453.31 (-5.90%)
 
 Monthly Performance:
-  Total Months:        23
-  Positive Months:     17 (73.9%)
-  Negative Months:     6 (26.1%)
-  Average Month:       3.86%
-  Median Month:        3.26%
-  Best Month:          18.82%
-  Worst Month:         -3.04%
+  Total Months:        21
+  Positive Months:     15 (71.4%)
+  Negative Months:     6 (28.6%)
+  Average Month:       3.94%
+  Median Month:        3.87%
+  Best Month:          19.58%
+  Worst Month:         -1.68%
   Assessment:          EXCELLENT (Highly consistent)
 
 Grade: A (Highly consistent performance)
@@ -117,14 +117,38 @@ SECTION 4: RESILIENCE ANALYSIS
 ================================================================================
 
 Streak Analysis:
-  Longest Win Streak:  13 trades
-  Longest Loss Streak: 16 trades ⚠️
+  Longest Win Streak:  17 trades
+  Longest Loss Streak: 9 trades ⚠️
   Current Streak:      1 losses
-  Assessment:          DIFFICULT (High risk of giving up)
-  Grade:               C
+  Assessment:          CHALLENGING (Tests discipline)
+  Grade:               B-
+
+Maximum Losing Streak Details (9 consecutive losses):
+--------------------------------------------------------------------------------
+  Period:            2024-08-28 to 2024-09-04
+  Duration:          7 days
+  Total Loss:        $-5,207
+  Average Loss:      $-579
+
+  Trade-by-Trade Breakdown:
+  #   Date         Ticker   P&L          Profit%   R-Mult    Exit Type           
+  ---------------------------------------------------------------------------------------------
+  1   2024-08-28   NBIX     $     -674   -7.49%   -1.00R TIME_DECAY_STOP     
+  2   2024-08-29   NTAP     $     -603   -6.05%   -1.00R TIME_DECAY_STOP     
+  3   2024-09-03   AMD      $     -594  -10.10%   -1.00R TIME_DECAY_STOP     
+  4   2024-09-03   APH      $     -704   -6.48%   -1.17R TIME_DECAY_STOP     
+  5   2024-09-03   CLS      $     -459   -9.34%   -1.00R TIME_DECAY_STOP     
+  6   2024-09-03   FIX      $     -258   -4.36%   -0.48R SIGNAL_EXIT         
+  7   2024-09-03   GOOG     $     -620   -5.59%   -1.00R TIME_DECAY_STOP     
+  8   2024-09-04   GOOGL    $     -593   -5.32%   -1.00R TIME_DECAY_STOP     
+  9   2024-09-04   BBVA     $     -703   -4.04%   -1.00R TIME_DECAY_STOP     
+
+  Exit Type Analysis:
+    • TIME_DECAY_STOP: 8 trades (88.9%)
+    • SIGNAL_EXIT: 1 trades (11.1%)
 
 Psychological Challenge:
-  Enduring 16 consecutive losses tests even experienced traders.
+  Enduring 9 consecutive losses tests even experienced traders.
   This requires exceptional discipline and unwavering faith in the system.
   Most retail traders would abandon after 5-7 losses.
 
@@ -179,15 +203,15 @@ Strengths for Professionals:
   • 74% positive months shows consistency
 
 Questions Answered:
-  1. Max drawdown? -9.37% → EXCELLENT
-  2. Sharpe ratio? 3.35 → EXCELLENT
-  3. Monthly consistency? 73.9% positive → EXCELLENT
-  4. Worst losing streak? 16 trades → CHALLENGING
+  1. Max drawdown? -8.69% → EXCELLENT
+  2. Sharpe ratio? 3.40 → EXCELLENT
+  3. Monthly consistency? 71.4% positive → EXCELLENT
+  4. Worst losing streak? 9 trades → CHALLENGING
   5. Outlier dependency? Validated: Median-based expectations
   6. Bear markets? Works in choppy (56% win)
 
 Critical for Institutional Capital:
-  ⚠️  16-trade loss streak is significant
+  ⚠️  9-trade loss streak is significant
   • Requires exceptional discipline
   • Could test investor confidence
   • Position sizing critical to manage this
@@ -204,7 +228,7 @@ RECOMMENDATIONS
 ================================================================================
 
 IMMEDIATE ACTIONS:
-  1. Prepare for 16-trade losing streaks
+  1. Prepare for 9-trade losing streaks
   2. Set position sizes to survive worst-case scenarios
   3. Document your conviction in the system NOW (for tough times)
 
@@ -216,7 +240,7 @@ SHORT-TERM (Next 3 Months):
 
 POSITION SIZING RECOMMENDATIONS:
 
-Based on -9.37% drawdown and 16-trade loss streak:
+Based on -8.69% drawdown and 9-trade loss streak:
 
 Conservative (Capital Preservation):
   - Risk 0.5-1% per trade
@@ -236,7 +260,7 @@ Aggressive (Maximum Growth):
   - Expected: 18-25% annual
   - Risky with 16-trade loss potential
 
-RECOMMENDED: Moderate sizing given 16-trade loss streak risk
+RECOMMENDED: Moderate sizing given 9-trade loss streak risk
 
 ================================================================================
 DETAILED METRICS TABLE
@@ -244,32 +268,32 @@ DETAILED METRICS TABLE
 
 PERFORMANCE METRICS
 --------------------------------------------------------------------------------
-Total Return:                +145.20%
-Time Period:                 1.87 years
-Annualized Return:           61.66%
-Total Trades:                441
+Total Return:                +129.96%
+Time Period:                 1.80 years
+Annualized Return:           58.65%
+Total Trades:                410
 Win Rate:                    63.9%
 
 RISK METRICS
 --------------------------------------------------------------------------------
-Maximum Drawdown:            -9.37%
-Sharpe Ratio:                3.35
-Annual Volatility:           13.92%
-Win/Loss Ratio:              1.47x
+Maximum Drawdown:            -8.69%
+Sharpe Ratio:                3.40
+Annual Volatility:           13.13%
+Win/Loss Ratio:              1.65x
 
 CONSISTENCY METRICS
 --------------------------------------------------------------------------------
-Positive Months:             17/23 (73.9%)
-Average Monthly Return:      3.86%
-Best Month:                  18.82%
-Worst Month:                 -3.04%
+Positive Months:             15/21 (71.4%)
+Average Monthly Return:      3.94%
+Best Month:                  19.58%
+Worst Month:                 -1.68%
 
 RESILIENCE METRICS
 --------------------------------------------------------------------------------
-Longest Win Streak:          13 trades
-Longest Loss Streak:         16 trades
-Average Win:                 $830.60
-Average Loss:                $-564.62
+Longest Win Streak:          17 trades
+Longest Loss Streak:         9 trades
+Average Win:                 $746.05
+Average Loss:                $-453.31
 
 ================================================================================
 FINAL VERDICT
@@ -285,7 +309,7 @@ WHAT YOU HAVE:
   ✅ Validated across regimes
 
 WHAT TO WATCH:
-  ⚠️  16-trade loss streak requires exceptional discipline
+  ⚠️  9-trade loss streak requires exceptional discipline
   ⚠️  Position sizing critical to survive worst case
   ⚠️  Realistic expectations: 12-18% annual going forward
 

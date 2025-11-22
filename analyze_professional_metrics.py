@@ -549,7 +549,7 @@ def calculate_monthly_returns(df: pd.DataFrame) -> Dict:
 
 def calculate_streaks(df: pd.DataFrame) -> Dict:
     """
-    Calculate win/loss streak analysis.
+    Calculate win/loss streak analysis with detailed trade breakdown.
     
     VALIDATION INSIGHT (from previous work):
     - 65% win rate sounds great
@@ -557,7 +557,7 @@ def calculate_streaks(df: pd.DataFrame) -> Dict:
     - Need to know worst-case psychology test
     
     Returns:
-        Dictionary with streak statistics
+        Dictionary with streak statistics and trade details
     """
     print("\n" + "="*80)
     print("CALCULATING CONSECUTIVE STREAKS")
@@ -566,33 +566,46 @@ def calculate_streaks(df: pd.DataFrame) -> Dict:
     # Determine if each trade is a win or loss
     is_win = df['dollar_pnl'] > 0
     
-    # Calculate streaks
+    # Track streaks and their indices
     max_win_streak = 0
     max_loss_streak = 0
+    max_win_streak_indices = []
+    max_loss_streak_indices = []
     current_streak = 0
+    current_streak_start = 0
     current_is_win = None
     
-    for win in is_win:
+    for i, win in enumerate(is_win):
         if current_is_win is None:
             current_is_win = win
             current_streak = 1
+            current_streak_start = i
         elif win == current_is_win:
             current_streak += 1
         else:
             # Streak ended, record it
-            if current_is_win:
-                max_win_streak = max(max_win_streak, current_streak)
-            else:
-                max_loss_streak = max(max_loss_streak, current_streak)
+            if current_is_win and current_streak > max_win_streak:
+                max_win_streak = current_streak
+                max_win_streak_indices = list(range(current_streak_start, i))
+            elif not current_is_win and current_streak > max_loss_streak:
+                max_loss_streak = current_streak
+                max_loss_streak_indices = list(range(current_streak_start, i))
+            
             # Start new streak
             current_is_win = win
             current_streak = 1
+            current_streak_start = i
     
     # Check final streak
-    if current_is_win:
-        max_win_streak = max(max_win_streak, current_streak)
-    else:
-        max_loss_streak = max(max_loss_streak, current_streak)
+    if current_is_win and current_streak > max_win_streak:
+        max_win_streak = current_streak
+        max_win_streak_indices = list(range(current_streak_start, len(is_win)))
+    elif not current_is_win and current_streak > max_loss_streak:
+        max_loss_streak = current_streak
+        max_loss_streak_indices = list(range(current_streak_start, len(is_win)))
+    
+    # Extract trades from max losing streak
+    losing_streak_trades = df.iloc[max_loss_streak_indices].copy() if max_loss_streak_indices else pd.DataFrame()
     
     # Current streak (last trade)
     if is_win.iloc[-1]:
@@ -617,6 +630,45 @@ def calculate_streaks(df: pd.DataFrame) -> Dict:
     print(f"  Longest Win Streak:    {max_win_streak} trades")
     print(f"  Longest Loss Streak:   {max_loss_streak} trades")
     print(f"  Current Streak:        {current_streak_count} {current_streak_type}")
+    
+    # Display losing streak trades
+    if not losing_streak_trades.empty:
+        print(f"\n📉 TRADES IN MAX LOSING STREAK ({max_loss_streak} consecutive losses):")
+        print(f"{'='*95}")
+        print(f"{'#':<3} {'Date':<12} {'Ticker':<8} {'P&L':<12} {'Profit%':<9} {'R-Mult':<9} {'Exit Type':<20}")
+        print(f"{'-'*95}")
+        
+        for idx, (i, trade) in enumerate(losing_streak_trades.iterrows(), 1):
+            exit_date = trade['exit_date'].strftime('%Y-%m-%d') if pd.notna(trade['exit_date']) else 'N/A'
+            ticker = trade.get('ticker', 'N/A')
+            pnl = trade.get('dollar_pnl', 0)
+            profit_pct = trade.get('profit_pct', 0)
+            r_mult = trade.get('r_multiple', 0)
+            exit_type = trade.get('exit_type', 'N/A')
+            
+            print(f"{idx:<3} {exit_date:<12} {ticker:<8} ${pnl:>9,.0f} {profit_pct:>7.2f}% {r_mult:>7.2f}R {exit_type:<20}")
+        
+        print(f"{'='*95}")
+        
+        # Calculate streak summary
+        streak_total_loss = losing_streak_trades['dollar_pnl'].sum()
+        streak_avg_loss = losing_streak_trades['dollar_pnl'].mean()
+        streak_start_date = losing_streak_trades['exit_date'].iloc[0].strftime('%Y-%m-%d')
+        streak_end_date = losing_streak_trades['exit_date'].iloc[-1].strftime('%Y-%m-%d')
+        streak_duration = (losing_streak_trades['exit_date'].iloc[-1] - losing_streak_trades['exit_date'].iloc[0]).days
+        
+        print(f"\nStreak Summary:")
+        print(f"  Period:            {streak_start_date} to {streak_end_date}")
+        print(f"  Duration:          {streak_duration} days")
+        print(f"  Total Loss:        ${streak_total_loss:,.0f}")
+        print(f"  Average Loss:      ${streak_avg_loss:,.0f}")
+        
+        # Analyze exit types in the streak
+        if 'exit_type' in losing_streak_trades.columns:
+            exit_type_counts = losing_streak_trades['exit_type'].value_counts()
+            print(f"\n  Exit Type Breakdown:")
+            for exit_type, count in exit_type_counts.items():
+                print(f"    • {exit_type}: {count} trades ({count/max_loss_streak*100:.1f}%)")
     
     # Professional assessment (based on max loss streak)
     print(f"\n🎯 PROFESSIONAL ASSESSMENT:")
@@ -646,6 +698,7 @@ def calculate_streaks(df: pd.DataFrame) -> Dict:
     return {
         'max_win_streak': max_win_streak,
         'max_loss_streak': max_loss_streak,
+        'losing_streak_trades': losing_streak_trades,
         'current_streak_count': current_streak_count,
         'current_streak_type': current_streak_type,
         'grade': grade,
@@ -807,6 +860,52 @@ def generate_final_report(df, drawdown, sharpe, winloss, monthly, streaks) -> st
     report.append(f"  Assessment:          {streaks['assessment']}")
     report.append(f"  Grade:               {streaks['grade']}")
     report.append("")
+    
+    # Add detailed losing streak breakdown to report
+    losing_streak_trades = streaks.get('losing_streak_trades', pd.DataFrame())
+    if not losing_streak_trades.empty:
+        report.append(f"Maximum Losing Streak Details ({streaks['max_loss_streak']} consecutive losses):")
+        report.append("-"*80)
+        
+        # Calculate streak summary
+        streak_total_loss = losing_streak_trades['dollar_pnl'].sum()
+        streak_avg_loss = losing_streak_trades['dollar_pnl'].mean()
+        streak_start_date = losing_streak_trades['exit_date'].iloc[0].strftime('%Y-%m-%d')
+        streak_end_date = losing_streak_trades['exit_date'].iloc[-1].strftime('%Y-%m-%d')
+        streak_duration = (losing_streak_trades['exit_date'].iloc[-1] - losing_streak_trades['exit_date'].iloc[0]).days
+        
+        report.append(f"  Period:            {streak_start_date} to {streak_end_date}")
+        report.append(f"  Duration:          {streak_duration} days")
+        report.append(f"  Total Loss:        ${streak_total_loss:,.0f}")
+        report.append(f"  Average Loss:      ${streak_avg_loss:,.0f}")
+        report.append("")
+        
+        # Trade-by-trade breakdown
+        report.append("  Trade-by-Trade Breakdown:")
+        report.append(f"  {'#':<3} {'Date':<12} {'Ticker':<8} {'P&L':<12} {'Profit%':<9} {'R-Mult':<9} {'Exit Type':<20}")
+        report.append("  " + "-"*93)
+        
+        for idx, (i, trade) in enumerate(losing_streak_trades.iterrows(), 1):
+            exit_date = trade['exit_date'].strftime('%Y-%m-%d') if pd.notna(trade['exit_date']) else 'N/A'
+            ticker = trade.get('ticker', 'N/A')
+            pnl = trade.get('dollar_pnl', 0)
+            profit_pct = trade.get('profit_pct', 0)
+            r_mult = trade.get('r_multiple', 0)
+            exit_type = trade.get('exit_type', 'N/A')
+            
+            report.append(f"  {idx:<3} {exit_date:<12} {ticker:<8} ${pnl:>9,.0f} {profit_pct:>7.2f}% {r_mult:>7.2f}R {exit_type:<20}")
+        
+        report.append("")
+        
+        # Exit type analysis
+        if 'exit_type' in losing_streak_trades.columns:
+            exit_type_counts = losing_streak_trades['exit_type'].value_counts()
+            report.append("  Exit Type Analysis:")
+            for exit_type, count in exit_type_counts.items():
+                pct = count / streaks['max_loss_streak'] * 100
+                report.append(f"    • {exit_type}: {count} trades ({pct:.1f}%)")
+        report.append("")
+    
     report.append("Psychological Challenge:")
     report.append(f"  Enduring {streaks['max_loss_streak']} consecutive losses tests even experienced traders.")
     report.append(f"  This requires exceptional discipline and unwavering faith in the system.")

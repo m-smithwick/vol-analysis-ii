@@ -124,12 +124,15 @@ def prepare_analysis_dataframe(
     )
 
     df = indicators.standardize_features(df, window=20)
+    # Skip earnings check for backtests to avoid Yahoo API rate limits
+    # Earnings windows are not relevant for historical strategy validation
     df = indicators.apply_prefilters(
         ticker=ticker,
         df=df,
         min_dollar_volume=5_000_000,
         min_price=3.00,
         earnings_window_days=3,
+        earnings_dates=[]  # Empty list bypasses Yahoo quoteSummary API calls
     )
 
     accumulation_conditions = [

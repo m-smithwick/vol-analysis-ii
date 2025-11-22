@@ -385,6 +385,14 @@ def get_smart_data(ticker: str, period: str, interval: str = "1d", force_refresh
     last_cached_date = cache_end_date.date()
     days_behind = (today - last_cached_date).days
     
+    # Skip updates on weekends (Saturday=5, Sunday=6) - no market data available
+    is_weekend = datetime.now().weekday() >= 5
+    if is_weekend and days_behind <= 2:
+        # On weekends, accept cache that's only 1-2 days behind (Friday's data)
+        logger.info(f"Weekend detected - using cached data for {ticker} ({interval}) (last update: {last_cached_date})")
+        filtered_df = cached_df[cached_df.index >= cutoff_date] if cutoff_date > cache_start_date else cached_df
+        return filtered_df
+    
     # For daily data, update if behind by 1+ days
     # For intraday, update if it's the same day (to get most recent bars)
     update_needed = (interval == "1d" and days_behind >= 1) or (interval != "1d" and today == last_cached_date)

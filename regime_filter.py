@@ -97,7 +97,9 @@ def load_benchmark_data(ticker: str,
                        start_date: Optional[pd.Timestamp] = None,
                        end_date: Optional[pd.Timestamp] = None) -> Optional[pd.DataFrame]:
     """
-    Load benchmark data (SPY or sector ETF) from Yahoo Finance.
+    Load benchmark data (SPY or sector ETF) from cache via data_manager.
+    
+    Uses cached data to avoid Yahoo Finance API rate limits and weekend failures.
     
     Args:
         ticker: Benchmark symbol
@@ -109,18 +111,50 @@ def load_benchmark_data(ticker: str,
         DataFrame with OHLCV data, or None if fetch fails
     """
     try:
-        yticker = yf.Ticker(ticker)
+        # Import here to avoid circular dependency
+        from data_manager import get_smart_data
         
-        if start_date is not None:
-            # Use explicit date range
-            df = yticker.history(start=start_date, end=end_date)
+        # Determine period to use
+        if start_date is not None and end_date is not None:
+            # Calculate period from date range
+            days_diff = (end_date - start_date).days
+            months = int(days_diff / 30)
+            
+            # Map to standard periods
+            if months <= 1:
+                fetch_period = '1mo'
+            elif months <= 3:
+                fetch_period = '3mo'
+            elif months <= 6:
+                fetch_period = '6mo'
+            elif months <= 12:
+                fetch_period = '12mo'
+            elif months <= 24:
+                fetch_period = '24mo'
+            else:
+                fetch_period = '60mo'  # 5 years max
         elif end_date is not None:
-            # Use period ending at end_date
-            calc_start_date = end_date - pd.DateOffset(months=12)
-            df = yticker.history(start=calc_start_date, end=end_date)
+            # Use default period (usually need at least 12mo for 200-day MA)
+            fetch_period = '12mo'
         else:
-            # Use period from today
-            df = yticker.history(period=period)
+            # Use provided period
+            fetch_period = period if period else '12mo'
+        
+        # Get data from cache via data_manager
+        df = get_smart_data(
+            ticker=ticker,
+            period=fetch_period,
+            interval='1d',
+            force_refresh=False,
+            data_source='yfinance'  # Uses yfinance cache format
+        )
+        
+        # Filter to date range if specified
+        if start_date is not None or end_date is not None:
+            if start_date is not None:
+                df = df[df.index >= start_date]
+            if end_date is not None:
+                df = df[df.index <= end_date]
         
         if df.empty:
             logger.warning(f"No data returned for {ticker}")
@@ -207,7 +241,7 @@ def calculate_historical_regime_series(ticker: str, df: pd.DataFrame) -> tuple:
         market_regime = spy_data['Market_Regime_OK'].reindex(
             df_index_normalized, 
             method='ffill'  # Forward-fill for non-trading days
-        ).fillna(False)  # Conservative: missing data = regime FAIL
+        ).infer_objects(copy=False).fillna(False)  # Conservative: missing data = regime FAIL
         
         # Restore original index (with timezone if it had one)
         market_regime.index = df.index
@@ -215,7 +249,7 @@ def calculate_historical_regime_series(ticker: str, df: pd.DataFrame) -> tuple:
         sector_regime = sector_data['Sector_Regime_OK'].reindex(
             df_index_normalized,
             method='ffill'
-        ).fillna(False)
+        ).infer_objects(copy=False).fillna(False)
         
         # Restore original index
         sector_regime.index = df.index

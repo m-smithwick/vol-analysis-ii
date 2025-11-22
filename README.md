@@ -46,8 +46,14 @@ Need the deeper architecture or indicator breakdown? See `docs/ARCHITECTURE_REFE
    **Option B: Massive.com (Advanced - Requires AWS S3 credentials and massive.com subscription)**
    ```bash
    # For users with Massive.com access (faster bulk downloads)
+   # Default: uses ticker_lists/stocks.txt
    python populate_cache_bulk.py --months 1
-   python populate_cache_bulk.py --months 24 --file indices.txt
+   
+   # Specify different ticker file(s)
+   python populate_cache_bulk.py --months 24 --ticker-files ticker_lists/ibd20.txt
+   
+   # Use multiple ticker files
+   python populate_cache_bulk.py --months 24 --ticker-files ticker_lists/stocks.txt ticker_lists/ibd20.txt
    ```
    
    > 💡 **New users**: Start with Option A (Yahoo Finance). It works immediately without any setup.
@@ -172,6 +178,7 @@ Full details and review cadence live in `docs/VALIDATION_STATUS.md`.
 - `--months N`: number of months to backfill (mutually exclusive with `--start`).
 - `--start YYYY-MM-DD`: explicit start date.
 - `--end YYYY-MM-DD`: optional end date (defaults to today).
+- `--ticker-files FILE [FILE ...]`: ticker file(s) to use (space-separated, default: `stocks.txt`).
 - `--no-save-others`: skip writing non-tracked tickers to `massive_cache/`.
 
 ### `batch_backtest.py`
