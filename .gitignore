@@ -6,7 +6,7 @@ backtest_results/
 monthly_reports/
 matt_output/
 matt_backtest/
-ticker_lists/
+#ticker_lists/
 
 
 # Data cache (local storage, should not be committed)
