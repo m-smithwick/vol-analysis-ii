@@ -284,8 +284,15 @@ def run_batch_backtest(ticker_file: str, period: str = '12mo',
         return aggregated_results
 
 
-def generate_risk_managed_aggregate_report(results: Dict, period: str, output_dir: str) -> str:
-    """Generate aggregate report for risk-managed backtests."""
+def generate_risk_managed_aggregate_report(results: Dict, period: str, output_dir: str, stock_file_base: str = "portfolio") -> str:
+    """Generate aggregate report for risk-managed backtests.
+    
+    Args:
+        results: Batch backtest results dictionary
+        period: Analysis period (e.g., "12mo", "24mo")
+        output_dir: Directory to save reports
+        stock_file_base: Base name of stock file (e.g., "ibd" from "ibd.txt")
+    """
     try:
         from risk_manager import analyze_risk_managed_trades
     except ImportError:
@@ -417,7 +424,7 @@ def generate_risk_managed_aggregate_report(results: Dict, period: str, output_di
                                       'xly_regime_ok', 'xlp_regime_ok', 'xli_regime_ok', 'xlu_regime_ok',
                                       'xlre_regime_ok', 'xlb_regime_ok', 'xlc_regime_ok']]
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-        ledger_filename = f"PORTFOLIO_TRADE_LOG_{period.replace(' ', '_')}_{timestamp}.csv"
+        ledger_filename = f"LOG_FILE_{stock_file_base}_{period}_{timestamp}.csv"
         ledger_csv_path = os.path.join(output_dir, ledger_filename)
         export_df = portfolio_ledger.copy()
         for col in ['entry_date', 'exit_date']:
@@ -896,7 +903,7 @@ def main():
         '--time-stop-bars',
         type=int,
         default=12,
-        help='Number of bars before TIME_STOP exit if <+1R (default: 12, try 15 or 20)'
+        help='Number of bars before TIME_STOP exit if <+1R (default: 12, set to 0 to disable time stops)'
     )
     
     parser.set_defaults(risk_managed=True)
@@ -931,6 +938,9 @@ def main():
         print("\n❌ No results generated. Check for errors above.")
         sys.exit(1)
     
+    # Extract stock file basename (e.g., "ibd" from "ibd.txt")
+    stock_file_base = os.path.splitext(os.path.basename(args.ticker_file))[0]
+    
     # Determine period display for reports
     if args.start_date and args.end_date:
         period_display = f"{args.start_date} to {args.end_date}"
@@ -942,7 +952,7 @@ def main():
     # Generate aggregate report tailored to run mode
     print(f"\n📊 Generating aggregate optimization report...")
     if args.risk_managed:
-        aggregate_report = generate_risk_managed_aggregate_report(results, period_display, args.output_dir)
+        aggregate_report = generate_risk_managed_aggregate_report(results, args.period, args.output_dir, stock_file_base)
     else:
         aggregate_report = generate_aggregate_report(results, period_display, args.output_dir)
     

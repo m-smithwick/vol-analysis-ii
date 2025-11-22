@@ -45,7 +45,7 @@ class RiskManager:
             account_value: Total account equity
             risk_pct_per_trade: Risk percentage per trade (0.5-1.0% recommended)
             stop_strategy: Stop loss strategy - 'static', 'vol_regime', 'atr_dynamic', 'pct_trail', 'time_decay'
-            time_stop_bars: Number of bars before TIME_STOP exit if <+1R (default: 20, optimized from 12/15/20 testing)
+            time_stop_bars: Number of bars before TIME_STOP exit if <+1R (default: 20, set to 0 or negative to disable)
         """
         self.account_value = account_value
         self.starting_equity = account_value
@@ -455,8 +455,8 @@ class RiskManager:
             exit_signals['reason'] = f"Stop hit at {pos['stop_price']:.2f}"
             return exit_signals
         
-        # 2. TIME STOP: Exit after N bars if <+1R (configurable, default 12)
-        if pos['bars_in_trade'] >= self.time_stop_bars and r_multiple < 1.0:
+        # 2. TIME STOP: Exit after N bars if <+1R (disabled if time_stop_bars <= 0)
+        if self.time_stop_bars > 0 and pos['bars_in_trade'] >= self.time_stop_bars and r_multiple < 1.0:
             exit_signals['should_exit'] = True
             exit_signals['exit_type'] = 'TIME_STOP'
             exit_signals['reason'] = f"Time stop: {pos['bars_in_trade']} bars (threshold: {self.time_stop_bars}), {r_multiple:.2f}R"

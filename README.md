@@ -47,7 +47,7 @@ Need the deeper architecture or indicator breakdown? See `docs/ARCHITECTURE_REFE
    ```bash
    # For users with Massive.com access (faster bulk downloads)
    python populate_cache_bulk.py --months 1
-   python populate_cache_bulk.py --months 24
+   python populate_cache_bulk.py --months 24 --file indices.txt
    ```
    
    > 💡 **New users**: Start with Option A (Yahoo Finance). It works immediately without any setup.
@@ -59,10 +59,10 @@ Need the deeper architecture or indicator breakdown? See `docs/ARCHITECTURE_REFE
 
    #file with tickers
    python vol_analysis.py --file cmb.txt --period 24mo --chart-backend plotly --save-charts
-   python vol_analysis.py  --period 24mo --chart-backend plotly --save-charts --file ibd21-nov-17.txt
+   python vol_analysis.py  --period 24mo --chart-backend plotly --save-charts --file cmb.txt
 
    # Batch backtest a watchlist
-  python batch_backtest.py -f stocks.txt -p 24mo
+  python batch_backtest.py -f cmb.txt -p 24mo
    # Risk-managed runs now default to time_decay stops; override via --stop-strategy
 
    # Sector dashboards
@@ -126,6 +126,7 @@ Full details and review cadence live in `docs/VALIDATION_STATUS.md`.
 - `--risk-managed`: (default) ensure RiskManager is active for all trades.
 - `--simple`: disable RiskManager and run legacy entry/exit pairing.
 - `--stop-strategy {static,vol_regime,atr_dynamic,pct_trail,time_decay}`: stop method when risk-managed (default `time_decay`).
+- `--time-stop-bars N`: number of bars before TIME_STOP exit if <+1R (default `12`, set to `0` to disable time stops).
 - `--account-value`: starting account equity for risk-managed batch jobs (default `100000`).
 
 ### `sector_dashboard.py`
