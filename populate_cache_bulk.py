@@ -36,9 +36,8 @@ def read_ticker_file(filepath: str) -> List[str]:
                 tickers.append(ticker)
     return tickers
 
-def collect_all_tickers() -> Set[str]:
-    """Collect all unique tickers from all ticker files."""
-    ticker_files = ['stocks.txt', 'ibd.txt', 'ibd20.txt', 'ltl.txt', 'cmb.txt', 'short.txt']
+def collect_all_tickers(ticker_files: List[str]) -> Set[str]:
+    """Collect all unique tickers from specified ticker files."""
     all_tickers = set()
     
     for file in ticker_files:
@@ -179,7 +178,8 @@ def append_to_ticker_cache(ticker: str, date: datetime, ticker_data: pd.DataFram
 def populate_cache_bulk(
     start_date: datetime,
     end_date: datetime,
-    save_others: bool = True
+    save_others: bool = True,
+    **kwargs
 ):
     """
     Bulk populate cache from Massive.com for date range.
@@ -195,8 +195,9 @@ def populate_cache_bulk(
     
     # Collect tickers
     print("\n1. Collecting tickers...")
-    all_tickers = collect_all_tickers()
-    print(f"   Found {len(all_tickers)} unique tickers across all ticker files")
+    ticker_files = kwargs.get('ticker_files', ['stocks.txt'])
+    all_tickers = collect_all_tickers(ticker_files)
+    print(f"   Found {len(all_tickers)} unique tickers from: {', '.join(ticker_files)}")
     
     # Create directories
     cache_dir = Path('data_cache')
@@ -345,11 +346,14 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  # Populate last 1 month
+  # Populate last 1 month (stocks.txt only by default)
   python populate_cache_bulk.py --months 1
   
-  # Populate last 24 months
-  python populate_cache_bulk.py --months 24
+  # Populate last 24 months with specific ticker file
+  python populate_cache_bulk.py --months 24 --ticker-files ibd20.txt
+  
+  # Populate with multiple ticker files
+  python populate_cache_bulk.py --months 24 --ticker-files stocks.txt ibd20.txt
   
   # Populate specific date range
   python populate_cache_bulk.py --start 2024-01-01 --end 2024-12-31
@@ -384,6 +388,12 @@ Examples:
         action='store_true',
         help='Do not save non-tracked tickers to massive_cache/'
     )
+    parser.add_argument(
+        '--ticker-files',
+        nargs='+',
+        default=['stocks.txt'],
+        help='Ticker file(s) to use (space-separated). Default: stocks.txt'
+    )
     
     args = parser.parse_args()
     
@@ -401,7 +411,8 @@ Examples:
     populate_cache_bulk(
         start_date=start_date,
         end_date=end_date,
-        save_others=not args.no_save_others
+        save_others=not args.no_save_others,
+        ticker_files=args.ticker_files
     )
 
 if __name__ == "__main__":
