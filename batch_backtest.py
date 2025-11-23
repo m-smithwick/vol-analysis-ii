@@ -584,13 +584,65 @@ def generate_risk_managed_aggregate_report(results: Dict, period: str, output_di
             report_lines.append(f"  {label}: {risk_analysis.get(key, 'N/A')}")
         report_lines.append("")
 
-        exit_breakdown = risk_analysis.get("Exit Type Breakdown", {})
-        if exit_breakdown:
-            report_lines.append("🛑 Exit Type Distribution:")
-            for exit_type, count in exit_breakdown.items():
-                pretty = exit_type.replace('_', ' ').title() if isinstance(exit_type, str) else str(exit_type)
-                report_lines.append(f"  • {pretty}: {count}")
+        # Calculate P&L by exit type directly from trades
+        if trades and portfolio_ledger is not None:
+            report_lines.append("🛑 Exit Type Distribution (Count | Total P&L | Avg per Trade):")
+            
+            # Group by actual exit_type codes in the data
+            exit_pnl = portfolio_ledger.groupby('exit_type')['dollar_pnl'].agg(['sum', 'count', 'mean'])
+            
+            # Map exit type codes to pretty names
+            exit_type_names = {
+                'TIME_STOP': 'Time Stops',
+                'HARD_STOP': 'Hard Stops',
+                'PROFIT_TARGET': 'Profit Targets',
+                'TRAIL_STOP': 'Trailing Stops',
+                'SIGNAL_EXIT': 'Signal Exits',
+                'END_OF_DATA': 'End of Data',
+                'MOMENTUM_FAIL': 'Momentum Fails',
+                'VOL_REGIME_STOP': 'Vol Regime Stops',
+                'TIME_DECAY_STOP': 'Time Decay Stops',
+                'STATIC_STOP': 'Static Stops',
+                'ATR_DYNAMIC_STOP': 'ATR Dynamic Stops',
+                'PCT_TRAIL_STOP': 'Pct Trail Stops'
+            }
+            
+            # Sort by total P&L (show biggest impact first)
+            exit_pnl_sorted = exit_pnl.sort_values('sum', ascending=False)
+            
+            # Calculate totals
+            total_winner_pnl = exit_pnl[exit_pnl['sum'] > 0]['sum'].sum() if (exit_pnl['sum'] > 0).any() else 0
+            total_loser_pnl = exit_pnl[exit_pnl['sum'] < 0]['sum'].sum() if (exit_pnl['sum'] < 0).any() else 0
+            
+            for exit_code, row in exit_pnl_sorted.iterrows():
+                count = int(row['count'])
+                total_pnl = row['sum']
+                avg_pnl = row['mean']
+                
+                # Get pretty name
+                pretty_name = exit_type_names.get(exit_code, exit_code.replace('_', ' ').title())
+                
+                # Format with emoji based on profitability
+                emoji = "✅" if total_pnl > 0 else "❌"
+                report_lines.append(
+                    f"  {emoji} {pretty_name}: {count} trades | "
+                    f"${total_pnl:,.0f} | ${avg_pnl:,.0f}/trade"
+                )
+            
+            # Add summary line
+            report_lines.append(f"  {'─'*70}")
+            report_lines.append(f"  💰 Winners: ${total_winner_pnl:,.0f} | Losers: ${total_loser_pnl:,.0f} | "
+                              f"Net: ${total_winner_pnl + total_loser_pnl:,.0f}")
             report_lines.append("")
+        else:
+            # Fallback to basic counts from risk_analysis
+            exit_breakdown = risk_analysis.get("Exit Type Breakdown", {})
+            if exit_breakdown:
+                report_lines.append("🛑 Exit Type Distribution:")
+                for exit_type, count in exit_breakdown.items():
+                    pretty = exit_type.replace('_', ' ').title() if isinstance(exit_type, str) else str(exit_type)
+                    report_lines.append(f"  • {pretty}: {count} trades")
+                report_lines.append("")
 
         r_distribution = risk_analysis.get("R-Multiple Distribution", {})
         if r_distribution:
@@ -1032,7 +1084,7 @@ def main():
     
     # Save aggregate report
     timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-    agg_filename = f"AGGREGATE_optimization_{file_suffix}_{timestamp}.txt"
+    agg_filename = f"AGGREGATE_optimization_{stock_file_base}_{file_suffix}_{timestamp}.txt"
     agg_filepath = os.path.join(args.output_dir, agg_filename)
     
     with open(agg_filepath, 'w') as f:

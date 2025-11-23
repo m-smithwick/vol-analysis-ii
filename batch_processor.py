@@ -230,7 +230,7 @@ def calculate_batch_metrics(df: pd.DataFrame, account_value: float = 500000) -> 
 
 def generate_html_summary(results: List[Dict], errors: List[Dict], period: str, 
                          output_dir: str, timestamp: str,
-                         chart_backend: str = 'matplotlib') -> str:
+                         chart_backend: str = 'matplotlib', ticker_file_base: str = 'batch') -> str:
     """
     Generate interactive HTML summary with clickable charts focused on optimal strategies.
     
@@ -241,6 +241,7 @@ def generate_html_summary(results: List[Dict], errors: List[Dict], period: str,
         output_dir (str): Output directory path
         timestamp (str): Timestamp for filename
         chart_backend (str): Chart engine to determine embed type/extension
+        ticker_file_base (str): Base name of ticker file (e.g., "ibd21-nov-17" from "ibd21-nov-17.txt")
         
     Returns:
         str: HTML filename
@@ -673,7 +674,7 @@ def generate_html_summary(results: List[Dict], errors: List[Dict], period: str,
 </html>"""
     
     # Save HTML file
-    html_filename = f"batch_summary_{period}_{timestamp}.html"
+    html_filename = f"batch_summary_{ticker_file_base}_{period}_{timestamp}.html"
     html_filepath = os.path.join(output_dir, html_filename)
     
     with open(html_filepath, 'w', encoding='utf-8') as f:
@@ -751,6 +752,9 @@ def process_batch(ticker_file: str, period='12mo', output_dir='results_volume',
         # Validate inputs
         validate_file_path(ticker_file, check_exists=True, check_readable=True)
         validate_period(period)
+        
+        # Extract ticker list base name (e.g., "ibd21-nov-17" from "ticker_lists/ibd21-nov-17.txt")
+        ticker_file_base = os.path.splitext(os.path.basename(ticker_file))[0]
         
         logger = get_logger()
         logger.info(f"Starting batch processing: {ticker_file} for period {period}")
@@ -968,7 +972,7 @@ def process_batch(ticker_file: str, period='12mo', output_dir='results_volume',
                     print(f"  {i:2d}. {result['ticker']:5s} - {STEALTH_DISPLAY}: {stealth_score:4.1f}/10 {score_emoji} {threshold_emoji} "
                           f"(≥{threshold} threshold, Status: {signal_status:13s}, Rec5d: {recent_count}, Price: {price_change:+4.1f}%)")
         
-        summary_filename = f"batch_summary_{period}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt"
+        summary_filename = f"batch_summary_{ticker_file_base}_{period}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt"
         summary_filepath = os.path.join(output_dir, summary_filename)
         
         try:
@@ -1090,7 +1094,7 @@ def process_batch(ticker_file: str, period='12mo', output_dir='results_volume',
                         print(f"    ⚠️ Chart generation failed for {ticker}: {str(e)}")
             
             html_filename = generate_html_summary(
-                results, errors, period, output_dir, timestamp, chart_backend=chart_backend
+                results, errors, period, output_dir, timestamp, chart_backend=chart_backend, ticker_file_base=ticker_file_base
             )
             if verbose:
                 print(f"\n🌐 Interactive HTML summary generated: {html_filename}")
