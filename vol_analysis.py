@@ -24,15 +24,6 @@ from data_manager import (
     list_cache_info as dm_list_cache_info,
 )
 
-# Import backtest module if available
-try:
-    import backtest
-    BACKTEST_AVAILABLE = True
-except ImportError:
-    BACKTEST_AVAILABLE = False
-    logger = get_logger()
-    logger.warning("backtest.py not found - backtest functionality disabled")
-
 from signal_metadata import get_signal_meta
 
 # Import chart builder module for visualization
@@ -744,20 +735,6 @@ Note: Legacy periods (1y, 2y, 5y, etc.) are automatically converted to month equ
     )
     
     parser.add_argument(
-        '--stop-strategy',
-        choices=['static', 'vol_regime', 'atr_dynamic', 'pct_trail', 'time_decay'],
-        default='time_decay',
-        help='Stop-loss strategy for risk-managed backtests (default: time_decay)'
-    )
-    
-    parser.add_argument(
-        '--account-value',
-        type=float,
-        default=100000,
-        help='Starting account equity for risk-managed backtests (default: 100000)'
-    )
-    
-    parser.add_argument(
         '--multi',
         action='store_true',
         help='Run multi-timeframe analysis instead of single period (single ticker mode only)'
@@ -778,24 +755,6 @@ Note: Legacy periods (1y, 2y, 5y, etc.) are automatically converted to month equ
         '--cache-info',
         action='store_true',
         help='Display information about cached data'
-    )
-    
-    parser.add_argument(
-        '--backtest',
-        action='store_true',
-        help='Run risk-managed backtest with full trade management (default mode - uses RiskManager for position sizing, stops, profit scaling)'
-    )
-    
-    parser.add_argument(
-        '--simple',
-        action='store_true',
-        help='Use simple entry-to-exit backtest instead of risk-managed (basic win rate analysis without position management)'
-    )
-    
-    parser.add_argument(
-        '--risk-managed',
-        action='store_true',
-        help='(Deprecated: now default) Run risk-managed backtest - kept for backward compatibility'
     )
 
     parser.add_argument(
@@ -855,43 +814,16 @@ Note: Legacy periods (1y, 2y, 5y, etc.) are automatically converted to month equ
                 results = multi_timeframe_analysis(ticker, chart_backend=args.chart_backend)
             else:
                 # Run single period analysis with force refresh option
-                # Don't show chart or detailed summary if backtesting
                 df = analyze_ticker(
                     ticker, 
                     period=args.period, 
                     force_refresh=args.force_refresh,
-                    show_chart=not args.backtest,  # Hide chart when backtesting
-                    show_summary=not args.backtest,  # Hide verbose summary when backtesting
+                    show_chart=True,
+                    show_summary=True,
                     debug=args.debug,
                     chart_backend=args.chart_backend,
                     data_source=args.data_source
                 )
-                
-                # Run backtest if requested (risk-managed is now default)
-                if (args.backtest or args.risk_managed) and BACKTEST_AVAILABLE:
-                    # Use simple backtest only if explicitly requested
-                    if args.simple:
-                        print(f"\n📊 Running simple entry-to-exit backtest for {ticker}...")
-                        report = backtest.run_backtest(df, ticker, args.period, save_to_file=True)
-                        print(report)
-                    else:
-                        # Default: Run risk-managed backtest with full trade management
-                        print(f"\n🎯 Running risk-managed backtest for {ticker}...")
-                        print("   (Use --simple flag for basic entry-to-exit analysis)")
-                        try:
-                            result = backtest.run_risk_managed_backtest(
-                                df=df,
-                                ticker=ticker,
-                                account_value=args.account_value,
-                                risk_pct=0.75,
-                                stop_strategy=args.stop_strategy,
-                                save_to_file=True
-                            )
-                        except ImportError as e:
-                            print(f"\n⚠️  Error: {e}")
-                            print("Make sure risk_manager.py is available in the current directory.")
-                elif (args.backtest or args.risk_managed) and not BACKTEST_AVAILABLE:
-                    print("\n⚠️  Warning: Backtest module not available. Skipping backtest analysis.")
 
                 if args.validate_thresholds:
                     print(f"\n🧪 Running threshold walk-forward validation for {ticker}...")

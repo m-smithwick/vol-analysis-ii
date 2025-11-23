@@ -27,6 +27,9 @@ from error_handler import (
     validate_file_path, safe_operation, get_logger, setup_logging
 )
 
+# Import utilities
+from utils import is_data_stale
+
 # Import empirically validated thresholds
 from threshold_config import OPTIMAL_THRESHOLDS, get_threshold_summary, get_threshold_quality
 import signal_generator
@@ -66,11 +69,12 @@ def check_data_staleness(results: List[Dict], warning_threshold_hours: int = 24)
                 data_date_str = parts[3]  # e.g., "20251110"
                 data_date = datetime.strptime(data_date_str, '%Y%m%d')
                 
-                # Calculate age in hours
-                now = datetime.now()
-                age_hours = (now - data_date).total_seconds() / 3600
-                
-                if age_hours > warning_threshold_hours:
+                # Check if data is stale using shared utility (accounts for weekends)
+                if is_data_stale(data_date, warning_threshold_hours):
+                    # Calculate age for reporting purposes
+                    now = datetime.now()
+                    age_hours = (now - data_date).total_seconds() / 3600
+                    
                     stale_tickers.append({
                         'ticker': result['ticker'],
                         'data_date': data_date.strftime('%Y-%m-%d'),

@@ -119,6 +119,39 @@ def parse_date_string(date_str: str) -> Optional[datetime]:
         print(f"⚠️  Invalid date format: {date_str}. Expected format: YYYY-MM-DD")
         return None
 
+def is_data_stale(data_date: datetime, threshold_hours: int = 24) -> bool:
+    """
+    Check if data is stale, accounting for weekends.
+    
+    On weekends (Saturday/Sunday), data from Friday is considered current
+    since no market data is available on weekends. This prevents false
+    "data is stale" warnings when Friday's data is the most recent available.
+    
+    Args:
+        data_date (datetime): The date of the data to check
+        threshold_hours (int): Hours after which data is considered stale (default: 24)
+        
+    Returns:
+        bool: True if data is stale, False if current
+        
+    Example:
+        >>> # On Saturday with Friday's data
+        >>> friday_data = datetime(2025, 11, 21, 16, 0)  # Friday 4 PM
+        >>> is_data_stale(friday_data)  # Returns False (not stale on weekend)
+        
+        >>> # On Tuesday with Friday's data  
+        >>> is_data_stale(friday_data)  # Returns True (stale on weekday)
+    """
+    now = datetime.now()
+    age_hours = (now - data_date).total_seconds() / 3600
+    
+    # On weekends, accept data up to 48 hours old (Friday's data)
+    # Saturday=5, Sunday=6
+    is_weekend = now.weekday() >= 5
+    adjusted_threshold = 48 if is_weekend else threshold_hours
+    
+    return age_hours > adjusted_threshold
+
 def get_trading_days_between(start_date: datetime, end_date: datetime) -> int:
     """
     Estimate the number of trading days between two dates.
