@@ -71,6 +71,10 @@ def prepare_analysis_dataframe(
     df["Price_MA"] = df["Close"].rolling(window=10).mean()
     df["Price_Trend"] = (df["Close"] > df["Price_MA"]).fillna(False)
     df["Price_Rising"] = (df["Close"] > df["Close"].shift(5)).fillna(False)
+    
+    # Add longer-term moving averages for chart display
+    df["SMA_50"] = df["Close"].rolling(window=50).mean()
+    df["SMA_200"] = df["Close"].rolling(window=200).mean()
 
     df["CMF_Positive"] = (df["CMF_Z"] > 0).fillna(False)
     df["CMF_Strong"] = (df["CMF_Z"] > 1.0).fillna(False)

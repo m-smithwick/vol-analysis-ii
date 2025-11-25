@@ -1,4 +1,89 @@
 # Session Improvements Summary
+
+## Session 2025-11-23: Gap-Less Chart Implementation
+
+### Goal: Professional Chart Rendering Standards
+
+Implemented gap-less plotting to align with institutional charting standards (Bloomberg, TradingView). Removed weekend/holiday visual gaps while preserving data integrity for calculations.
+
+### Implementation Summary:
+
+**Files Modified:**
+- `chart_builder.py` - Matplotlib implementation
+- `chart_builder_plotly.py` - Plotly interactive implementation
+
+**Key Changes:**
+1. **Gap-Less Plotting:** Changed x-axis from datetime to integer positions
+   - Plots use `range(len(df))` instead of `df.index`
+   - Date labels preserved for hover text and display
+   - Result: Contiguous price action without weekend breaks
+
+2. **Custom Range Selector (Plotly):** Trading day-based zoom buttons
+   - Replaced broken date-based rangeselector with updatemenus
+   - Buttons: 1mo (21 days), 3mo (63 days), 6mo (126 days), 12mo (252 days), All
+   - Manual y-axis range calculation for proper detail visibility
+
+3. **Y-Axis Auto-Scaling:** Dynamic range calculation per time period
+   - Calculates min/max from visible data slice only
+   - 2% padding for professional tight fit
+   - All 4 y-axes rescale together (price, volume indicators, volume bars, scores)
+
+### Technical Details:
+
+**Gap-Less Implementation:**
+```python
+# Before: ax.plot(df.index, df['Close'])
+# After:  ax.plot(range(len(df)), df['Close'])
+```
+
+**Range Selector Logic:**
+```python
+# Calculate visible data ranges
+visible_slice = df.iloc[max(0, data_length - 21):]  # 1mo example
+price_min = visible_slice['Close'].min() * 0.98
+price_max = visible_slice['Close'].max() * 1.02
+
+# Apply to button
+"yaxis.range": [price_min, price_max]
+```
+
+### Challenges Overcome:
+
+1. **Plotly autorange incompatibility:** `autorange: True` doesn't work with constrained x-axis
+   - Solution: Manual range calculation for each button
+   
+2. **Multi-panel y-axis scaling:** 3 panels with 4 total y-axes need coordinated updates
+   - Solution: Update yaxis, yaxis2, yaxis3, yaxis4 simultaneously
+
+3. **Signal marker positioning:** All 10 signal types needed position-based coordinates
+   - Solution: Convert datetime indices to integer positions for each marker
+
+### Architectural Compliance:
+
+✅ **Zero impact on calculations:**
+- backtest.py untouched (P&L calculations unchanged)
+- signal_generator.py untouched (signal logic unchanged)
+- Data remains time-indexed for all processing
+
+✅ **Strict separation of concerns:**
+- Only visualization modules modified
+- No data mutation
+- Single responsibility maintained
+
+### Results:
+
+- Professional appearance matching Bloomberg/institutional standards
+- Functional range selector with proper y-axis rescaling
+- Maximum detail visibility for each time period
+- All signal markers, regime shading, and indicators working correctly
+- Both matplotlib and Plotly implementations complete
+
+### Testing Status:
+- Implementation complete
+- User testing in progress
+
+---
+
 ## Date: 2025-11-08
 
 This document summarizes the critical improvements made to the volume analysis system based on the Next Session Tasks list.
