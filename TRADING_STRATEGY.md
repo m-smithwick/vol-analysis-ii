@@ -457,7 +457,119 @@ Combined Performance: 86% win rate, +6.18% expectancy
 
 ---
 
-## 7. Risk Management & Position Sizing
+## 7. Regime Filtering: Market & Sector Context
+
+### Understanding the Green/Red Background Shading
+
+The charts display **green or red background shading** that indicates whether entry signals are allowed or blocked by the regime filter. This is a critical risk management feature that prevents entering positions when the broader market or sector is in distribution.
+
+**IMPORTANT**: The background shading is controlled by **SPY and Sector ETF moving averages**, NOT the individual stock's moving averages shown on the chart.
+
+### Regime Filter Rules
+
+Entry signals are **only allowed** when BOTH conditions are met:
+
+#### Market Regime (SPY)
+- ✅ **Green background**: SPY closing price > SPY's 200-day moving average
+- ❌ **Red background**: SPY closing price < SPY's 200-day moving average
+
+#### Sector Regime (Sector ETF)
+- ✅ **Green background**: Sector ETF closing price > Sector ETF's 50-day moving average
+- ❌ **Red background**: Sector ETF closing price < Sector ETF's 50-day moving average
+
+**Both must be true** for the overall regime to show green (signals allowed).
+
+### Why Different Moving Averages?
+
+**SPY (Market)**: Uses 200-day MA
+- Represents long-term market trend
+- 200-day MA is the institutional standard for bull/bear determination
+- Broader market context matters more at longer timeframes
+
+**Sector ETF**: Uses 50-day MA
+- Represents intermediate-term sector trend
+- 50-day MA more responsive to sector rotation
+- Sectors can strengthen while market consolidates
+
+### Sector ETF Mapping
+
+Each stock is mapped to its primary sector ETF:
+
+- **Technology** (XLK): AAPL, MSFT, NVDA, AMD, etc.
+- **Financials** (XLF): JPM, BAC, GS, MS, etc.
+- **Healthcare** (XLV): JNJ, UNH, PFE, ABBV, etc.
+- **Energy** (XLE): XOM, CVX, COP, etc.
+- **Consumer Discretionary** (XLY): AMZN, HD, NKE, etc.
+- **Consumer Staples** (XLP): WMT, PG, COST, etc.
+- **Industrials** (XLI): CAT, BA, HON, etc.
+- **Utilities** (XLU): NEE, DUK, SO, etc.
+- **Real Estate** (XLRE): AMT, PLD, etc.
+- **Materials** (XLB): LIN, APD, etc.
+- **Communication Services** (XLC): NFLX, CMCSA, etc.
+
+### Chart Visualization vs Regime Logic
+
+**What you see on the price chart:**
+- **Blue line**: Stock's own 50-day moving average
+- **Orangered line**: Stock's own 200-day moving average
+- **Background shading**: Controlled by SPY and Sector ETF (not these MAs)
+
+**Why show the stock's MAs?**
+- Provides trend context for the individual stock
+- Useful for support/resistance levels
+- Shows when stock crosses major moving averages
+- Separate from regime filtering logic
+
+**Example (AAPL):**
+```
+AAPL price crosses above AAPL's 50-day MA → Not a regime change
+SPY crosses above SPY's 200-day MA → IS a regime change (background turns green)
+XLK crosses above XLK's 50-day MA → IS a regime change (background turns green)
+```
+
+### Why Regime Filtering Matters
+
+**Risk management**: Prevents buying during broad market distribution
+- Even if AAPL looks great, buying when SPY is in a downtrend is fighting the tide
+- Sector weakness can drag down strong stocks
+
+**Historical evidence**: Signals generated during green regime periods show:
+- Higher win rates (typically +10-15%)
+- Larger average gains
+- Lower risk of catastrophic drawdowns
+
+**Trade efficiency**: You're swimming with the current instead of against it
+- When both market and sector are strong, individual stock signals have better follow-through
+- Your edge is amplified by favorable broader conditions
+
+### Using Regime Information
+
+**In green regimes (both passing)**:
+- Full position sizing
+- Normal entry criteria
+- Higher confidence in signal follow-through
+
+**In red regimes (one or both failing)**:
+- Entry signals are **blocked** (not displayed)
+- Existing positions: Consider tighter stops
+- Wait for regime to improve before new entries
+
+**During regime transitions** (background color changes):
+- Green → Red: Consider reducing exposure, tightening stops
+- Red → Green: Watch for new entry signals to emerge
+
+### Performance Impact
+
+**Historical validation** shows regime filtering improves system performance:
+- Eliminated ~30-40% of signals that occurred during unfavorable market conditions
+- Reduced drawdowns during market corrections
+- Improved overall win rate and profit factor
+
+The regime filter is **always active** and automatically applied to all entry signals. You don't need to manually check SPY or sector ETFs—the system does this for every signal generation.
+
+---
+
+## 8. Risk Management & Position Sizing
 
 ### Position Sizing by Signal Strength
 

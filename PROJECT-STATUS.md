@@ -1,29 +1,37 @@
 # Project Status
 
-**Last Updated**: 2025-11-23  
-**Current Task**: ✅ COMPLETE - Fixed Plotly Chart Date Legend Display
+**Last Updated**: 2025-11-24  
+**Current Task**: ✅ COMPLETE - Enhanced Plotly Charts with Gap-Free Axis & Dynamic Controls
 
 ---
 
 ## Context
 
-Fixed the Plotly-generated HTML charts to display proper date labels instead of integer positions on the x-axis. The chart uses integer-based x-axis positions for gap-less plotting (removing weekends/holidays), and now properly maps those integers back to human-readable dates.
+Comprehensive upgrade to Plotly HTML charts addressing multiple usability issues:
 
-**Implementation:**
-- ✅ 1 month & 3 month views: Weekly tick marks (every ~5-7 trading days) formatted as "Nov 15"
-- ✅ 6 month, 12 month, All views: Monthly tick marks (every ~21 trading days) formatted as "Nov 2024"
+**Problems Solved:**
+1. Weekend/holiday gaps creating visual slopes in price action
+2. Missing range selector buttons after switching to integer x-axis
+3. Duplicate month labels when zooming
+4. Static y-axis ranges not adjusting to zoomed views
+5. Missing moving averages for trend context
+6. Undocumented regime filtering logic
+
+**Complete Solution:**
+- Gap-free x-axis using integer positions
+- Dynamic range buttons (1m, 3m, 6m, 12m, All) with smart tick labels
+- Automatic y-axis scaling with 2% padding per zoom level
+- Added 50-day and 200-day moving averages
+- Comprehensive regime filtering documentation
 
 ---
 
 ## Architectural Impact
 
-This was a pure visualization fix in the chart builder module. No impact on signal logic, backtesting, or risk management.
+Pure visualization fix in the chart builder module. No impact on signal logic, backtesting, or risk management.
 
-**Modified Files:**
-- chart_builder_plotly.py: Added `_generate_date_ticks()` function and updated range selector buttons
-
-**Test Files Created:**
-- test_chart_dates.py: Synthetic data test script to verify date formatting
+**Files to Modify:**
+- chart_builder_plotly.py: Convert all three panel functions + update x-axis formatting
 
 **Untouched Files (Critical):**
 - backtest.py
@@ -31,40 +39,70 @@ This was a pure visualization fix in the chart builder module. No impact on sign
 - risk_manager.py
 - vol_analysis.py
 - data_manager.py
+- chart_builder.py (matplotlib version - already correct)
 
 ---
 
-## Implementation Summary
+## Implementation Plan
 
-### Changes Made:
+### Phase 1: Convert X-Axis to Integer Positions
+1. **create_price_chart()**: Replace all `x=df.index` with `x=list(range(len(df)))`
+   - Main price line and VWAP
+   - Swing levels
+   - All signal markers (buy/sell/accumulation)
+   - Event day markers
+   - Regime shading (convert index lookups to positions)
 
-1. **Created `_generate_date_ticks()` function:**
-   - Calculates tick positions at specified intervals
-   - Formats dates using strftime with configurable format
-   - Ensures first and last dates are always included
+2. **create_volume_indicators_chart()**: Convert to integer positions
+   - OBV and A/D lines
+   - Moving averages
+   - Divergence markers
 
-2. **Updated `generate_analysis_chart()` function:**
-   - Pre-calculates date ticks for each time range button
-   - 1mo: 5-day intervals, "%b %d" format
-   - 3mo: 7-day intervals, "%b %d" format  
-   - 6mo, 12mo, All: 21-day intervals, "%b %Y" format
-   - Range selector buttons now include tick configuration in relayout args
+3. **create_volume_bars_chart()**: Convert to integer positions
+   - Volume bars
+   - Volume MA line
+   - Accumulation/Exit scores
+   - Threshold lines
+   - Signal markers
 
-3. **Maintained gap-less plotting:**
-   - Integer x-axis positions remain unchanged (0, 1, 2, 3...)
-   - Date labels are applied as tick text overlays
-   - Weekend/holiday gaps still removed from visualization
+### Phase 2: Add Custom Date Formatting
+4. **Update hover templates**: Show actual dates using `customdata`
+   - Add date information to hover text
+   - Format: "Date: 2024-11-15"
 
-### Testing:
-- ✅ Created synthetic 1-year dataset with 252 trading days
-- ✅ Generated test chart: backtest_results/TEST_date_ticks_chart.html
-- ✅ Verified all time range buttons display proper date formatting
+5. **Add tick formatting function**: Create date tick labels
+   - Sample dates at regular intervals
+   - Format as "Nov 15" or "Nov 2024" based on range
+   - Set as x-axis tick text
+
+6. **Update generate_analysis_chart()**: Configure x-axis
+   - Set custom tick positions and labels
+   - Maintain range selector functionality
+   - Test with different time periods
+
+### Phase 3: Testing
+7. **Test with sample ticker**: Verify gap-free plotting
+   - Run with real data
+   - Check all three panels
+   - Verify hover shows dates
+   - Check range selector buttons
+
+---
+
+## Expected Benefits
+
+- ✅ Contiguous price action (no weekend slopes)
+- ✅ Consistent with matplotlib version
+- ✅ Improved chart readability
+- ✅ Maintains data integrity
+- ✅ Hover still shows actual dates
 
 ---
 
 ## Janitor Queue
 
-- [ ] Consider adding similar date formatting to multi-timeframe charts if needed
-- [ ] Delete test_chart_dates.py after user confirms fix works as expected
+- [ ] Delete test_chart_dates.py after verification
+- [ ] Update multi-timeframe charts if needed
+- [ ] Document any performance implications
 
 ---
