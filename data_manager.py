@@ -244,7 +244,7 @@ def normalize_period(period: str) -> str:
         logger.debug(f"Period normalized: {period} → {normalized}")
         return normalized
 
-def get_smart_data(ticker: str, period: str, interval: str = "1d", force_refresh: bool = False, data_source: str = "yfinance") -> pd.DataFrame:
+def get_smart_data(ticker: str, period: str, interval: str = "1d", force_refresh: bool = False, cache_only: bool = True, data_source: str = "yfinance") -> pd.DataFrame:
     """
     Smart data fetching with caching support.
     
@@ -252,7 +252,8 @@ def get_smart_data(ticker: str, period: str, interval: str = "1d", force_refresh
         ticker (str): Stock symbol
         period (str): Requested period (e.g., '6mo', '12mo')
         interval (str): Data interval ('1d', '1h', '30m', '15m', etc.)
-        force_refresh (bool): If True, ignore cache and download fresh data
+        force_refresh (bool): If True, ignore cache and download fresh data (overrides cache_only)
+        cache_only (bool): If True, only use cached data - never download from API (default: True)
         data_source (str): Data source to use ('yfinance' or 'massive')
         
     Returns:
@@ -260,9 +261,43 @@ def get_smart_data(ticker: str, period: str, interval: str = "1d", force_refresh
         
     Raises:
         DataValidationError: If no valid data is available for the ticker
+        CacheError: If cache_only=True but no cache exists
     """
-    with ErrorContext("smart data retrieval", ticker=ticker, period=period, interval=interval, data_source=data_source):
+    with ErrorContext("smart data retrieval", ticker=ticker, period=period, interval=interval, data_source=data_source, cache_only=cache_only):
         validate_ticker(ticker)
+    
+    # Check if cache_only mode is enabled (unless force_refresh overrides it)
+    if cache_only and not force_refresh:
+        cached_df = load_cached_data(ticker, interval)
+        
+        if cached_df is None:
+            raise CacheError(
+                f"No cached data available for {ticker} ({interval}) in cache-only mode.\n"
+                f"Run: python populate_cache.py {ticker} --period {period}"
+            )
+        
+        # Check cache freshness and report if stale
+        today = datetime.now().date()
+        last_cached_date = cached_df.index[-1].date()
+        days_behind = (today - last_cached_date).days
+        
+        # Skip freshness check on weekends
+        is_weekend = datetime.now().weekday() >= 5
+        
+        if days_behind > 0 and not is_weekend:
+            logger.warning(
+                f"⚠️  Cache for {ticker} ({interval}) is {days_behind} day(s) behind (last: {last_cached_date})\n"
+                f"    To update: python populate_cache.py {ticker} --period {days_behind+1}d"
+            )
+        elif days_behind > 2 and is_weekend:
+            # On weekends, warn if more than 2 days behind (missing Friday's data)
+            logger.warning(
+                f"⚠️  Cache for {ticker} ({interval}) is {days_behind} day(s) behind (last: {last_cached_date})\n"
+                f"    To update: python populate_cache.py {ticker} --period {days_behind+1}d"
+            )
+        
+        logger.info(f"Using cached data for {ticker} ({interval}): {len(cached_df)} periods (cache-only mode)")
+        return cached_df
     
     # Handle Massive.com data source
     if data_source == "massive":

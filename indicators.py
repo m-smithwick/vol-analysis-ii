@@ -806,7 +806,7 @@ def apply_prefilters(ticker: str, df: pd.DataFrame,
                      min_dollar_volume: float = 5_000_000,
                      min_price: float = 3.00,
                      earnings_window_days: int = 3,
-                     earnings_dates: Optional[list] = None) -> pd.DataFrame:
+                     earnings_dates: Optional[list] = []) -> pd.DataFrame:
     """
     Apply all pre-trade quality filters.
     
@@ -825,7 +825,8 @@ def apply_prefilters(ticker: str, df: pd.DataFrame,
         min_dollar_volume (float): Minimum avg daily dollar volume (default: $5M)
         min_price (float): Minimum acceptable price (default: $3.00)
         earnings_window_days (int): Days before/after earnings to exclude (default: 3)
-        earnings_dates (Optional[list]): Optional list of earnings dates
+        earnings_dates (Optional[list]): Optional list of earnings dates. 
+            Default is empty list (bypasses API calls). Pass None to fetch from yfinance.
         
     Returns:
         pd.DataFrame: DataFrame with added filter columns:

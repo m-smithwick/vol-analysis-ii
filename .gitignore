@@ -16,6 +16,9 @@ massive_cache/
 news_cache/
 sector_cache/
 
+# API keys and credentials
+massive_api_key.txt
+
 # macOS system files
 .DS_Store
 .DS_Store?

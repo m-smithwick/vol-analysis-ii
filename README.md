@@ -53,7 +53,10 @@ Need the deeper architecture or indicator breakdown? See `docs/ARCHITECTURE_REFE
    python populate_cache_bulk.py --months 24 --ticker-files ticker_lists/ibd20.txt
    
    # Use multiple ticker files
-   python populate_cache_bulk.py --months 36 --ticker-files ticker_lists/indices.txt ticker_lists/sector_etfs.txt
+   python populate_cache_bulk.py --months 12 --ticker-files ticker_lists/indices.txt ticker_lists/sector_etfs.txt
+
+   # use a date range for catching up the last few days. 
+   python populate_cache_bulk.py --start 2025-11-20 --end 2025-11-24  --ticker-files cmb.txt
    ```
    
    > 💡 **New users**: Start with Option A (Yahoo Finance). It works immediately without any setup.
@@ -92,7 +95,7 @@ After running backtests, use these tools to evaluate and optimize your strategy:
 ### Professional Evaluation
 ```bash
 # Calculate institutional-grade metrics (Sharpe, drawdown, etc.)
-python analyze_professional_metrics.py --csv backtest_results/LOG_FILE_cmb_36mo_20251122_124411.csv
+python analyze_professional_metrics.py --csv backtest_results/LOG_FILE_cmb_36mo_20251122_153033.csv
 ```
 **Outputs:** Sharpe ratio (3.35), maximum drawdown (-9.37%), monthly consistency (73.9%),  
 loss streaks (16 max), professional grading (Institutional Quality: Grade A-)

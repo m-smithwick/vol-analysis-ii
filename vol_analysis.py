@@ -90,6 +90,80 @@ def list_cache_info() -> None:
     dm_list_cache_info()
 
 
+def print_regime_status_table(df: pd.DataFrame, ticker: str, num_days: int = 10) -> None:
+    """
+    Print detailed regime status table for the last N trading days.
+    
+    Shows overall regime, market regime, sector regime, and all 11 sector ETF regimes.
+    
+    Args:
+        df: DataFrame with regime columns
+        ticker: Stock ticker symbol
+        num_days: Number of recent days to display (default: 10)
+    """
+    # Get last N days - ensure no duplicates
+    recent_df = df.tail(num_days * 2).copy()  # Get extra rows to account for potential duplicates
+    
+    # Remove any duplicate indices (keep the last occurrence of each date)
+    if recent_df.index.duplicated().any():
+        print(f"⚠️  Warning: Found {recent_df.index.duplicated().sum()} duplicate dates in DataFrame")
+        recent_df = recent_df[~recent_df.index.duplicated(keep='last')]
+    
+    # Now get the actual last N days after deduplication
+    recent_df = recent_df.tail(num_days)
+    
+    # Get ticker's assigned sector (from regime_filter module since column may not exist)
+    assigned_sector = regime_filter.get_sector_etf(ticker)
+    
+    print(f"\n{'='*120}")
+    print(f"REGIME STATUS - LAST {num_days} TRADING DAYS ({ticker})")
+    print(f"Assigned Sector ETF: {assigned_sector}")
+    print(f"{'='*120}")
+    
+    # Header row
+    header = (
+        f"{'Date':<12} | {'Overall':<7} | {'Market':<7} | "
+        f"{'Sector':<7} | {'XLK':<4} | {'XLF':<4} | {'XLV':<4} | {'XLE':<4} | "
+        f"{'XLY':<4} | {'XLP':<4} | {'XLI':<4} | {'XLU':<4} | {'XLRE':<4} | {'XLB':<4} | {'XLC':<4}"
+    )
+    print(header)
+    print(f"{'-' * 120}")
+    
+    # Data rows
+    for date, row in recent_df.iterrows():
+        date_str = date.strftime('%Y-%m-%d')
+        
+        # Get regime values (handle missing columns gracefully)
+        overall = '✅' if row.get('Overall_Regime_OK', False) else '❌'
+        market = '✅' if row.get('Market_Regime_OK', False) else '❌'
+        sector = '✅' if row.get('Sector_Regime_OK', False) else '❌'
+        
+        # Individual sector ETF regimes
+        xlk = '✅' if row.get('xlk_regime_ok', False) else '❌'
+        xlf = '✅' if row.get('xlf_regime_ok', False) else '❌'
+        xlv = '✅' if row.get('xlv_regime_ok', False) else '❌'
+        xle = '✅' if row.get('xle_regime_ok', False) else '❌'
+        xly = '✅' if row.get('xly_regime_ok', False) else '❌'
+        xlp = '✅' if row.get('xlp_regime_ok', False) else '❌'
+        xli = '✅' if row.get('xli_regime_ok', False) else '❌'
+        xlu = '✅' if row.get('xlu_regime_ok', False) else '❌'
+        xlre = '✅' if row.get('xlre_regime_ok', False) else '❌'
+        xlb = '✅' if row.get('xlb_regime_ok', False) else '❌'
+        xlc = '✅' if row.get('xlc_regime_ok', False) else '❌'
+        
+        # Print row
+        row_str = (
+            f"{date_str:<12} | {overall:<7} | {market:<7} | "
+            f"{sector:<7} | {xlk:<4} | {xlf:<4} | {xlv:<4} | {xle:<4} | "
+            f"{xly:<4} | {xlp:<4} | {xli:<4} | {xlu:<4} | {xlre:<4} | {xlb:<4} | {xlc:<4}"
+        )
+        print(row_str)
+    
+    print(f"{'='*120}")
+    print(f"Legend: Overall = Market AND Sector both pass | Market = SPY > 200-day MA | Sector = Assigned ETF > 50-day MA")
+    print(f"{'='*120}\n")
+
+
 def generate_analysis_text(ticker: str, df: pd.DataFrame, period: str) -> str:
     """
     Generate text analysis report for a ticker.
@@ -281,7 +355,7 @@ def generate_analysis_text(ticker: str, df: pd.DataFrame, period: str) -> str:
     return "\n".join(output)
 
 def analyze_ticker(ticker: str, period='6mo', save_to_file=False, output_dir='.', save_chart=False,
-                   force_refresh=False, show_chart=True, show_summary=True, debug=False,
+                   force_refresh=False, cache_only=True, show_chart=True, show_summary=True, debug=False,
                    chart_backend: str = 'matplotlib', data_source: str = 'yfinance'):
     """
     Retrieve and analyze price-volume data for a given ticker symbol.
@@ -292,7 +366,8 @@ def analyze_ticker(ticker: str, period='6mo', save_to_file=False, output_dir='.'
         save_to_file (bool): Whether to save analysis to file instead of printing
         output_dir (str): Directory to save output files
         save_chart (bool): Whether to save chart as PNG file
-        force_refresh (bool): If True, ignore cache and download fresh data
+        force_refresh (bool): If True, ignore cache and download fresh data (overrides cache_only)
+        cache_only (bool): If True, only use cached data - never download (default: True)
         show_chart (bool): Whether to display chart interactively (default: True)
         show_summary (bool): Whether to print detailed summary output (default: True)
         debug (bool): Enable additional progress prints when saving artifacts
@@ -302,6 +377,7 @@ def analyze_ticker(ticker: str, period='6mo', save_to_file=False, output_dir='.'
     Raises:
         DataValidationError: If ticker or period is invalid
         DataDownloadError: If data cannot be retrieved
+        CacheError: If cache_only=True but no cache exists
         FileOperationError: If file operations fail during save
     """
     with ErrorContext("analyzing ticker", ticker=ticker, period=period):
@@ -320,6 +396,7 @@ def analyze_ticker(ticker: str, period='6mo', save_to_file=False, output_dir='.'
         period,
         data_source=data_source,
         force_refresh=force_refresh,
+        cache_only=cache_only,
         verbose=show_summary,
     )
     
@@ -514,10 +591,28 @@ def analyze_ticker(ticker: str, period='6mo', save_to_file=False, output_dir='.'
             print(f"\n🌍 REGIME FILTER STATUS (Item #6):")
             regime_status = "✅ PASS" if regime_info['overall_regime_ok'] else "❌ FAIL"
             print(f"  Overall Regime: {regime_status}")
-            print(f"  Market (SPY): {'✅' if regime_info['market_regime_ok'] else '❌'} ${regime_info.get('spy_close', 0):.2f} vs 200DMA ${regime_info.get('spy_200ma', 0):.2f}")
-            print(f"  Sector ({regime_info.get('sector_etf', 'N/A')}): {'✅' if regime_info['sector_regime_ok'] else '❌'} ${regime_info.get('sector_close', 0):.2f} vs 50DMA ${regime_info.get('sector_50ma', 0):.2f}")
+            
+            # Format SPY info (may be None in cache-only mode)
+            spy_close = regime_info.get('spy_close')
+            spy_200ma = regime_info.get('spy_200ma')
+            if spy_close is not None and spy_200ma is not None:
+                print(f"  Market (SPY): {'✅' if regime_info['market_regime_ok'] else '❌'} ${spy_close:.2f} vs 200DMA ${spy_200ma:.2f}")
+            else:
+                print(f"  Market (SPY): {'✅' if regime_info['market_regime_ok'] else '❌'} (cache data used)")
+            
+            # Format Sector info (may be None in cache-only mode)
+            sector_close = regime_info.get('sector_close')
+            sector_50ma = regime_info.get('sector_50ma')
+            sector_etf = regime_info.get('sector_etf', 'N/A')
+            if sector_close is not None and sector_50ma is not None:
+                print(f"  Sector ({sector_etf}): {'✅' if regime_info['sector_regime_ok'] else '❌'} ${sector_close:.2f} vs 50DMA ${sector_50ma:.2f}")
+            else:
+                print(f"  Sector ({sector_etf}): {'✅' if regime_info['sector_regime_ok'] else '❌'} (cache data used)")
             if total_filtered > 0:
                 print(f"  ⚠️  {total_filtered} signals filtered due to poor regime")
+            
+            # Print detailed regime status table
+            print_regime_status_table(df, ticker, num_days=10)
             
             print(f"\n🎯 ENTRY SIGNAL SUMMARY:")
             print("  🟢 Strong Buy Signals: {} (Large green dots - Score ≥7, near support, above VWAP)".format(entry_signals['Strong_Buy']))
@@ -743,7 +838,13 @@ Note: Legacy periods (1y, 2y, 5y, etc.) are automatically converted to month equ
     parser.add_argument(
         '--force-refresh',
         action='store_true',
-        help='Force refresh - ignore cache and download fresh data'
+        help='Force refresh - ignore cache and download fresh data (overrides --cache-only)'
+    )
+    
+    parser.add_argument(
+        '--allow-download',
+        action='store_true',
+        help='Allow downloading from yfinance API if cache is missing/stale (default: cache-only mode)'
     )
     
     parser.add_argument(
@@ -813,11 +914,12 @@ Note: Legacy periods (1y, 2y, 5y, etc.) are automatically converted to month equ
                 # Run multi-timeframe analysis
                 results = multi_timeframe_analysis(ticker, chart_backend=args.chart_backend)
             else:
-                # Run single period analysis with force refresh option
+                # Run single period analysis with cache-only mode (unless --allow-download specified)
                 df = analyze_ticker(
                     ticker, 
                     period=args.period, 
                     force_refresh=args.force_refresh,
+                    cache_only=not args.allow_download,
                     show_chart=True,
                     show_summary=True,
                     debug=args.debug,

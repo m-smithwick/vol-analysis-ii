@@ -1,5 +1,69 @@
 # Session Improvements Summary
 
+## Session 2025-11-24: Data Fetching Optimization & EOD Workflow
+
+### Goal: Eliminate Yahoo Finance API Dependencies & Document EOD Trading Workflow
+
+**Context:**
+- Yahoo Finance API unreliable on weekends/after-hours causing batch backtest failures
+- User's trading system: Analyze EOD data → Execute next-day opening trades
+- Originally attempted Massive REST API solution, discovered subscription limitations
+- Realized flat files (existing solution) perfectly suited for use case
+
+**Key Discoveries:**
+
+1. **Earnings Data API Bypass:**
+   - Problem: `indicators.check_earnings_window()` making Yahoo API calls during backtests
+   - Solution: Changed default parameter from `None` to `[]` to bypass API
+   - Impact: Eliminates unnecessary API calls, prevents rate limiting
+   - Status: `analysis_service.py` already passing `[]`, now default is safe
+
+2. **REST API Subscription Limitation:**
+   - Created `refresh_cache_rest.py` for same-day data via Massive REST API
+   - Discovered: Starter tier doesn't include REST aggregates endpoint
+   - Returns "DELAYED" status even for historical data
+   - Conclusion: REST API requires Developer/Advanced tier ($150+/month)
+
+3. **Flat Files are the Solution:**
+   - User's workflow is EOD data for next-day trading (not intraday)
+   - Flat files via `populate_cache_bulk.py` provide:
+     * Available same evening after market close (T+0)
+     * Complete EOD OHLC data
+     * Included in current subscription
+     * Faster than per-ticker API calls
+   - Perfect fit for use case, no upgrade needed
+
+**Files Created:**
+- `refresh_cache_rest.py` - REST API script (non-functional with Starter, kept for reference)
+- `docs/EOD_DATA_WORKFLOW.md` - Comprehensive EOD trading workflow guide
+- `massive_api_key.txt` - API key file (added to .gitignore)
+
+**Files Modified:**
+- `indicators.py` - Changed `earnings_dates` default from `None` to `[]`
+- `.gitignore` - Added `massive_api_key.txt` protection
+- `PROJECT-STATUS.md` - Added earnings cache outstanding task
+
+**Documentation Created:**
+- Complete EOD workflow with daily/weekly/monthly routines
+- Cron job automation examples
+- Troubleshooting guide
+- REST API limitations clearly documented
+- Flat files vs REST API comparison
+
+**Outstanding Tasks Added:**
+- Implement cached earnings dates (future enhancement)
+- Currently using bypass approach (safe, working)
+
+**Key Learnings:**
+- REST API != Flat Files (different subscription tiers)
+- "15-minute delayed" applies to intraday streaming, not daily aggregates
+- Flat files perfect for EOD trading (T+0 availability)
+- User's existing solution was already optimal
+
+**Status:** EOD workflow documented, earnings API bypass implemented, REST API limitations understood
+
+---
+
 ## Session 2025-11-23: Gap-Less Chart Implementation
 
 ### Goal: Professional Chart Rendering Standards

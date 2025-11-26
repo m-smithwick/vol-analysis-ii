@@ -21,6 +21,7 @@
 
 **`data_manager.py`** - Unified data access layer (Yahoo Finance + cached data) with schema versioning and date-range helpers.  
 **`populate_cache.py` / `populate_cache_bulk.py`** - Populate or refresh cache files across ticker lists with progress reporting and error isolation.  
+**`refresh_cache_rest.py`** - Massive REST API script for same-day data (requires Developer/Advanced tier; reference only).  
 **`query_cache_range.py`** - CLI tool to inspect cached coverage, preview stats, and validate regime windows.  
 **`schema_manager.py`** - Owns cache schema migrations and upgrade validation.  
 **`massive_data_provider.py`** - Legacy Massive.com fetcher kept for replaying archived tests.

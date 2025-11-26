@@ -32,10 +32,19 @@ def prepare_analysis_dataframe(
     *,
     data_source: str = "yfinance",
     force_refresh: bool = False,
+    cache_only: bool = True,
     verbose: bool = False,
 ) -> pd.DataFrame:
     """
     Build the full indicator + signal DataFrame used by analysis/backtesting.
+    
+    Args:
+        ticker: Stock symbol
+        period: Analysis period
+        data_source: Data source ('yfinance' or 'massive')
+        force_refresh: Force download fresh data (overrides cache_only)
+        cache_only: Only use cached data, never download (default: True)
+        verbose: Enable verbose logging
     """
     with ErrorContext("preparing analysis dataframe", ticker=ticker, period=period):
         validate_ticker(ticker)
@@ -48,6 +57,7 @@ def prepare_analysis_dataframe(
                 period,
                 interval="1d",
                 force_refresh=force_refresh,
+                cache_only=cache_only,
                 data_source=data_source,
             )
             logger.info(
@@ -201,10 +211,17 @@ def prepare_analysis_dataframe(
             regime_filter.calculate_historical_regime_series(ticker, df)
         )
         
-        # Add regime status columns
+        # Add regime status columns, ensuring no duplicates in the index
+        if df.index.duplicated().any():
+            logger.warning(f"Found {df.index.duplicated().sum()} duplicate dates in analysis DataFrame before adding regime columns")
+            df = df[~df.index.duplicated(keep='last')]
+        
         df['Market_Regime_OK'] = market_regime
         df['Sector_Regime_OK'] = sector_regime
         df['Overall_Regime_OK'] = overall_regime
+        
+        # Add all 11 sector ETF regime columns for comprehensive regime analysis
+        df = regime_filter.add_all_sector_regime_columns(df)
         
         # Preserve raw signals before filtering
         entry_signals = [

@@ -74,6 +74,9 @@ SECTOR_ETFS = {
     # Communication Services
     'NFLX': 'XLC', 'CMCSA': 'XLC', 'T': 'XLC', 'VZ': 'XLC',
     
+    # Special case: SPY maps to itself for both market and sector checks
+    'SPY': 'SPY',
+    
     # Default fallback
     'DEFAULT': 'SPY'
 }
@@ -95,7 +98,8 @@ def get_sector_etf(ticker: str) -> str:
 def load_benchmark_data(ticker: str, 
                        period: Optional[str] = '12mo',
                        start_date: Optional[pd.Timestamp] = None,
-                       end_date: Optional[pd.Timestamp] = None) -> Optional[pd.DataFrame]:
+                       end_date: Optional[pd.Timestamp] = None,
+                       cache_only: bool = True) -> Optional[pd.DataFrame]:
     """
     Load benchmark data (SPY or sector ETF) from cache via data_manager.
     
@@ -106,6 +110,7 @@ def load_benchmark_data(ticker: str,
         period: Data period (e.g., '12mo', '6mo') - ignored if start_date provided
         start_date: Explicit start date (overrides period)
         end_date: Optional end date for historical analysis
+        cache_only: If True, only use cached data (default: True)
         
     Returns:
         DataFrame with OHLCV data, or None if fetch fails
@@ -146,6 +151,7 @@ def load_benchmark_data(ticker: str,
             period=fetch_period,
             interval='1d',
             force_refresh=False,
+            cache_only=cache_only,
             data_source='yfinance'  # Uses yfinance cache format
         )
         
@@ -237,20 +243,40 @@ def calculate_historical_regime_series(ticker: str, df: pd.DataFrame) -> tuple:
         if df_index_normalized.tz is not None:
             df_index_normalized = df_index_normalized.tz_localize(None)
         
+        # Remove any duplicate dates from df_index_normalized before reindexing
+        df_index_normalized_unique = df_index_normalized[~df_index_normalized.duplicated(keep='first')]
+        
         # Align with DataFrame dates (handles weekends/holidays)
-        market_regime = spy_data['Market_Regime_OK'].reindex(
-            df_index_normalized, 
+        market_regime_aligned = spy_data['Market_Regime_OK'].reindex(
+            df_index_normalized_unique, 
             method='ffill'  # Forward-fill for non-trading days
         ).infer_objects(copy=False).fillna(False)  # Conservative: missing data = regime FAIL
+        
+        # If we had duplicates, expand back to match original index
+        if len(df_index_normalized_unique) != len(df_index_normalized):
+            # Create a mapping from unique dates back to all dates
+            market_regime = pd.Series(index=df_index_normalized, dtype=bool)
+            for date in df_index_normalized:
+                market_regime.loc[date] = market_regime_aligned.get(date, False)
+        else:
+            market_regime = market_regime_aligned
         
         # Restore original index (with timezone if it had one)
         market_regime.index = df.index
         
-        sector_regime = sector_data['Sector_Regime_OK'].reindex(
-            df_index_normalized,
+        # Same process for sector regime
+        sector_regime_aligned = sector_data['Sector_Regime_OK'].reindex(
+            df_index_normalized_unique,
             method='ffill'
         ).infer_objects(copy=False).fillna(False)
         
+        if len(df_index_normalized_unique) != len(df_index_normalized):
+            sector_regime = pd.Series(index=df_index_normalized, dtype=bool)
+            for date in df_index_normalized:
+                sector_regime.loc[date] = sector_regime_aligned.get(date, False)
+        else:
+            sector_regime = sector_regime_aligned
+            
         # Restore original index
         sector_regime.index = df.index
         
@@ -615,6 +641,81 @@ def apply_regime_filter(df: pd.DataFrame, ticker: str, verbose: bool = False) ->
         filtered = np.logical_and(signal_bool.to_numpy(dtype=bool), bool(regime['overall_regime_ok']))
         df[signal_col] = pd.Series(filtered, index=df.index)
     
+    return df
+
+
+def add_all_sector_regime_columns(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Add all 11 sector ETF regime columns to DataFrame for historical analysis.
+    
+    This function is optimized for historical bar-by-bar regime analysis.
+    It loads each sector ETF ONCE for the full date range and calculates
+    regime status for all dates, avoiding the cache miss issues in get_all_sector_regimes().
+    
+    Args:
+        df: DataFrame with DatetimeIndex
+        
+    Returns:
+        DataFrame with added sector regime columns:
+        - xlk_regime_ok through xlc_regime_ok: All 11 sector ETF regimes
+    """
+    logger.info(f"  📊 Computing historical sector regimes for {len(df)} trading days...")
+    
+    # Get date range from DataFrame with buffer for MA calculations  
+    start_date = df.index.min() - pd.DateOffset(months=3)  # Buffer for 50-day MA
+    end_date = df.index.max()
+    
+    # All 11 sector ETFs
+    sector_etfs = ['XLK', 'XLF', 'XLV', 'XLE', 'XLY', 'XLP', 'XLI', 'XLU', 'XLRE', 'XLB', 'XLC']
+    
+    for etf_symbol in sector_etfs:
+        col_name = f'{etf_symbol.lower()}_regime_ok'
+        
+        try:
+            # Load full historical data for this ETF
+            etf_data = load_benchmark_data(etf_symbol, period=None, 
+                                         start_date=start_date, end_date=end_date)
+            
+            if etf_data is not None and len(etf_data) >= 50:
+                # Calculate 50-day MA
+                etf_data['MA50'] = etf_data['Close'].rolling(50, min_periods=50).mean()
+                etf_data[col_name] = etf_data['Close'] > etf_data['MA50']
+                
+                # Normalize timezone and align with df
+                if etf_data.index.tz is not None:
+                    etf_data.index = etf_data.index.tz_localize(None)
+                df_index_norm = df.index.tz_localize(None) if df.index.tz is not None else df.index
+                
+                # Remove duplicates from df_index_norm to avoid reindex issues
+                df_index_norm_unique = df_index_norm[~df_index_norm.duplicated(keep='first')]
+                
+                # Align with DataFrame dates
+                regime_aligned = etf_data[col_name].reindex(df_index_norm_unique, method='ffill').fillna(False)
+                
+                # Handle duplicates if they existed
+                if len(df_index_norm_unique) != len(df_index_norm):
+                    regime_series = pd.Series(index=df_index_norm, dtype=bool)
+                    for date in df_index_norm:
+                        regime_series.loc[date] = regime_aligned.get(date, False)
+                else:
+                    regime_series = regime_aligned
+                
+                # Restore original index
+                regime_series.index = df.index
+                df[col_name] = regime_series
+                
+                logger.debug(f"    ✓ {etf_symbol}: {regime_series.sum()}/{len(regime_series)} days PASS")
+            else:
+                # Insufficient data - mark all as False (conservative)
+                df[col_name] = False
+                logger.warning(f"    ❌ {etf_symbol}: Insufficient data, marking all regime checks as FAIL")
+                
+        except Exception as e:
+            # Error loading data - mark all as False (conservative)
+            df[col_name] = False
+            logger.error(f"    ❌ {etf_symbol}: Error loading data ({e}), marking all regime checks as FAIL")
+    
+    logger.info(f"  ✓ All sector regime columns added")
     return df
 
 
