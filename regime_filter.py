@@ -18,6 +18,8 @@ import yfinance as yf
 import numpy as np
 from typing import Dict, Optional
 import logging
+import csv
+from pathlib import Path
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -28,59 +30,77 @@ logger = logging.getLogger(__name__)
 _SECTOR_REGIME_CACHE = {}  # Format: {date_str: {xlk_regime_ok: bool, xlf_regime_ok: bool, ...}}
 _MARKET_REGIME_CACHE = {}  # Format: {date_str: {market_regime_ok: bool, spy_close: float, ...}}
 
-# Sector ETF mapping
-SECTOR_ETFS = {
-    # Technology
-    'AAPL': 'XLK', 'MSFT': 'XLK', 'GOOGL': 'XLK', 'GOOG': 'XLK',
-    'NVDA': 'XLK', 'META': 'XLK', 'TSLA': 'XLK', 'AMD': 'XLK',
-    'INTC': 'XLK', 'CRM': 'XLK', 'ORCL': 'XLK', 'CSCO': 'XLK',
-    'AVGO': 'XLK', 'ADBE': 'XLK', 'QCOM': 'XLK', 'TXN': 'XLK',
-    'VRT': 'XLK',
+# Valid sector ETF symbols for validation
+VALID_SECTOR_ETFS = {'XLK', 'XLF', 'XLV', 'XLE', 'XLY', 'XLP', 'XLI', 'XLU', 'XLRE', 'XLB', 'XLC', 'SPY'}
+
+
+def load_sector_mappings(filepath: str = 'ticker_lists/sector_mappings.csv') -> Dict[str, str]:
+    """
+    Load sector ETF mappings from CSV configuration file.
     
-    # Financials
-    'JPM': 'XLF', 'BAC': 'XLF', 'WFC': 'XLF', 'GS': 'XLF',
-    'MS': 'XLF', 'C': 'XLF', 'BLK': 'XLF', 'SCHW': 'XLF',
-    'AXP': 'XLF', 'USB': 'XLF', 'PNC': 'XLF', 'TFC': 'XLF',
+    CSV Format:
+        ticker,sector_etf,sector_name
+        AAPL,XLK,Technology
+        JPM,XLF,Financials
+        ...
     
-    # Healthcare
-    'JNJ': 'XLV', 'PFE': 'XLV', 'UNH': 'XLV', 'MRK': 'XLV',
-    'ABBV': 'XLV', 'TMO': 'XLV', 'ABT': 'XLV', 'DHR': 'XLV',
-    'LLY': 'XLV', 'BMY': 'XLV', 'AMGN': 'XLV', 'CVS': 'XLV',
+    Args:
+        filepath: Path to sector mappings CSV file
+        
+    Returns:
+        Dictionary mapping ticker symbols to sector ETF symbols
+        Empty dict if file not found or error occurs
+    """
+    mappings = {}
     
-    # Energy
-    'XOM': 'XLE', 'CVX': 'XLE', 'COP': 'XLE', 'SLB': 'XLE',
-    'EOG': 'XLE', 'PSX': 'XLE', 'MPC': 'XLE', 'VLO': 'XLE',
+    try:
+        csv_path = Path(filepath)
+        if not csv_path.exists():
+            logger.warning(f"Sector mappings file not found: {filepath}")
+            logger.warning("Using SPY as default for all unmapped tickers")
+            return {}
+        
+        with open(csv_path, 'r') as f:
+            reader = csv.DictReader(f)
+            
+            for row_num, row in enumerate(reader, start=2):  # Start at 2 (after header)
+                try:
+                    ticker = row['ticker'].strip().upper()
+                    sector_etf = row['sector_etf'].strip().upper()
+                    
+                    # Validate sector ETF
+                    if sector_etf not in VALID_SECTOR_ETFS:
+                        logger.warning(
+                            f"Row {row_num}: Invalid sector ETF '{sector_etf}' for {ticker}. "
+                            f"Must be one of: {', '.join(sorted(VALID_SECTOR_ETFS))}"
+                        )
+                        continue
+                    
+                    mappings[ticker] = sector_etf
+                    
+                except KeyError as e:
+                    logger.error(f"Row {row_num}: Missing required column {e}")
+                    continue
+                except Exception as e:
+                    logger.error(f"Row {row_num}: Error parsing row - {e}")
+                    continue
+        
+        logger.info(f"Loaded {len(mappings)} sector mappings from {filepath}")
+        
+    except FileNotFoundError:
+        logger.warning(f"Sector mappings file not found: {filepath}")
+        logger.warning("Using SPY as default for all unmapped tickers")
+    except Exception as e:
+        logger.error(f"Error loading sector mappings from {filepath}: {e}")
+        logger.warning("Using SPY as default for all unmapped tickers")
     
-    # Consumer Discretionary
-    'AMZN': 'XLY', 'HD': 'XLY', 'MCD': 'XLY', 'NKE': 'XLY',
-    'SBUX': 'XLY', 'LOW': 'XLY', 'TGT': 'XLY', 'DIS': 'XLY',
-    
-    # Consumer Staples
-    'WMT': 'XLP', 'PG': 'XLP', 'KO': 'XLP', 'PEP': 'XLP',
-    'COST': 'XLP', 'PM': 'XLP', 'MO': 'XLP', 'CL': 'XLP',
-    
-    # Industrials
-    'CAT': 'XLI', 'BA': 'XLI', 'HON': 'XLI', 'UNP': 'XLI',
-    'UPS': 'XLI', 'RTX': 'XLI', 'LMT': 'XLI', 'GE': 'XLI',
-    
-    # Utilities
-    'NEE': 'XLU', 'DUK': 'XLU', 'SO': 'XLU', 'D': 'XLU',
-    
-    # Real Estate
-    'AMT': 'XLRE', 'PLD': 'XLRE', 'CCI': 'XLRE', 'EQIX': 'XLRE',
-    
-    # Materials
-    'LIN': 'XLB', 'APD': 'XLB', 'ECL': 'XLB', 'DD': 'XLB',
-    
-    # Communication Services
-    'NFLX': 'XLC', 'CMCSA': 'XLC', 'T': 'XLC', 'VZ': 'XLC',
-    
-    # Special case: SPY maps to itself for both market and sector checks
-    'SPY': 'SPY',
-    
-    # Default fallback
-    'DEFAULT': 'SPY'
-}
+    return mappings
+
+
+# Load sector mappings at module initialization
+# Configuration file: ticker_lists/sector_mappings.csv
+# Users can add/modify mappings without touching code
+SECTOR_ETFS = load_sector_mappings()
 
 
 def get_sector_etf(ticker: str) -> str:

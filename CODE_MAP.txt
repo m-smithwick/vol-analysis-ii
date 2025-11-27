@@ -40,7 +40,7 @@
 
 ## Support Modules & Utilities
 
-**`regime_filter.py`** - Market/sector regime checks (SPY 200DMA, sector ETF 50DMAs, ETF mappings).  
+**`regime_filter.py`** - Market/sector regime checks (SPY 200DMA, sector ETF 50DMAs, loads stock→sector mappings from `ticker_lists/sector_mappings.csv`).
 **`utils.py`** - Generic helpers (I/O, formatting, math utilities).  
 **`error_handler.py`** - Standardized error capture/reporting for CLI tools.  
 **`chart_builder_plotly.py`** - Alternate visualization path for interactive dashboards.  
@@ -154,7 +154,10 @@ backtest.py
 - `TRADING_STRATEGY.md`, `TRADING_STRATEGY_SECTOR_AWARE.md` - Trading rules, risk logic, and sector overlays  
 
 **Session History**
-- `SESSION_IMPROVEMENTS_SUMMARY.md`, `SESSION_COMPLETE_NOV_2025.md` - Running changelog/session context  
+- `SESSION_IMPROVEMENTS_SUMMARY.md`, `SESSION_COMPLETE_NOV_2025.md` - Running changelog/session context
+
+**Configuration Files**
+- `ticker_lists/sector_mappings.csv` - Stock-to-sector ETF mappings used by `regime_filter.py` for 50-day MA regime checks. Users can add/modify mappings without touching code. Format: ticker,sector_etf,sector_name
 
 **Architecture**
 - `docs/ARCHITECTURE_REFERENCE.md` - Conceptual overview complementing this code map

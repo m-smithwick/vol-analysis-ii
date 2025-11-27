@@ -1,5 +1,55 @@
 # Session Improvements Summary
 
+## Session 2025-11-26: Configuration Externalization & Transaction Tracking
+
+### Goal: Externalize Sector Mappings & Add Trade Sequencing
+
+**Context:**
+- Sector ETF mappings were hardcoded in regime_filter.py (83 lines)
+- Difficult for users to maintain/update mappings
+- Trade logs lacked sequential ordering for chronological analysis
+- User expanded mappings from 90 to 158 tickers
+
+**Changes Implemented:**
+
+1. **Sector Mappings Externalization:**
+   - Created `ticker_lists/sector_mappings.csv` with 158 stock→sector ETF mappings
+   - Modified `regime_filter.py` to load from CSV at module initialization
+   - Added validation: ETF symbols must be in VALID_SECTOR_ETFS set
+   - Error handling: logs warnings for invalid ETFs, defaults unmapped tickers to SPY
+   - Result: Users can now edit mappings without touching code
+
+2. **Transaction Number Tracking:**
+   - Added sequential `transaction_number` field to all trades in backtest.py
+   - Counter starts at 1, increments for each closed position
+   - Enables chronological sorting (oldest→newest or reverse)
+   - Disambiguates multiple trades on same date
+
+3. **Documentation Created:**
+   - `ticker_lists/README.md` - Complete user guide for sector mappings
+   - Updated `CODE_MAP.txt` - Documented new configuration file
+
+**Files Created:**
+- `ticker_lists/sector_mappings.csv` - Stock-to-sector ETF configuration
+- `ticker_lists/README.md` - User guide and troubleshooting
+
+**Files Modified:**
+- `regime_filter.py` - Load mappings from CSV with validation
+- `backtest.py` - Added transaction_number tracking
+- `CODE_MAP.txt` - Documented configuration file location
+
+**Benefits:**
+- ✅ Separation of configuration from code
+- ✅ Easy maintenance for non-technical users
+- ✅ Validation prevents invalid sector assignments
+- ✅ Trade sequencing for chronological analysis
+- ✅ User expanded to 158 tickers (from 90)
+
+**Outstanding:**
+- Transaction number needs to be displayed in first column of CSV exports (currently only in text report headers)
+
+---
+
 ## Session 2025-11-24: Data Fetching Optimization & EOD Workflow
 
 ### Goal: Eliminate Yahoo Finance API Dependencies & Document EOD Trading Workflow

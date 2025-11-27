@@ -1263,8 +1263,9 @@ def run_risk_managed_backtest(
     exit_signals = ['Profit_Taking', 'Distribution_Warning', 'Sell_Signal',
                     'Momentum_Exhaustion', 'Stop_Loss']
     
-    # Track all trades
+    # Track all trades with sequential transaction numbers
     all_trades = []
+    transaction_number = 1  # Sequential transaction ID for ordering
     
     # Iterate through DataFrame
     for idx in range(len(df)):
@@ -1325,6 +1326,9 @@ def run_risk_managed_backtest(
                 )
                 
                 if trade:
+                    # Add sequential transaction number for ordering
+                    trade['transaction_number'] = transaction_number
+                    transaction_number += 1
                     all_trades.append(trade)
                     
                     if verbose:
@@ -1418,6 +1422,9 @@ def run_risk_managed_backtest(
         )
         
         if trade:
+            # Add sequential transaction number
+            trade['transaction_number'] = transaction_number
+            transaction_number += 1
             all_trades.append(trade)
             if verbose:
                 print(f"⏸️ Position closed at end of data: {last_date.strftime('%Y-%m-%d')} @ ${last_price:.2f}")
@@ -1547,7 +1554,8 @@ def generate_risk_managed_report(
     report_lines.append("📋 DETAILED TRADE LOG:")
     report_lines.append("-" * 70)
     
-    for i, trade in enumerate(trades, 1):
+    for trade in trades:
+        txn_num = trade.get('transaction_number', '?')
         entry_date = trade['entry_date'].strftime('%Y-%m-%d')
         exit_date = trade['exit_date'].strftime('%Y-%m-%d') if trade.get('exit_date') else 'OPEN'
         
@@ -1565,7 +1573,7 @@ def generate_risk_managed_report(
         else:
             exit_signals_str = ""
         
-        report_lines.append(f"\nTrade #{i}:")
+        report_lines.append(f"\nTrade #{txn_num}:")
         report_lines.append(f"  Entry: {entry_date} @ ${trade['entry_price']:.2f}{entry_signals_str}")
         
         # Add regime status at entry

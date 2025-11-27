@@ -340,6 +340,12 @@ def generate_risk_managed_aggregate_report(results: Dict, period: str, output_di
             ledger_df['partial_exit'] = ledger_df['partial_exit'].fillna(False)
         ledger_df['exit_pct'] = ledger_df.get('exit_pct', np.nan)
         ledger_df = ledger_df.sort_values(by=['exit_date', 'ticker'], na_position='last')
+        
+        # CRITICAL FIX: Renumber transactions sequentially across all tickers
+        # Each individual ticker backtest starts numbering from 1, causing duplicates
+        # when aggregating multiple tickers. Renumber here to ensure serial ordering.
+        ledger_df['transaction_number'] = range(1, len(ledger_df) + 1)
+        
         ledger_df['portfolio_equity'] = starting_equity + ledger_df['dollar_pnl'].cumsum()
         ledger_df['equity_before_trade'] = ledger_df['portfolio_equity'] - ledger_df['dollar_pnl']
         ending_equity = ledger_df['portfolio_equity'].iloc[-1] if not ledger_df.empty else starting_equity
@@ -419,7 +425,7 @@ def generate_risk_managed_aggregate_report(results: Dict, period: str, output_di
             lambda x: x.get('xlc_regime_ok', np.nan) if isinstance(x, dict) else np.nan
         )
         
-        portfolio_ledger = ledger_df[['entry_date', 'exit_date', 'ticker', 'entry_price', 'exit_price',
+        portfolio_ledger = ledger_df[['transaction_number', 'entry_date', 'exit_date', 'ticker', 'entry_price', 'exit_price',
                                       'position_size', 'partial_exit', 'exit_pct', 'exit_type', 'dollar_pnl',
                                       'equity_before_trade', 'portfolio_equity', 'r_multiple', 'profit_pct',
                                       'entry_signals_str', 'primary_signal',
@@ -446,6 +452,10 @@ def generate_risk_managed_aggregate_report(results: Dict, period: str, output_di
         for col in dollar_cols:
             if col in export_df.columns:
                 export_df[col] = export_df[col].round(0).astype('Int64')  # Int64 handles NaN
+        
+        # Ensure transaction_number is also formatted as integer
+        if 'transaction_number' in export_df.columns:
+            export_df['transaction_number'] = export_df['transaction_number'].astype('Int64')
         
         # Export to CSV
         export_df.to_csv(ledger_csv_path, index=False)

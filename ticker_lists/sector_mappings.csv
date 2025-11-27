@@ -1,0 +1,159 @@
+ticker,sector_etf,sector_name
+AAPL,XLK,Technology
+MSFT,XLK,Technology
+GOOGL,XLK,Technology
+GOOG,XLK,Technology
+NVDA,XLK,Technology
+META,XLK,Technology
+TSLA,XLK,Technology
+AMD,XLK,Technology
+INTC,XLK,Technology
+CRM,XLK,Technology
+ORCL,XLK,Technology
+CSCO,XLK,Technology
+AVGO,XLK,Technology
+ADBE,XLK,Technology
+QCOM,XLK,Technology
+TXN,XLK,Technology
+VRT,XLK,Technology
+JPM,XLF,Financials
+BAC,XLF,Financials
+WFC,XLF,Financials
+GS,XLF,Financials
+MS,XLF,Financials
+C,XLF,Financials
+BLK,XLF,Financials
+SCHW,XLF,Financials
+AXP,XLF,Financials
+USB,XLF,Financials
+PNC,XLF,Financials
+TFC,XLF,Financials
+JNJ,XLV,Healthcare
+PFE,XLV,Healthcare
+UNH,XLV,Healthcare
+MRK,XLV,Healthcare
+ABBV,XLV,Healthcare
+TMO,XLV,Healthcare
+ABT,XLV,Healthcare
+DHR,XLV,Healthcare
+LLY,XLV,Healthcare
+BMY,XLV,Healthcare
+AMGN,XLV,Healthcare
+CVS,XLV,Healthcare
+XOM,XLE,Energy
+CVX,XLE,Energy
+COP,XLE,Energy
+SLB,XLE,Energy
+EOG,XLE,Energy
+PSX,XLE,Energy
+MPC,XLE,Energy
+VLO,XLE,Energy
+AMZN,XLY,Consumer Discretionary
+HD,XLY,Consumer Discretionary
+MCD,XLY,Consumer Discretionary
+NKE,XLY,Consumer Discretionary
+SBUX,XLY,Consumer Discretionary
+LOW,XLY,Consumer Discretionary
+TGT,XLY,Consumer Discretionary
+DIS,XLY,Consumer Discretionary
+WMT,XLP,Consumer Staples
+PG,XLP,Consumer Staples
+KO,XLP,Consumer Staples
+PEP,XLP,Consumer Staples
+COST,XLP,Consumer Staples
+PM,XLP,Consumer Staples
+MO,XLP,Consumer Staples
+CL,XLP,Consumer Staples
+CAT,XLI,Industrials
+BA,XLI,Industrials
+HON,XLI,Industrials
+UNP,XLI,Industrials
+UPS,XLI,Industrials
+RTX,XLI,Industrials
+LMT,XLI,Industrials
+GE,XLI,Industrials
+NEE,XLU,Utilities
+DUK,XLU,Utilities
+SO,XLU,Utilities
+D,XLU,Utilities
+AMT,XLRE,Real Estate
+PLD,XLRE,Real Estate
+CCI,XLRE,Real Estate
+EQIX,XLRE,Real Estate
+LIN,XLB,Materials
+APD,XLB,Materials
+ECL,XLB,Materials
+DD,XLB,Materials
+NFLX,XLC,Communication Services
+CMCSA,XLC,Communication Services
+T,XLC,Communication Services
+VZ,XLC,Communication Services
+SPY,SPY,Market Index
+CCI,XLRE,Real Estate
+EQIX,XLRE,Real Estate
+LIN,XLB,Materials
+APD,XLB,Materials
+ECL,XLB,Materials
+DD,XLB,Materials
+NFLX,XLC,Communication Services
+CMCSA,XLC,Communication Services
+T,XLC,Communication Services
+VZ,XLC,Communication Services
+SPY,SPY,Market Index
+AI,XLK,Technology
+AJG,XLF,Financials
+ALAB,XLK,Technology
+ALNY,XLV,Health Care
+ANAB,XLV,Health Care
+APH,XLK,Technology
+APP,XLK,Technology
+ARGX,XLV,Health Care
+ARQT,XLV,Health Care
+ASND,XLV,Health Care
+AXSM,XLV,Health Care
+BBVA,XLF,Financials
+BITC,BITC,Crypto ETF
+BSX,XLV,Health Care
+CDNS,XLK,Technology
+CLS,XLK,Technology
+CRWV,XLK,Technology
+CTAS,XLI,Industrials
+CTRE,XLRE,Real Estate
+DDOG,XLK,Technology
+DELL,XLK,Technology
+FIX,XLI,Industrials
+FN,XLK,Technology
+GH,XLV,Health Care
+GTLB,XLK,Technology
+HUBS,XLK,Technology
+IBKR,XLF,Financials
+IDXX,XLV,Health Care
+INSM,XLV,Health Care
+KGC,XLB,Materials
+KLAC,XLK,Technology
+KNSL,XLF,Financials
+KRYS,XLV,Health Care
+MDB,XLK,Technology
+MEDP,XLV,Health Care
+MSI,XLK,Technology
+NBIX,XLV,Health Care
+NET,XLK,Technology
+NOW,XLK,Technology
+NTAP,XLK,Technology
+NTRA,XLV,Health Care
+NVT,XLI,Industrials
+NXT,XLI,Industrials
+ONC,XLV,Health Care
+ORLY,XLY,Consumer Discretionary
+PLTR,XLK,Technology
+QUBT,XLK,Technology
+RDDT,XLC,Communication Services
+RIGL,XLV,Health Care
+SEI,XLF,Financials
+SOUN,XLK,Technology
+STRL,XLI,Industrials
+TARS,XLV,Health Care
+TEL,XLK,Technology
+TFPM,XLB,Materials
+TVTX,XLV,Health Care
+WGS,XLV,Health Care
