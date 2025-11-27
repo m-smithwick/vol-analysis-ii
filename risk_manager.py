@@ -38,7 +38,8 @@ class RiskManager:
     """
     
     def __init__(self, account_value: float, risk_pct_per_trade: float = 0.75,
-                 stop_strategy: str = DEFAULT_STOP_STRATEGY, time_stop_bars: int = DEFAULT_TIME_STOP_BARS):
+                 stop_strategy: str = DEFAULT_STOP_STRATEGY, time_stop_bars: int = DEFAULT_TIME_STOP_BARS,
+                 stop_params: Optional[Dict] = None):
         """
         Initialize risk manager.
         
@@ -47,6 +48,7 @@ class RiskManager:
             risk_pct_per_trade: Risk percentage per trade (0.5-1.0% recommended)
             stop_strategy: Stop loss strategy - 'static', 'vol_regime', 'atr_dynamic', 'pct_trail', 'time_decay'
             time_stop_bars: Number of bars before TIME_STOP exit if <+1R (default from risk_constants.py, set to 0 or negative to disable)
+            stop_params: Optional dict with stop strategy parameters (from config file). If None, uses defaults.
         """
         self.account_value = account_value
         self.starting_equity = account_value
@@ -60,30 +62,37 @@ class RiskManager:
         self.active_positions: Dict[str, Dict] = {}
         self.closed_trades: List[Dict] = []
         
-        # Stop strategy parameters (lifted from validation harness)
-        self.stop_params = {
-            'vol_regime': {
-                'low_vol_mult': 1.5,
-                'normal_vol_mult': 2.0,
-                'high_vol_mult': 2.5,
-                'low_threshold': -0.5,
-                'high_threshold': 0.5
-            },
-            'atr_dynamic': {
-                'multiplier': 2.0,
-                'min_multiplier': 1.5,
-                'max_multiplier': 3.0
-            },
-            'pct_trail': {
-                'trail_pct': 8.0,
-                'activation_r': 1.0
-            },
-            'time_decay': {
-                'day_5_mult': 2.5,
-                'day_10_mult': 2.0,
-                'day_15_mult': 1.5
+        # Stop strategy parameters - use provided config or defaults
+        if stop_params is not None:
+            self.stop_params = stop_params
+        else:
+            # Default parameters (backward compatibility)
+            self.stop_params = {
+                'static': {
+                    'enabled': True
+                },
+                'vol_regime': {
+                    'low_vol_mult': 1.5,
+                    'normal_vol_mult': 2.0,
+                    'high_vol_mult': 2.5,
+                    'low_threshold': -0.5,
+                    'high_threshold': 0.5
+                },
+                'atr_dynamic': {
+                    'multiplier': 2.0,
+                    'min_multiplier': 1.5,
+                    'max_multiplier': 3.0
+                },
+                'pct_trail': {
+                    'trail_pct': 8.0,
+                    'activation_r': 1.0
+                },
+                'time_decay': {
+                    'day_5_mult': 2.5,
+                    'day_10_mult': 2.0,
+                    'day_15_mult': 1.5
+                }
             }
-        }
     
     def calculate_position_size(self, entry_price: float, stop_price: float) -> int:
         """

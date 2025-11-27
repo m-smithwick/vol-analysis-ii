@@ -1,0 +1,75 @@
+# Aggressive Risk Configuration
+# Higher risk per trade, aggressive time stops, maximize trade frequency
+
+config_name: "aggressive"
+config_version: "1.0"
+description: "Aggressive approach - 1.0% risk, tight time stops, maximize opportunities"
+
+risk_management:
+  account_value: 100000
+  risk_pct_per_trade: 1.0  # Maximum recommended risk
+  stop_strategy: "static"
+  time_stop_bars: 8  # Tighter time stop (vs 12 baseline)
+  
+  stop_params:
+    static:
+      enabled: true
+    vol_regime:
+      low_vol_mult: 1.5
+      normal_vol_mult: 2.0
+      high_vol_mult: 2.5
+      low_threshold: -0.5
+      high_threshold: 0.5
+    atr_dynamic:
+      multiplier: 2.0
+      min_multiplier: 1.5
+      max_multiplier: 3.0
+    pct_trail:
+      trail_pct: 8.0
+      activation_r: 1.0
+    time_decay:
+      day_5_mult: 2.5
+      day_10_mult: 2.0
+      day_15_mult: 1.5
+
+signal_thresholds:
+  entry:
+    moderate_buy_pullback: 5.5  # Lower threshold for more entries
+    stealth_accumulation: 3.5
+    strong_buy: 5.5
+    volume_breakout: 5.5
+  exit:
+    momentum_exhaustion: 5.0
+    profit_taking: 5.0
+    distribution_warning: 5.0
+  enabled_entry_signals:
+    - "moderate_buy_pullback"
+  enabled_exit_signals:
+    - "momentum_exhaustion"
+    - "profit_taking"
+    - "distribution_warning"
+
+regime_filters:
+  enable_spy_regime: true
+  enable_sector_regime: false  # Less strict - SPY only
+  require_both_regimes: false
+  sector_mapping_file: "ticker_lists/sector_mappings.csv"
+
+profit_management:
+  enable_profit_scaling: true
+  profit_target_r: 2.0
+  profit_exit_pct: 0.5
+  enable_trailing_stop: true
+  trail_lookback_bars: 10
+
+max_loss:
+  enable_max_loss: false
+  max_loss_pct: 20.0
+
+backtest:
+  start_date: null
+  end_date: null
+  lookback_months: 36
+  generate_charts: true
+  chart_save_dir: "backtest_results"
+  generate_trade_log: true

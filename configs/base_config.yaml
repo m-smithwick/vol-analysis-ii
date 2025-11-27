@@ -1,0 +1,130 @@
+# Base Configuration for Volume Analysis Trading System
+# This file defines all configurable parameters for backtesting
+# Create variations by copying this file and modifying specific sections
+
+# Configuration Metadata
+config_name: "base_config"
+config_version: "1.0"
+description: "Production baseline configuration with validated parameters"
+
+# Risk Management Settings
+risk_management:
+  account_value: 100000  # Starting account equity
+  risk_pct_per_trade: 0.75  # Risk 0.75% per trade (0.5-1.0% recommended)
+  
+  # Stop Loss Strategy
+  # Options: 'static', 'vol_regime', 'atr_dynamic', 'pct_trail', 'time_decay'
+  stop_strategy: "static"
+  
+  # Time Stop Configuration
+  # Exit after N bars if position is below +1R
+  # Set to 0 or negative to disable time stops
+  time_stop_bars: 12  # Default: 12 bars
+  
+  # Stop Strategy Parameters
+  stop_params:
+    # Static Stops (static)
+    static:
+      # Static strategy uses initial stop calculation only
+      # No additional parameters needed
+      enabled: true
+    
+    # Volatility Regime-Based Stops (vol_regime)
+    vol_regime:
+      low_vol_mult: 1.5      # Tight stop in calm markets (ATR_Z < -0.5)
+      normal_vol_mult: 2.0   # Standard stop in normal conditions
+      high_vol_mult: 2.5     # Wide stop in volatile markets (ATR_Z > 0.5)
+      low_threshold: -0.5    # ATR_Z threshold for low volatility regime
+      high_threshold: 0.5    # ATR_Z threshold for high volatility regime
+    
+    # ATR Dynamic Stops (atr_dynamic)
+    atr_dynamic:
+      multiplier: 2.0        # Base ATR multiplier
+      min_multiplier: 1.5    # Tightest allowed stop
+      max_multiplier: 3.0    # Widest allowed stop
+    
+    # Percentage Trailing Stop (pct_trail)
+    pct_trail:
+      trail_pct: 8.0         # Trail by 8% below peak price
+      activation_r: 1.0      # Activate after reaching +1R
+    
+    # Time-Based Stop Decay (time_decay)
+    time_decay:
+      day_5_mult: 2.5        # Wide stop first 5 days
+      day_10_mult: 2.0       # Medium stop days 6-10
+      day_15_mult: 1.5       # Tight stop after day 15
+
+# Signal Thresholds
+signal_thresholds:
+  # Entry Signals
+  entry:
+    moderate_buy_pullback: 6.0  # Validated threshold (59.6% win rate)
+    stealth_accumulation: 4.0   # Use with caution (regime-dependent)
+    strong_buy: 6.0             # Not recommended (regime-collapse)
+    volume_breakout: 6.0        # Not recommended (no edge)
+  
+  # Exit Signals
+  exit:
+    momentum_exhaustion: 5.0    # High-quality exit (84% win rate)
+    profit_taking: 5.0          # Excellent exit (100% win rate, small sample)
+    distribution_warning: 5.0   # Solid exit signal
+    
+  # Signal Enable/Disable Flags
+  enabled_entry_signals:
+    - "moderate_buy_pullback"  # Primary signal - VALIDATED
+    # - "stealth_accumulation"  # Optional - regime-dependent
+    # - "strong_buy"            # Not recommended
+    # - "volume_breakout"       # Not recommended
+  
+  enabled_exit_signals:
+    - "momentum_exhaustion"
+    - "profit_taking"
+    - "distribution_warning"
+
+# Regime Filters
+regime_filters:
+  # Enable/disable regime filtering
+  enable_spy_regime: true      # Require SPY above 200-day MA
+  enable_sector_regime: true   # Require sector ETF above 50-day MA
+  
+  # Regime strictness
+  require_both_regimes: true   # Both SPY and sector must be bullish
+  
+  # Sector mapping file
+  sector_mapping_file: "ticker_lists/sector_mappings.csv"
+
+# Profit Management
+profit_management:
+  # Profit Scaling (50% exit at +2R)
+  enable_profit_scaling: true
+  profit_target_r: 2.0         # Take 50% profit at +2R
+  profit_exit_pct: 0.5         # Exit 50% of position
+  
+  # Trailing Stop (after profit scaling)
+  enable_trailing_stop: true
+  trail_lookback_bars: 10      # Trail by 10-day low
+
+# Maximum Loss Protection
+max_loss:
+  enable_max_loss: false       # Not yet implemented
+  max_loss_pct: 20.0           # Stop trading if down 20%
+
+# Backtest Settings
+backtest:
+  # Date range (null = use all available data)
+  start_date: null             # Format: "2023-01-01" or null
+  end_date: null               # Format: "2025-11-26" or null
+  
+  # Data requirements
+  lookback_months: 36          # Require 36 months for indicators
+  
+  # Reporting
+  generate_charts: true
+  chart_save_dir: "backtest_results"
+  generate_trade_log: true
+
+# Notes:
+# - This configuration has been validated through multi-phase testing
+# - Moderate Buy Pullback is the only fully validated entry signal
+# - Performance expectations: 60-70% win rate, 12-18% annual returns
+# - For testing variations, copy this file and modify specific sections
