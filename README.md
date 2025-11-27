@@ -56,7 +56,7 @@ Need the deeper architecture or indicator breakdown? See `docs/ARCHITECTURE_REFE
    python populate_cache_bulk.py --months 12 --ticker-files ticker_lists/indices.txt ticker_lists/sector_etfs.txt
 
    # use a date range for catching up the last few days. 
-   python populate_cache_bulk.py --start 2025-11-20 --end 2025-11-24  --ticker-files cmb.txt
+   python populate_cache_bulk.py --start 2025-11-23 --end 2025-11-25  --ticker-files cmb.txt
    ```
    
    > 💡 **New users**: Start with Option A (Yahoo Finance). It works immediately without any setup.
@@ -64,14 +64,20 @@ Need the deeper architecture or indicator breakdown? See `docs/ARCHITECTURE_REFE
 3. **Run analysis & dashboards**
    ```bash
    # Single ticker analysis
-   python vol_analysis.py AAPL --period 6mo
+   python vol_analysis.py NBIX --period 6mo
 
-   #file with tickers
-   python vol_analysis.py --file cmb.txt --period 24mo --chart-backend plotly --save-charts
-   python vol_analysis.py  --period 24mo --chart-backend plotly --save-charts --file cmb.txt
+   # Batch processing with various output options
+   python vol_analysis.py --file ticker_lists/stocks.txt --period 12mo --save-charts
+   python vol_analysis.py --file ticker_lists/ibd.txt --period 6mo --save-excel --save-charts
+   python vol_analysis.py --file cmb.txt --period 24mo --chart-backend plotly --save-charts --save-excel
+   
+   # Excel export provides complete DataFrame access (60+ columns)
+   # Includes: OHLCV, indicators, signals, scores, regime data
+   # Two sheets: Analysis_Data (raw) + Summary (key metrics)
+   python vol_analysis.py --file ticker_lists/short.txt --save-excel --output-dir custom_results
 
    # Batch backtest a watchlist
-  python batch_backtest.py  -p 12mo -f cmb.txt --no-individual-reports
+   python batch_backtest.py  -p 24mo -f cmb.txt --no-individual-reports
    # Risk-managed runs default to static stops (optimal performance validated Nov 2025)
    # Override via --stop-strategy if testing alternatives
 
@@ -95,7 +101,7 @@ After running backtests, use these tools to evaluate and optimize your strategy:
 ### Professional Evaluation
 ```bash
 # Calculate institutional-grade metrics (Sharpe, drawdown, etc.)
-python analyze_professional_metrics.py --csv backtest_results/LOG_FILE_cmb_36mo_20251122_153033.csv
+python analyze_professional_metrics.py --csv backtest_results/LOG_FILE_cmb_24mo_20251124_210835.csv
 ```
 **Outputs:** Sharpe ratio (3.35), maximum drawdown (-9.37%), monthly consistency (73.9%),  
 loss streaks (16 max), professional grading (Institutional Quality: Grade A-)
@@ -170,6 +176,7 @@ Full details and review cadence live in `docs/VALIDATION_STATUS.md`.
 - `-p` / `--period`: analysis period (e.g., `6mo`, `24mo`, `ytd`).
 - `-o` / `--output-dir`: batch output directory (default `results_volume`).
 - `--save-charts`: store PNG/HTML charts during batch runs.
+- `--save-excel`: save Excel files with complete DataFrame data (requires openpyxl: pip install openpyxl).
 - `--chart-backend {matplotlib,plotly}`: control renderer (default `matplotlib`).
 - `--data-source {yfinance,massive}`: select data provider.
 - `--stop-strategy {static,vol_regime,atr_dynamic,pct_trail,time_decay}`: choose risk-managed stop logic (default `static` - RECOMMENDED). Performance: static=$161k/15% stops, time_decay=$53k/23% stops, vol_regime=$147k/32% stops. See `STOP_STRATEGY_VALIDATION.md`.

@@ -1,6 +1,87 @@
 # Session Close Summary
 
-**Date**: 2025-11-26  
+---
+
+## 📊 **Session 2: Plotly Chart Rendering Debug**
+
+**Date**: 2025-11-26 (Evening Session)  
+**Time**: 17:04 - 17:30 PST  
+**Duration**: ~30 minutes  
+**Status**: ✅ **COMPLETE - Plotly Bug Fixed**
+
+### 🎯 **Session Objective - ACHIEVED**
+
+**Goal**: Debug and fix Plotly chart regime shading rendering issue where last trading day showed incorrect color despite correct data.
+
+**Challenge**: Charts showed GREEN on initial load but lost shading when using zoom buttons (1m, 3m, 6m, etc.)
+
+### 🔍 **Root Cause Analysis**
+
+Identified **three** underlying Plotly rendering issues:
+
+1. **Shape rendering with row/col parameters**: Using `row=1, col=1` in `add_shape()` caused unreliable rendering in multi-panel layouts
+2. **Boundary rendering issue**: Shapes ending exactly at `len(df)` weren't rendered properly by Plotly
+3. **Zoom button clipping**: Interactive zoom buttons set x-axis range to last data point, clipping extended shapes
+
+### 🔧 **Technical Fix Implemented**
+
+**File Modified**: `chart_builder_plotly.py`
+
+**Three-part solution**:
+
+1. **Extended last regime segment** (Line 107):
+   ```python
+   end_pos = len(df) + 3  # Triggers proper rendering without excessive extension
+   ```
+
+2. **Switched to explicit coordinates** (Lines 113-119):
+   ```python
+   # More reliable than row/col automatic handling
+   fig.add_shape(
+       xref='x', yref='y',  
+       x0=start_pos, x1=end_pos,
+       y0=y0_data, y1=y1_data,
+       ...
+   )
+   ```
+
+3. **Extended zoom button ranges** (Lines 756, 773, 790, 807, 826):
+   ```python
+   x_range_end = end_pos + 5  # Prevents zoom from clipping extended shapes
+   ```
+
+### ✅ **Validation Results**
+
+**Test Infrastructure Created**:
+- `tests/test_large_dataset_regime.py` - 809-day validation test
+- `tests/test_buffer_debug.py` - Diagnostic analysis tool
+- `tests/test_buffer_columns.py` - Data integrity verification
+- `tests/test_large_dataset_buffer.py` - Buffer day experiments
+
+**Verified Functionality**:
+- ✅ Initial chart load shows correct regime colors
+- ✅ Last day regime shading renders correctly (GREEN when data=TRUE)
+- ✅ Zoom buttons (1m, 3m, 6m, 12m, All) maintain regime visibility
+- ✅ Both small (30 days) and large (809+ days) datasets work correctly
+
+### 📊 **Impact**
+
+**Before**: Charts showed incorrect RED for last day, or lost shading when zooming
+
+**After**: All regime shading renders correctly across all zoom levels and dataset sizes
+
+**Workaround Eliminated**: No longer need to use matplotlib backend for accurate regime visualization
+
+### 📝 **Documentation Updated**
+
+- `PROJECT-STATUS.md`: Added "COMPLETED: Plotly Chart Regime Shading Bug Fixed" section
+- Moved issue from "Active Bug" to "COMPLETED" with full root cause analysis and fix details
+
+---
+
+## 📊 **Session 1: Regime Filter Core Logic**
+
+**Date**: 2025-11-26 (Afternoon Session)  
 **Duration**: ~3 hours  
 **Status**: ✅ **COMPLETE - All Issues Resolved**
 

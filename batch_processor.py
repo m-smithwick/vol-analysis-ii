@@ -39,6 +39,139 @@ STEALTH_DISPLAY = get_display_name('Stealth_Accumulation')
 MODERATE_DISPLAY = get_display_name('Moderate_Buy')
 PROFIT_DISPLAY = get_display_name('Profit_Taking')
 
+def export_dataframe_to_excel(df: pd.DataFrame, ticker: str, period: str, 
+                             output_dir: str) -> Optional[str]:
+    """
+    Export analysis DataFrame to Excel file with proper formatting.
+    
+    Args:
+        df (pd.DataFrame): Complete analysis DataFrame with all indicators and signals
+        ticker (str): Stock ticker symbol
+        period (str): Analysis period
+        output_dir (str): Directory to save Excel file
+        
+    Returns:
+        Optional[str]: Excel filename if successful, None if failed
+        
+    Raises:
+        FileOperationError: If Excel export fails
+    """
+    with ErrorContext("exporting DataFrame to Excel", ticker=ticker, period=period):
+        logger = get_logger()
+        
+        try:
+            # Check if openpyxl is available for Excel export
+            try:
+                import openpyxl
+            except ImportError:
+                logger.warning("openpyxl not available - Excel export requires: pip install openpyxl")
+                raise FileOperationError("Excel export requires openpyxl: pip install openpyxl")
+            
+            # Generate filename with date range (consistent with existing patterns)
+            start_date = df.index[0].strftime('%Y%m%d')
+            end_date = df.index[-1].strftime('%Y%m%d')
+            excel_filename = f"{ticker}_{period}_{start_date}_{end_date}_data.xlsx"
+            excel_filepath = os.path.join(output_dir, excel_filename)
+            
+            # Validate output directory
+            validate_file_path(output_dir, check_exists=True, check_writable=True)
+            
+            # Prepare DataFrame for Excel export
+            df_export = df.copy()
+            
+            # Ensure the index (dates) is included as a column for Excel
+            df_export.reset_index(inplace=True)
+            
+            # Convert boolean columns to cleaner text for Excel readability
+            bool_columns = df_export.select_dtypes(include=['bool']).columns
+            for col in bool_columns:
+                df_export[col] = df_export[col].map({True: 'TRUE', False: 'FALSE', np.nan: ''})
+            
+            # Round numeric columns to reasonable precision
+            numeric_columns = df_export.select_dtypes(include=[np.number]).columns
+            for col in numeric_columns:
+                if col not in ['Volume']:  # Keep volume as integers
+                    df_export[col] = df_export[col].round(4)
+            
+            # Export to Excel with multiple sheets for organization
+            with pd.ExcelWriter(excel_filepath, engine='openpyxl') as writer:
+                # Main data sheet with all columns
+                df_export.to_excel(writer, sheet_name='Analysis_Data', index=False)
+                
+                # Create a summary sheet with key metrics
+                summary_data = {
+                    'Metric': [
+                        'Ticker Symbol',
+                        'Analysis Period', 
+                        'Date Range',
+                        'Total Trading Days',
+                        'Current Price',
+                        'Current VWAP',
+                        'Current Phase',
+                        'Accumulation Score (Latest)',
+                        'Exit Score (Latest)',
+                        'Strong Buy Signals',
+                        'Moderate Buy Signals',
+                        'Stealth Accumulation Signals',
+                        'Profit Taking Signals',
+                        'Total Entry Signals',
+                        'Total Exit Signals'
+                    ],
+                    'Value': [
+                        ticker,
+                        period,
+                        f"{df.index[0].strftime('%Y-%m-%d')} to {df.index[-1].strftime('%Y-%m-%d')}",
+                        len(df),
+                        f"${df['Close'].iloc[-1]:.2f}",
+                        f"${df['VWAP'].iloc[-1]:.2f}",
+                        df['Phase'].iloc[-1],
+                        f"{df['Accumulation_Score'].iloc[-1]:.2f}",
+                        f"{df['Exit_Score'].iloc[-1]:.2f}",
+                        int(df['Strong_Buy'].sum()) if 'Strong_Buy' in df.columns else 0,
+                        int(df['Moderate_Buy'].sum()) if 'Moderate_Buy' in df.columns else 0,
+                        int(df['Stealth_Accumulation'].sum()) if 'Stealth_Accumulation' in df.columns else 0,
+                        int(df['Profit_Taking'].sum()) if 'Profit_Taking' in df.columns else 0,
+                        int(df[['Strong_Buy', 'Moderate_Buy', 'Stealth_Accumulation', 'Confluence_Signal', 'Volume_Breakout']].sum().sum()) if all(col in df.columns for col in ['Strong_Buy', 'Moderate_Buy', 'Stealth_Accumulation']) else 0,
+                        int(df[['Profit_Taking', 'Distribution_Warning', 'Sell_Signal', 'Momentum_Exhaustion', 'Stop_Loss']].sum().sum()) if all(col in df.columns for col in ['Profit_Taking', 'Distribution_Warning', 'Sell_Signal']) else 0
+                    ]
+                }
+                
+                summary_df = pd.DataFrame(summary_data)
+                summary_df.to_excel(writer, sheet_name='Summary', index=False)
+                
+                # Format the Excel workbook for better readability
+                workbook = writer.book
+                
+                # Format main data sheet
+                worksheet = writer.sheets['Analysis_Data']
+                worksheet.freeze_panes = 'B2'  # Freeze first row and Date column
+                
+                # Auto-adjust column widths (with reasonable limits)
+                for column in worksheet.columns:
+                    max_length = 0
+                    column_letter = column[0].column_letter
+                    for cell in column:
+                        try:
+                            if len(str(cell.value)) > max_length:
+                                max_length = len(str(cell.value))
+                        except:
+                            pass
+                    adjusted_width = min(max_length + 2, 20)  # Max width of 20
+                    worksheet.column_dimensions[column_letter].width = adjusted_width
+                
+                # Format summary sheet
+                summary_worksheet = writer.sheets['Summary'] 
+                summary_worksheet.column_dimensions['A'].width = 25
+                summary_worksheet.column_dimensions['B'].width = 30
+            
+            logger.info(f"Excel file exported: {excel_filename}")
+            return excel_filename
+            
+        except Exception as e:
+            error_msg = f"Failed to export Excel file for {ticker}: {str(e)}"
+            logger.error(error_msg)
+            raise FileOperationError(error_msg)
+
 def check_data_staleness(results: List[Dict], warning_threshold_hours: int = 24) -> Dict[str, Any]:
     """
     Check if any tickers have stale data and return warning information.
@@ -730,7 +863,7 @@ def read_ticker_file(filepath: str) -> List[str]:
         return tickers
 
 def process_batch(ticker_file: str, period='12mo', output_dir='results_volume', 
-                 save_charts=False, generate_html=True, verbose=True,
+                 save_charts=False, save_excel=False, generate_html=True, verbose=True,
                  chart_backend: str = 'matplotlib', data_source: str = 'yfinance'):
     """
     Process multiple tickers from a file and save individual analysis reports.
@@ -740,6 +873,7 @@ def process_batch(ticker_file: str, period='12mo', output_dir='results_volume',
         period (str): Analysis period
         output_dir (str): Directory to save output files
         save_charts (bool): Whether to save chart images
+        save_excel (bool): Whether to save Excel files with complete DataFrame data
         generate_html (bool): Whether to generate interactive HTML summary
         verbose (bool): Print progress output during batch processing
         chart_backend (str): Chart engine ('matplotlib' PNG or 'plotly' HTML) passed to analyze_ticker
@@ -795,6 +929,7 @@ def process_batch(ticker_file: str, period='12mo', output_dir='results_volume',
         print(f"📁 Output directory: {output_dir}")
         print(f"📅 Period: {period}")
         print(f"📊 Save charts: {'Yes' if save_charts else 'No'}")
+        print(f"📊 Save Excel: {'Yes' if save_excel else 'No'}")
         print(f"🎨 Chart backend: {chart_backend}")
         print("="*50)
     
@@ -830,12 +965,29 @@ def process_batch(ticker_file: str, period='12mo', output_dir='results_volume',
                     if verbose:
                         print(f"✅ {ticker}: Analysis saved to {filename}")
                     
+                    # Export to Excel if requested
+                    excel_filename = None
+                    if save_excel:
+                        try:
+                            excel_filename = export_dataframe_to_excel(df, ticker, period, output_dir)
+                            if verbose and excel_filename:
+                                print(f"📊 {ticker}: Excel data saved to {excel_filename}")
+                        except FileOperationError as e:
+                            logger.warning(f"Excel export failed for {ticker}: {str(e)}")
+                            if verbose:
+                                print(f"⚠️  {ticker}: Excel export failed - {str(e)}")
+                        except Exception as e:
+                            logger.error(f"Unexpected Excel export error for {ticker}: {str(e)}")
+                            if verbose:
+                                print(f"⚠️  {ticker}: Excel export failed - {str(e)}")
+                    
                     # Calculate metrics using empirically validated thresholds
                     batch_metrics = calculate_batch_metrics(df)
                     
                     results.append({
                         'ticker': ticker,
                         'filename': filename,
+                        'excel_filename': excel_filename,  # Add Excel filename to results
                         **batch_metrics  # Unpack all calculated metrics with threshold compliance
                     })
                     

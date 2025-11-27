@@ -35,6 +35,7 @@ SECTOR_ETFS = {
     'NVDA': 'XLK', 'META': 'XLK', 'TSLA': 'XLK', 'AMD': 'XLK',
     'INTC': 'XLK', 'CRM': 'XLK', 'ORCL': 'XLK', 'CSCO': 'XLK',
     'AVGO': 'XLK', 'ADBE': 'XLK', 'QCOM': 'XLK', 'TXN': 'XLK',
+    'VRT': 'XLK',
     
     # Financials
     'JPM': 'XLF', 'BAC': 'XLF', 'WFC': 'XLF', 'GS': 'XLF',

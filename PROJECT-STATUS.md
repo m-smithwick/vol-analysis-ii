@@ -48,6 +48,66 @@
 
 ## Outstanding Tasks
 
+## ✅ COMPLETED: Plotly Chart Regime Shading Bug Fixed (2025-11-26)
+
+**Issue**: HTML/Plotly charts showed incorrect RED background for last trading day even when `Overall_Regime_OK=TRUE` in the data.
+
+**Discovery Date**: 2025-11-26  
+**Resolution Date**: 2025-11-26
+
+### 🔍 Root Cause Analysis
+
+Three underlying issues caused the bug:
+
+1. **Plotly's shape rendering with row/col parameters**: Using `row=1, col=1` in `add_shape()` caused unreliable rendering in multi-panel layouts
+2. **Boundary rendering issue**: Shapes ending exactly at `len(df)` weren't rendered properly by Plotly
+3. **Zoom button clipping**: Interactive zoom buttons set x-axis range to last data point, clipping any extended shapes
+
+### 🔧 Fix Implemented
+
+**File Modified**: `chart_builder_plotly.py` (lines 92-119, 753-828)
+
+**Three-part solution**:
+
+1. **Extended last regime segment** (Line 107):
+   ```python
+   end_pos = len(df) + 3  # Small extension triggers proper rendering
+   ```
+
+2. **Switched to explicit coordinates** (Lines 113-119):
+   ```python
+   # Changed from row/col to explicit xref/yref
+   fig.add_shape(
+       xref='x', yref='y',  # More reliable than row/col
+       x0=start_pos, x1=end_pos,
+       y0=y0_data, y1=y1_data,
+       ...
+   )
+   ```
+
+3. **Extended zoom button ranges** (Lines 756, 773, 790, 807, 826):
+   ```python
+   x_range_end = end_pos + 5  # Include extended shape area
+   ```
+
+### ✅ Validation Results
+
+**Test Suite**:
+- `tests/test_regime_chart.py` - 30-day controlled patterns ✅
+- `tests/test_large_dataset_regime.py` - 809-day dataset ✅
+- `tests/test_regime_debug.py` - Diagnostic segment analysis ✅
+- `tests/test_buffer_debug.py` - Buffer day experiments ✅
+
+**Verified Functionality**:
+- ✅ Initial chart load shows correct regime colors
+- ✅ Last day regime shading renders correctly
+- ✅ Zoom buttons (1m, 3m, 6m, 12m, All) maintain regime visibility
+- ✅ Both small and large datasets work correctly
+
+**Workaround No Longer Needed**: Plotly backend now works correctly for all dataset sizes.
+
+---
+
 ### Data Infrastructure Improvements
 
 - [ ] **Implement cached earnings dates**: Currently bypassing earnings window filter to avoid Yahoo Finance API rate limits during backtests.

@@ -90,24 +90,43 @@ def create_price_chart(fig, df: pd.DataFrame, ticker: str, period: str, row: int
         regime_changes = df['Overall_Regime_OK'].ne(df['Overall_Regime_OK'].shift()).fillna(True)
         change_positions = [i for i, idx in enumerate(df.index) if idx in df[regime_changes].index]
         
+        # Calculate price range for y-axis positioning (use paper coordinates)
+        price_min = df['Close'].min()
+        price_max = df['Close'].max()
+        price_range = price_max - price_min
+        y0_data = price_min - (price_range * 0.1)  # Extend below visible range
+        y1_data = price_max + (price_range * 0.1)  # Extend above visible range
+        
         # Add shaded regions as background shapes
         for i in range(len(change_positions)):
             start_pos = change_positions[i]
-            end_pos = change_positions[i + 1] if i + 1 < len(change_positions) else len(df) - 1
+            # Calculate end position
+            if i + 1 < len(change_positions):
+                # Not the last segment - use next change position
+                end_pos = change_positions[i + 1]
+            else:
+                # Last segment - extend modestly beyond data to ensure rendering
+                # Plotly has issues rendering very narrow shapes at dataset boundaries
+                # Small extension (3-5 positions) is enough to trigger rendering
+                # without extending so far that zoom buttons clip it
+                end_pos = len(df) + 3
             
             regime_ok = df.iloc[start_pos]['Overall_Regime_OK']
             
-            # Add shape to first subplot (price chart)
+            # Add shape using explicit xref/yref (data coordinates)
+            # This is more reliable than relying on row/col automatic handling
             fig.add_shape(
                 type="rect",
-                xref="x", yref=f"y{'' if row == 1 else row} domain",
-                x0=start_pos, x1=end_pos,
-                y0=0, y1=1,
+                xref='x',
+                yref='y',
+                x0=start_pos,
+                x1=end_pos,
+                y0=y0_data,
+                y1=y1_data,
                 fillcolor="green" if regime_ok else "red",
                 opacity=0.15,
                 layer="below",
-                line_width=0,
-                row=row, col=1
+                line_width=0
             )
     
     # Main price line
@@ -817,15 +836,17 @@ def generate_analysis_chart(df: pd.DataFrame, ticker: str, period: str,
     if total_days > one_month:
         start_pos = total_days - one_month
         end_pos = total_days - 1
+        # Add small buffer to x-axis range to show extended regime shapes
+        x_range_end = end_pos + 5
         ticks_1m, labels_1m = get_ticks_for_range(start_pos, end_pos, df)
         price_range_1m, vol_ind_range_1m, volume_range_1m = get_y_axis_ranges(start_pos, end_pos)
         
         range_buttons.append(dict(
             label="1m",
             method="relayout",
-            args=[{"xaxis.range": [start_pos, end_pos],
-                   "xaxis2.range": [start_pos, end_pos],
-                   "xaxis3.range": [start_pos, end_pos],
+            args=[{"xaxis.range": [start_pos, x_range_end],
+                   "xaxis2.range": [start_pos, x_range_end],
+                   "xaxis3.range": [start_pos, x_range_end],
                    "xaxis.tickvals": ticks_1m,
                    "xaxis.ticktext": labels_1m,
                    "xaxis2.tickvals": ticks_1m,
@@ -841,15 +862,17 @@ def generate_analysis_chart(df: pd.DataFrame, ticker: str, period: str,
     if total_days > three_months:
         start_pos = total_days - three_months
         end_pos = total_days - 1
+        # Add small buffer to x-axis range to show extended regime shapes
+        x_range_end = end_pos + 5
         ticks_3m, labels_3m = get_ticks_for_range(start_pos, end_pos, df)
         price_range_3m, vol_ind_range_3m, volume_range_3m = get_y_axis_ranges(start_pos, end_pos)
         
         range_buttons.append(dict(
             label="3m",
             method="relayout",
-            args=[{"xaxis.range": [start_pos, end_pos],
-                   "xaxis2.range": [start_pos, end_pos],
-                   "xaxis3.range": [start_pos, end_pos],
+            args=[{"xaxis.range": [start_pos, x_range_end],
+                   "xaxis2.range": [start_pos, x_range_end],
+                   "xaxis3.range": [start_pos, x_range_end],
                    "xaxis.tickvals": ticks_3m,
                    "xaxis.ticktext": labels_3m,
                    "xaxis2.tickvals": ticks_3m,
@@ -865,15 +888,17 @@ def generate_analysis_chart(df: pd.DataFrame, ticker: str, period: str,
     if total_days > six_months:
         start_pos = total_days - six_months
         end_pos = total_days - 1
+        # Add small buffer to x-axis range to show extended regime shapes
+        x_range_end = end_pos + 5
         ticks_6m, labels_6m = get_ticks_for_range(start_pos, end_pos, df)
         price_range_6m, vol_ind_range_6m, volume_range_6m = get_y_axis_ranges(start_pos, end_pos)
         
         range_buttons.append(dict(
             label="6m",
             method="relayout",
-            args=[{"xaxis.range": [start_pos, end_pos],
-                   "xaxis2.range": [start_pos, end_pos],
-                   "xaxis3.range": [start_pos, end_pos],
+            args=[{"xaxis.range": [start_pos, x_range_end],
+                   "xaxis2.range": [start_pos, x_range_end],
+                   "xaxis3.range": [start_pos, x_range_end],
                    "xaxis.tickvals": ticks_6m,
                    "xaxis.ticktext": labels_6m,
                    "xaxis2.tickvals": ticks_6m,
@@ -889,15 +914,17 @@ def generate_analysis_chart(df: pd.DataFrame, ticker: str, period: str,
     if total_days > twelve_months:
         start_pos = total_days - twelve_months
         end_pos = total_days - 1
+        # Add small buffer to x-axis range to show extended regime shapes
+        x_range_end = end_pos + 5
         ticks_12m, labels_12m = get_ticks_for_range(start_pos, end_pos, df)
         price_range_12m, vol_ind_range_12m, volume_range_12m = get_y_axis_ranges(start_pos, end_pos)
         
         range_buttons.append(dict(
             label="12m",
             method="relayout",
-            args=[{"xaxis.range": [start_pos, end_pos],
-                   "xaxis2.range": [start_pos, end_pos],
-                   "xaxis3.range": [start_pos, end_pos],
+            args=[{"xaxis.range": [start_pos, x_range_end],
+                   "xaxis2.range": [start_pos, x_range_end],
+                   "xaxis3.range": [start_pos, x_range_end],
                    "xaxis.tickvals": ticks_12m,
                    "xaxis.ticktext": labels_12m,
                    "xaxis2.tickvals": ticks_12m,
@@ -910,13 +937,14 @@ def generate_analysis_chart(df: pd.DataFrame, ticker: str, period: str,
         ))
     
     # All button - use the original tick labels we calculated
+    # Add small buffer to x-axis range to show extended regime shapes
     price_range_all, vol_ind_range_all, volume_range_all = get_y_axis_ranges(0, total_days - 1)
     range_buttons.append(dict(
         label="All",
         method="relayout",
-        args=[{"xaxis.range": [0, total_days - 1],
-               "xaxis2.range": [0, total_days - 1],
-               "xaxis3.range": [0, total_days - 1],
+        args=[{"xaxis.range": [0, total_days - 1 + 5],
+               "xaxis2.range": [0, total_days - 1 + 5],
+               "xaxis3.range": [0, total_days - 1 + 5],
                "xaxis.tickvals": tick_positions,
                "xaxis.ticktext": tick_labels,
                "xaxis2.tickvals": tick_positions,

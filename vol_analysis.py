@@ -816,6 +816,12 @@ Note: Legacy periods (1y, 2y, 5y, etc.) are automatically converted to month equ
     )
     
     parser.add_argument(
+        '--save-excel',
+        action='store_true',
+        help='Save Excel files with complete DataFrame data (requires openpyxl: pip install openpyxl)'
+    )
+    
+    parser.add_argument(
         '--chart-backend',
         choices=['matplotlib', 'plotly'],
         default='matplotlib',
@@ -899,6 +905,7 @@ Note: Legacy periods (1y, 2y, 5y, etc.) are automatically converted to month equ
                 period=args.period,
                 output_dir=args.output_dir,
                 save_charts=args.save_charts,
+                save_excel=args.save_excel,
                 chart_backend=args.chart_backend,
                 verbose=args.debug,
                 data_source=args.data_source

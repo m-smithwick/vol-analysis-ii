@@ -55,7 +55,9 @@ def create_price_chart(ax, df: pd.DataFrame, ticker: str, period: str) -> None:
         # Draw shaded regions for each regime period
         for i in range(len(change_positions)):
             start_pos = change_positions[i]
-            end_pos = change_positions[i + 1] if i + 1 < len(change_positions) else len(df) - 1
+            # Fix: Use len(df) instead of len(df) - 1 to include the last data point
+            # axvspan treats end_pos as exclusive, so we need len(df) to include index len(df)-1
+            end_pos = change_positions[i + 1] if i + 1 < len(change_positions) else len(df)
             
             regime_ok = df.iloc[start_pos]['Overall_Regime_OK']
             
