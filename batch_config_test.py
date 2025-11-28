@@ -4,6 +4,11 @@ Batch Configuration Testing Framework
 Runs backtests across multiple YAML configurations and compares results.
 Enables systematic testing of parameter variations without code changes.
 
+Output Structure:
+- All comparison reports (CSV, Excel, text) saved to main output directory
+- No per-configuration subdirectories created (since individual reports disabled)
+- Clean filesystem with only aggregate comparison files
+
 Part of Configuration-Based Testing Framework (Phase 2)
 """
 
@@ -78,11 +83,8 @@ def run_config_comparison(
             stop_params = config_loader.get_stop_params()
             backtest_config = config_loader.get_backtest_config()
             
-            # Create config-specific output directory
-            config_output_dir = os.path.join(output_dir, config_name)
-            os.makedirs(config_output_dir, exist_ok=True)
-            
             # Run batch backtest with this configuration
+            # Note: No config-specific subdirectory needed since save_individual_reports=False
             logger.info(f"Running batch backtest with {config_name} configuration...")
             
             # Convert lookback_months integer to period string (e.g., 36 -> "36mo")
@@ -94,7 +96,7 @@ def run_config_comparison(
                 period=period,  # Now properly formatted as string
                 start_date=backtest_config.get('start_date'),
                 end_date=backtest_config.get('end_date'),
-                output_dir=config_output_dir,
+                output_dir=output_dir,  # Use parent directory (no per-config subdirs needed)
                 risk_managed=True,  # Always use risk management
                 account_value=risk_params['account_value'],
                 risk_pct=risk_params['risk_pct_per_trade'],
@@ -108,8 +110,7 @@ def run_config_comparison(
             comparison_results['results_by_config'][config_name] = {
                 'config_path': config_path,
                 'config': config_loader.config,
-                'backtest_results': results,
-                'output_dir': config_output_dir
+                'backtest_results': results
             }
             
             logger.info(f"✅ Completed {config_name}: {len(results.get('all_paired_trades', []))} trades")

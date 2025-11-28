@@ -19,7 +19,7 @@ risk_management:
   # Time Stop Configuration
   # Exit after N bars if position is below +1R
   # Set to 0 or negative to disable time stops
-  time_stop_bars: 12  # Default: 12 bars
+  time_stop_bars: 20  # Default: 20 bars
   
   # Stop Strategy Parameters
   stop_params:

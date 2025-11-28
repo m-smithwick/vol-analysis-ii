@@ -243,6 +243,13 @@ python batch_backtest.py -f ticker_lists/ibd.txt -c configs/conservative_config.
 python batch_config_test.py -c configs/*.yaml -f ticker_lists/ibd.txt
 ```
 
+### `batch_config_test.py`
+- `-c` / `--configs`: **required** space-separated paths to YAML config files to test (e.g., `configs/*.yaml`).
+- `-f` / `--file`: **required** ticker file for backtesting.
+- `-o` / `--output-dir`: output directory for comparison reports (default `backtest_results/config_comparison`).
+- **Outputs**: CSV, Excel (with conditional formatting), and detailed text report comparing all configurations.
+- **Use for**: Systematically comparing multiple configurations to find optimal parameters for your portfolio.
+
 ### `sector_dashboard.py`
 - `-p` / `--period {1mo,3mo,6mo,12mo}`: scoring window (default `3mo`).
 - `-o` / `--output-dir`: save dashboard report to directory.

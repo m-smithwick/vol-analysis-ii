@@ -30,10 +30,12 @@ python batch_config_test.py \
   -o backtest_results/config_comparison
 ```
 
-This generates:
+This generates (all files in the output directory):
 - **CSV file**: Sortable comparison table
 - **Excel file**: Professionally formatted with conditional coloring
 - **Text report**: Detailed analysis with rankings and insights
+
+**Note**: Configuration subdirectories are not created since individual per-ticker reports are disabled by default (saves disk space). All comparison files go directly into the output directory.
 
 ## Available Configurations
 
