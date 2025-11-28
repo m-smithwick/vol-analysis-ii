@@ -56,7 +56,7 @@ Need the deeper architecture or indicator breakdown? See `docs/ARCHITECTURE_REFE
    python populate_cache_bulk.py --months 12 --ticker-files ticker_lists/indices.txt ticker_lists/sector_etfs.txt
 
    # use a date range for catching up the last few days. 
-   python populate_cache_bulk.py --start 2025-11-23 --end 2025-11-25  --ticker-files cmb.txt
+   python populate_cache_bulk.py --start 2025-11-23 --end 2025-11-27  --ticker-files cmb.txt
    ```
    
    > 💡 **New users**: Start with Option A (Yahoo Finance). It works immediately without any setup.
@@ -101,7 +101,7 @@ After running backtests, use these tools to evaluate and optimize your strategy:
 ### Professional Evaluation
 ```bash
 # Calculate institutional-grade metrics (Sharpe, drawdown, etc.)
-python analyze_professional_metrics.py --csv backtest_results/LOG_FILE_cmb_24mo_20251124_210835.csv
+python analyze_professional_metrics.py --csv backtest_results/LOG_FILE_cmb_24mo_20251127_124420.csv
 ```
 **Outputs:** Sharpe ratio (3.35), maximum drawdown (-9.37%), monthly consistency (73.9%),  
 loss streaks (16 max), professional grading (Institutional Quality: Grade A-)
@@ -154,6 +154,12 @@ For detailed script purposes and overlap analysis, see `ANALYSIS_SCRIPTS_OVERLAP
 ## Validation Status
 
 - **Moderate Buy** – ✅ Live, but expect +2‑3% median returns (see `OUT_OF_SAMPLE_VALIDATION_REPORT.md`).
+- **Configuration System** – ✅ **VALIDATED (Nov 27, 2025)**: 6 configurations tested on 24 tickers, 36-month period
+  * **BALANCED (RECOMMENDED)**: +90.75% return, -12.09% drawdown, **7.51 return/DD ratio** — **Best risk-adjusted**
+  * Conservative: +121.92% return, -31.73% drawdown (highest returns, painful drawdowns)
+  * Base: +68.21% return, -11.86% drawdown (smoothest equity curve)
+  * **Key finding**: 20-bar time stops optimal (vs 0, 8, or 12 bars)
+  * See `PROJECT-STATUS.md` for complete analysis
 - **Variable Stop Loss** – ✅ Validated with 4,249 trades. Time Decay winner: **+22% improvement** (1.52R vs 1.25R static).
 - **Stop Strategy** – ✅ **CRITICAL UPDATE (Nov 2025)**: Validated across 982 trades, 36-month period
   * **STATIC (RECOMMENDED)**: $161,278 P&L, 15% stop rate, $417/trade avg — **New default**
@@ -175,6 +181,7 @@ Full details and review cadence live in `docs/VALIDATION_STATUS.md`.
 - `-f` / `--file`: batch mode ticker file.
 - `-p` / `--period`: analysis period (e.g., `6mo`, `24mo`, `ytd`).
 - `-o` / `--output-dir`: batch output directory (default `results_volume`).
+- `--config` / `-c`: **NEW** Path to YAML configuration file (e.g., `configs/aggressive_config.yaml`). Applies signal thresholds and all config settings.
 - `--save-charts`: store PNG/HTML charts during batch runs.
 - `--save-excel`: save Excel files with complete DataFrame data (requires openpyxl: pip install openpyxl).
 - `--chart-backend {matplotlib,plotly}`: control renderer (default `matplotlib`).
@@ -191,6 +198,18 @@ Full details and review cadence live in `docs/VALIDATION_STATUS.md`.
 - `--debug`: verbose logging.
 - `--validate-thresholds`: run walk-forward threshold validation routine.
 
+**Configuration Examples**:
+```bash
+# Use balanced settings (RECOMMENDED - best risk-adjusted)
+python vol_analysis.py AAPL --config configs/balanced_config.yaml
+
+# Use conservative settings (highest returns, higher drawdown)
+python vol_analysis.py AAPL --config configs/conservative_config.yaml
+
+# Use base settings (original validated baseline)
+python vol_analysis.py AAPL --config configs/base_config.yaml
+```
+
 ### `populate_cache_bulk.py`
 - `--months N`: number of months to backfill (mutually exclusive with `--start`).
 - `--start YYYY-MM-DD`: explicit start date.
@@ -204,12 +223,25 @@ Full details and review cadence live in `docs/VALIDATION_STATUS.md`.
 - `--start-date YYYY-MM-DD`: begin date for regime analysis (requires `--end-date`).
 - `--end-date YYYY-MM-DD`: end date (requires `--start-date`).
 - `-o` / `--output-dir`: backtest output folder (default `backtest_results`).
+- `-c` / `--config`: **NEW** Path to YAML configuration file (e.g., `configs/aggressive_config.yaml`). Overrides default risk management settings.
 - `--risk-managed`: (default) ensure RiskManager is active for all trades.
 - `--simple`: disable RiskManager and run legacy entry/exit pairing.
 - `--stop-strategy {static,vol_regime,atr_dynamic,pct_trail,time_decay}`: stop method when risk-managed (default `static` - RECOMMENDED). See `STOP_STRATEGY_VALIDATION.md` for validation results.
 - `--time-stop-bars N`: number of bars before TIME_STOP exit if <+1R (default `12`, set to `0` to disable time stops).
 - `--no-individual-reports`: skip creating individual text files per ticker (saves disk space; XLSX ledger contains all trade details).
 - `--account-value`: starting account equity for risk-managed batch jobs (default `100000`).
+
+**Configuration Examples**:
+```bash
+# Use balanced settings (RECOMMENDED - best risk-adjusted)
+python batch_backtest.py -f ticker_lists/ibd.txt -c configs/balanced_config.yaml
+
+# Use conservative settings (highest returns, higher drawdown)
+python batch_backtest.py -f ticker_lists/ibd.txt -c configs/conservative_config.yaml
+
+# Compare all 6 configurations
+python batch_config_test.py -c configs/*.yaml -f ticker_lists/ibd.txt
+```
 
 ### `sector_dashboard.py`
 - `-p` / `--period {1mo,3mo,6mo,12mo}`: scoring window (default `3mo`).
@@ -253,6 +285,8 @@ Refer to each script's `--help` flag for full descriptions and examples.
 | Cache schema & migrations | `docs/CACHE_SCHEMA.md` |
 | Validation history | `STRATEGY_VALIDATION_COMPLETE.md`, `docs/VALIDATION_STATUS.md` |
 | Backtest validation methodology | `BACKTEST_VALIDATION_METHODOLOGY.md` |
+| **Configuration system (NEW Nov 2025)** | `configs/README.md` |
+| **Hardcoded parameters audit** | `docs/HARDCODED_PARAMETERS_AUDIT.md` |
 | Troubleshooting | `docs/TROUBLESHOOTING.md` |
 
 ---

@@ -16,6 +16,9 @@ from error_handler import (
     validate_file_path, safe_operation, get_logger, setup_logging
 )
 
+# Import configuration loader
+from config_loader import load_config, ConfigValidationError
+
 # Import data manager for smart data retrieval with multiple sources
 from analysis_service import prepare_analysis_dataframe
 from data_manager import (
@@ -356,7 +359,7 @@ def generate_analysis_text(ticker: str, df: pd.DataFrame, period: str) -> str:
 
 def analyze_ticker(ticker: str, period='6mo', save_to_file=False, output_dir='.', save_chart=False,
                    force_refresh=False, cache_only=True, show_chart=True, show_summary=True, debug=False,
-                   chart_backend: str = 'matplotlib', data_source: str = 'yfinance'):
+                   chart_backend: str = 'matplotlib', data_source: str = 'yfinance', config: dict = None):
     """
     Retrieve and analyze price-volume data for a given ticker symbol.
     
@@ -373,6 +376,7 @@ def analyze_ticker(ticker: str, period='6mo', save_to_file=False, output_dir='.'
         debug (bool): Enable additional progress prints when saving artifacts
         chart_backend (str): Chart engine to use ('matplotlib' for PNG, 'plotly' for interactive HTML)
         data_source (str): Data source to use ('yfinance' or 'massive')
+        config (dict): Optional configuration dict from YAML config file
         
     Raises:
         DataValidationError: If ticker or period is invalid
@@ -390,7 +394,8 @@ def analyze_ticker(ticker: str, period='6mo', save_to_file=False, output_dir='.'
             validate_file_path(output_dir, check_exists=True, check_writable=True)
         
         logger = get_logger()
-        
+    
+    # Prepare analysis dataframe with config
     df = prepare_analysis_dataframe(
         ticker,
         period,
@@ -398,6 +403,7 @@ def analyze_ticker(ticker: str, period='6mo', save_to_file=False, output_dir='.'
         force_refresh=force_refresh,
         cache_only=cache_only,
         verbose=show_summary,
+        config=config,
     )
     
     # --- Generate Chart using selected Chart Builder Module ---
@@ -876,7 +882,28 @@ Note: Legacy periods (1y, 2y, 5y, etc.) are automatically converted to month equ
         help='Run walk-forward threshold validation (Item #9)'
     )
     
+    parser.add_argument(
+        '--config',
+        help='Path to YAML configuration file (e.g., configs/aggressive_config.yaml). Overrides individual parameters.'
+    )
+    
     args = parser.parse_args()
+    
+    # Load configuration if provided
+    config_loader = None
+    config_dict = None
+    if args.config:
+        try:
+            print(f"\n📋 Loading configuration from {args.config}...")
+            config_loader = load_config(args.config)
+            config_loader.print_summary()
+            config_dict = config_loader.config
+            print("\n✅ Configuration will be applied to signal generation!")
+            print(f"   Using threshold: {config_dict['signal_thresholds']['entry']['moderate_buy_pullback']:.1f} for Moderate Buy")
+            print(f"   Using threshold: {config_dict['signal_thresholds']['entry']['strong_buy']:.1f} for Strong Buy\n")
+        except (ConfigValidationError, FileNotFoundError) as e:
+            print(f"❌ Configuration error: {e}")
+            sys.exit(1)
 
     # Configure logging verbosity based on debug flag
     log_level = "DEBUG" if args.debug else "WARNING"
@@ -931,7 +958,8 @@ Note: Legacy periods (1y, 2y, 5y, etc.) are automatically converted to month equ
                     show_summary=True,
                     debug=args.debug,
                     chart_backend=args.chart_backend,
-                    data_source=args.data_source
+                    data_source=args.data_source,
+                    config=config_dict
                 )
 
                 if args.validate_thresholds:

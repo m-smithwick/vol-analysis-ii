@@ -7,7 +7,7 @@ description: "Volatility regime stops - tighter in calm markets, wider in volati
 
 risk_management:
   account_value: 100000
-  risk_pct_per_trade: 0.75
+  risk_pct_per_trade: 1.0
   stop_strategy: "vol_regime"  # Second-best from validation testing
   time_stop_bars: 12
   

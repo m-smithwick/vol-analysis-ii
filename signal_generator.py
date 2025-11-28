@@ -115,12 +115,12 @@ def calculate_exit_score(df: pd.DataFrame) -> pd.Series:
     return score
 
 
-def generate_strong_buy_signals(df: pd.DataFrame) -> pd.Series:
+def generate_strong_buy_signals(df: pd.DataFrame, threshold: float = 7.0) -> pd.Series:
     """
     Detect strong buy opportunities.
     
     Criteria:
-    - High accumulation score (≥7)
+    - High accumulation score (≥threshold, default 7.0)
     - Near support level
     - Above VWAP
     - Healthy volume (1.2x-3.0x average)
@@ -129,6 +129,7 @@ def generate_strong_buy_signals(df: pd.DataFrame) -> pd.Series:
     Args:
         df: DataFrame with required columns: Accumulation_Score, Near_Support,
             Above_VWAP, Relative_Volume, Event_Day
+        threshold: Accumulation score threshold (default: 7.0, configurable)
             
     Returns:
         Boolean Series indicating strong buy signals
@@ -137,7 +138,7 @@ def generate_strong_buy_signals(df: pd.DataFrame) -> pd.Series:
     event_day_filter = ~df['Event_Day'] if 'Event_Day' in df.columns else True
     
     return (
-        (df['Accumulation_Score'] >= 7) & 
+        (df['Accumulation_Score'] >= threshold) & 
         df['Near_Support'] & 
         df['Above_VWAP'] & 
         (df['Relative_Volume'] >= 1.2) &
@@ -146,7 +147,7 @@ def generate_strong_buy_signals(df: pd.DataFrame) -> pd.Series:
     )
 
 
-def generate_moderate_buy_signals(df: pd.DataFrame) -> pd.Series:
+def generate_moderate_buy_signals(df: pd.DataFrame, threshold: float = 5.0) -> pd.Series:
     """
     Detect moderate buy opportunities during pullbacks in uptrends.
     
@@ -155,7 +156,7 @@ def generate_moderate_buy_signals(df: pd.DataFrame) -> pd.Series:
     and Strong Buy (catches breakouts).
     
     Criteria:
-    - Accumulation score ≥5 (no upper limit - removed narrow 5-7 window)
+    - Accumulation score ≥threshold (default 5.0, configurable, no upper limit)
     - In pullback zone (below 5-day MA but above 20-day MA)
     - Volume normalizing (<1.5x average)
     - CMF positive (buying pressure returning)
@@ -165,6 +166,7 @@ def generate_moderate_buy_signals(df: pd.DataFrame) -> pd.Series:
     Args:
         df: DataFrame with required columns: Accumulation_Score, Close,
             Relative_Volume, CMF_Z, Strong_Buy, Event_Day
+        threshold: Accumulation score threshold (default: 5.0, configurable)
             
     Returns:
         Boolean Series indicating moderate buy signals during pullbacks
@@ -183,10 +185,10 @@ def generate_moderate_buy_signals(df: pd.DataFrame) -> pd.Series:
     pullback_zone = (df['Close'] < ma_5).fillna(False) & (df['Close'] > ma_20).fillna(False)
     
     moderate_conditions = (
-        (df['Accumulation_Score'] >= 5) &  # Removed upper limit
-        pullback_zone &                     # In pullback zone (key change)
-        (df['Relative_Volume'] < 1.5) &     # Volume normalizing
-        cmf_positive &                      # Buying pressure returning
+        (df['Accumulation_Score'] >= threshold) &  # Now configurable
+        pullback_zone &                             # In pullback zone (key change)
+        (df['Relative_Volume'] < 1.5) &             # Volume normalizing
+        cmf_positive &                              # Buying pressure returning
         event_day_filter
     )
     
@@ -478,7 +480,8 @@ def generate_stop_loss_signals(df: pd.DataFrame) -> pd.Series:
     )
 
 
-def generate_all_entry_signals(df: pd.DataFrame, apply_prefilters: bool = True) -> pd.DataFrame:
+def generate_all_entry_signals(df: pd.DataFrame, apply_prefilters: bool = True, 
+                               thresholds: dict = None) -> pd.DataFrame:
     """
     Generate all entry signals and add to DataFrame.
     
@@ -487,6 +490,7 @@ def generate_all_entry_signals(df: pd.DataFrame, apply_prefilters: bool = True) 
     are created that respect liquidity, price, and earnings window filters.
     
     Updated 2025-11-22: Applies MINIMUM_ACCUMULATION_SCORE global threshold to all signals.
+    Updated 2025-11-27: Accepts configurable thresholds from YAML config files.
     
     This convenience function generates:
     - Accumulation Score
@@ -499,11 +503,22 @@ def generate_all_entry_signals(df: pd.DataFrame, apply_prefilters: bool = True) 
     Args:
         df: DataFrame with OHLCV data and technical indicators
         apply_prefilters: If True and Pre_Filter_OK exists, apply pre-trade filters
+        thresholds: Optional dict with signal thresholds from config file
+            Expected keys: 'strong_buy', 'moderate_buy_pullback', etc.
         
     Returns:
         DataFrame with all entry signal columns added (and _raw versions if filtered)
     """
     df = df.copy()
+    
+    # Extract thresholds from config or use defaults
+    if thresholds:
+        strong_buy_threshold = thresholds.get('strong_buy', 7.0)
+        moderate_buy_threshold = thresholds.get('moderate_buy_pullback', 6.0)
+    else:
+        # Use defaults
+        strong_buy_threshold = 7.0
+        moderate_buy_threshold = 6.0
     
     # Generate accumulation score first
     df['Accumulation_Score'] = calculate_accumulation_score(df)
@@ -512,16 +527,28 @@ def generate_all_entry_signals(df: pd.DataFrame, apply_prefilters: bool = True) 
     signal_columns = ['Strong_Buy', 'Moderate_Buy', 'Stealth_Accumulation', 
                       'Confluence_Signal', 'Volume_Breakout']
     
-    df['Strong_Buy'] = generate_strong_buy_signals(df)
-    df['Moderate_Buy'] = generate_moderate_buy_signals(df)
+    df['Strong_Buy'] = generate_strong_buy_signals(df, threshold=strong_buy_threshold)
+    df['Moderate_Buy'] = generate_moderate_buy_signals(df, threshold=moderate_buy_threshold)
     df['Stealth_Accumulation'] = generate_stealth_accumulation_signals(df)
     df['Confluence_Signal'] = generate_confluence_signals(df)
     df['Volume_Breakout'] = generate_volume_breakout_signals(df)
     
-    # Apply GLOBAL MINIMUM ACCUMULATION SCORE threshold (2025-11-22)
-    # Based on 694-trade analysis showing ≥7.0 optimizes expectancy (+8.57% vs +7.92%)
-    # This filters out weak signals to reduce TIME_STOP rate from 40% to target <25%
-    accumulation_filter = df['Accumulation_Score'] >= MINIMUM_ACCUMULATION_SCORE
+    # Apply minimum accumulation score threshold
+    # If thresholds provided from config, use minimum from config
+    # Otherwise use MINIMUM_ACCUMULATION_SCORE (7.0 default)
+    if thresholds:
+        # Find minimum threshold from config (allows configs to control filtering)
+        config_thresholds = [
+            thresholds.get('strong_buy', 7.0),
+            thresholds.get('moderate_buy_pullback', 6.0),
+            thresholds.get('stealth_accumulation', 4.0),
+            thresholds.get('volume_breakout', 6.0)
+        ]
+        min_threshold = min(config_thresholds)
+        accumulation_filter = df['Accumulation_Score'] >= min_threshold
+    else:
+        # Use hardcoded default (backward compatibility)
+        accumulation_filter = df['Accumulation_Score'] >= MINIMUM_ACCUMULATION_SCORE
     
     for col in signal_columns:
         df[col] = df[col] & accumulation_filter

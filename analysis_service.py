@@ -34,6 +34,7 @@ def prepare_analysis_dataframe(
     force_refresh: bool = False,
     cache_only: bool = True,
     verbose: bool = False,
+    config: dict = None,
 ) -> pd.DataFrame:
     """
     Build the full indicator + signal DataFrame used by analysis/backtesting.
@@ -45,6 +46,7 @@ def prepare_analysis_dataframe(
         force_refresh: Force download fresh data (overrides cache_only)
         cache_only: Only use cached data, never download (default: True)
         verbose: Enable verbose logging
+        config: Optional configuration dict from YAML config file
     """
     with ErrorContext("preparing analysis dataframe", ticker=ticker, period=period):
         validate_ticker(ticker)
@@ -199,9 +201,15 @@ def prepare_analysis_dataframe(
         signal_generator.calculate_stealth_accumulation_score(df)
     )
 
+    # Extract signal thresholds from config if provided
+    signal_thresholds = None
+    if config:
+        signal_thresholds = config.get('signal_thresholds', {}).get('entry', {})
+    
     # Generate all signals using unified function (applies MINIMUM_ACCUMULATION_SCORE filter)
     # Updated 2025-11-22: Uses generate_all_entry_signals() which applies global threshold
-    df = signal_generator.generate_all_entry_signals(df, apply_prefilters=False)
+    # Updated 2025-11-27: Passes configurable thresholds from YAML config files
+    df = signal_generator.generate_all_entry_signals(df, apply_prefilters=False, thresholds=signal_thresholds)
     df = signal_generator.generate_all_exit_signals(df)
 
     # Apply historical regime filter (bar-by-bar for backtest accuracy)

@@ -39,14 +39,18 @@
 ## Configuration System (NEW - Nov 2025)
 
 **`config_loader.py`** - Loads and validates YAML configuration files. Provides schema validation, type checking, and convenience methods for extracting config sections.  
+**`batch_config_test.py`** - Batch configuration testing framework. Runs multiple configurations, generates comparison reports (CSV/Excel/text), ranks by performance metrics.  
 **`configs/` directory** - YAML configuration files for different testing scenarios:
 - `base_config.yaml` - Production baseline (static stops, 0.75% risk, validated parameters)
 - `time_decay_config.yaml` - Time decay stop strategy (validated +22% improvement)
 - `vol_regime_config.yaml` - Volatility regime-adaptive stops (validated +30% improvement)
 - `conservative_config.yaml` - Lower risk approach (0.5% risk, no time stops)
 - `aggressive_config.yaml` - Higher risk approach (1.0% risk, tight time stops)
+- `README.md` - Complete configuration system documentation with examples and best practices
 
-**Purpose**: Enable systematic testing of parameter variations without code changes. Configuration covers risk management, stop strategies, signal thresholds, regime filters, profit management, and backtest settings.
+**Purpose**: Enable systematic testing of parameter variations without code changes. Configuration covers risk management, stop strategies, signal thresholds, regime filters, profit management, and backtest settings. Batch testing framework allows comparison of multiple configurations to identify optimal parameter combinations.
+
+**Usage**: `python batch_config_test.py -c configs/*.yaml -f ticker_lists/ibd.txt -o results/`
 
 ---
 

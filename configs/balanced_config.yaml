@@ -1,15 +1,15 @@
-# Aggressive Risk Configuration
-# Higher risk per trade, aggressive time stops, maximize trade frequency
+# Balanced Configuration
+# Conservative signal quality with moderate downside protection
 
-config_name: "aggressive"
+config_name: "balanced"
 config_version: "1.0"
-description: "Aggressive signals - Lower thresholds (5.5), tight time stops (8 bars), SPY-only regime filter"
+description: "Balanced approach - High thresholds (6.5), moderate time stops (20 bars), strict regime filters"
 
 risk_management:
   account_value: 100000
   risk_pct_per_trade: 1.0  # Standardized across all configs
   stop_strategy: "static"
-  time_stop_bars: 8  # Tighter time stop (vs 12 baseline)
+  time_stop_bars: 20  # Longer than base (12), provides moderate protection
   
   stop_params:
     static:
@@ -34,10 +34,10 @@ risk_management:
 
 signal_thresholds:
   entry:
-    moderate_buy_pullback: 5.5  # Lower threshold for more entries
-    stealth_accumulation: 3.5
-    strong_buy: 5.5
-    volume_breakout: 5.5
+    moderate_buy_pullback: 6.5  # Conservative's high-quality threshold
+    stealth_accumulation: 4.5
+    strong_buy: 6.5
+    volume_breakout: 6.5
   exit:
     momentum_exhaustion: 5.0
     profit_taking: 5.0
@@ -51,8 +51,8 @@ signal_thresholds:
 
 regime_filters:
   enable_spy_regime: true
-  enable_sector_regime: false  # Less strict - SPY only
-  require_both_regimes: false
+  enable_sector_regime: true  # Strict regime requirements like conservative
+  require_both_regimes: true
   sector_mapping_file: "ticker_lists/sector_mappings.csv"
 
 profit_management:
@@ -73,3 +73,10 @@ backtest:
   generate_charts: true
   chart_save_dir: "backtest_results"
   generate_trade_log: true
+
+# Strategy Notes:
+# - Uses conservative's proven high-quality signal threshold (6.5)
+# - Adds moderate time stop protection (20 bars) to limit drawdown
+# - Maintains strict regime filtering (SPY+Sector) for better timing
+# - Expected: ~+100-110% return with ~-15-20% drawdown
+# - Should provide better risk-adjusted returns than conservative

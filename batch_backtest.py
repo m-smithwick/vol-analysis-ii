@@ -26,6 +26,9 @@ from signal_threshold_validator import apply_empirical_thresholds
 from analysis_service import prepare_analysis_dataframe
 from data_manager import read_ticker_file
 
+# Import configuration loader
+from config_loader import load_config, ConfigValidationError
+
 # Configure logging for this module
 setup_logging()
 
@@ -1050,7 +1053,46 @@ def main():
         help='Starting account equity for risk-managed runs (default: 100000)'
     )
     
+    parser.add_argument(
+        '-c', '--config',
+        help='Path to YAML configuration file (e.g., configs/aggressive_config.yaml). Overrides individual parameters.'
+    )
+    
     args = parser.parse_args()
+    
+    # Load configuration if provided (overrides command-line defaults)
+    if args.config:
+        try:
+            print(f"\n📋 Loading configuration from {args.config}...")
+            config_loader = load_config(args.config)
+            config_loader.print_summary()
+            
+            # Extract parameters from config
+            risk_params = config_loader.get_risk_manager_params()
+            
+            # Override defaults with config values (command-line args take precedence)
+            if not hasattr(args, 'account_value_set'):
+                args.account_value = risk_params['account_value']
+            if args.stop_strategy == DEFAULT_STOP_STRATEGY:
+                args.stop_strategy = risk_params['stop_strategy']
+            if args.time_stop_bars == DEFAULT_TIME_STOP_BARS:
+                args.time_stop_bars = risk_params['time_stop_bars']
+            
+            # Note: risk_pct not exposed as command-line arg, always use config
+            args.risk_pct = risk_params['risk_pct_per_trade']
+            
+            print(f"\n✅ Configuration loaded successfully!")
+            print(f"   Account Value: ${args.account_value:,}")
+            print(f"   Risk per Trade: {args.risk_pct}%")
+            print(f"   Stop Strategy: {args.stop_strategy}")
+            print(f"   Time Stop: {args.time_stop_bars} bars\n")
+            
+        except (ConfigValidationError, FileNotFoundError) as e:
+            print(f"❌ Configuration error: {e}")
+            sys.exit(1)
+    else:
+        # No config provided, use default risk_pct
+        args.risk_pct = 0.75
     
     # Validate date range if provided
     if (args.start_date and not args.end_date) or (args.end_date and not args.start_date):
@@ -1065,6 +1107,7 @@ def main():
         output_dir=args.output_dir,
         risk_managed=args.risk_managed,
         account_value=args.account_value,
+        risk_pct=args.risk_pct,
         stop_strategy=args.stop_strategy,
         time_stop_bars=args.time_stop_bars,
         save_individual_reports=args.save_individual_reports

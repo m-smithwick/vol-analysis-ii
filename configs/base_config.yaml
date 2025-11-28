@@ -10,7 +10,7 @@ description: "Production baseline configuration with validated parameters"
 # Risk Management Settings
 risk_management:
   account_value: 100000  # Starting account equity
-  risk_pct_per_trade: 0.75  # Risk 0.75% per trade (0.5-1.0% recommended)
+  risk_pct_per_trade: 1.0  # Risk 1.0% per trade (0.5-1.0% recommended)
   
   # Stop Loss Strategy
   # Options: 'static', 'vol_regime', 'atr_dynamic', 'pct_trail', 'time_decay'

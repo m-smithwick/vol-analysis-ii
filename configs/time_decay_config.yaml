@@ -7,7 +7,7 @@ description: "Time decay stop strategy - gradually tightens stops over trade lif
 
 risk_management:
   account_value: 100000
-  risk_pct_per_trade: 0.75
+  risk_pct_per_trade: 1.0
   stop_strategy: "time_decay"  # Winner from validation testing
   time_stop_bars: 12
   

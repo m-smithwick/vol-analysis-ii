@@ -3,11 +3,11 @@
 
 config_name: "conservative"
 config_version: "1.0"
-description: "Conservative approach - 0.5% risk, no time stops, strict regime filters"
+description: "Conservative signals - Higher thresholds (6.5), no time stops, strict regime filters (SPY+sector)"
 
 risk_management:
   account_value: 100000
-  risk_pct_per_trade: 0.5  # Lower risk per trade
+  risk_pct_per_trade: 1.0  # Standardized across all configs
   stop_strategy: "static"
   time_stop_bars: 0  # Disabled - let winners run longer
   
