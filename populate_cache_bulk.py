@@ -250,15 +250,31 @@ def populate_cache_bulk(
         print(f"\n   [{i:3d}/{len(trading_days)}] {date_str} ({pct:5.1f}%)")
         
         try:
-            # Download
-            download_start = time.time()
-            response = s3.get_object(Bucket=bucket, Key=object_key)
-            download_time = time.time() - download_start
-            stats['total_download_time'] += download_time
+            # Check local cache first
+            if save_others:
+                local_cache_file = massive_cache_dir / f"{date_str}.csv.gz"
+            else:
+                local_cache_file = None
             
-            # Decompress and parse
-            with gzip.GzipFile(fileobj=BytesIO(response['Body'].read())) as gz:
-                df = pd.read_csv(gz)
+            # Load data from local cache or S3
+            download_start = time.time()
+            if local_cache_file and local_cache_file.exists():
+                # Use local cached file (FAST)
+                with gzip.open(local_cache_file, 'rt') as f:
+                    df = pd.read_csv(f)
+                download_time = time.time() - download_start
+                source = "cache"
+            else:
+                # Download from S3 (SLOW)
+                response = s3.get_object(Bucket=bucket, Key=object_key)
+                download_time = time.time() - download_start
+                
+                # Decompress and parse
+                with gzip.GzipFile(fileobj=BytesIO(response['Body'].read())) as gz:
+                    df = pd.read_csv(gz)
+                source = "s3"
+            
+            stats['total_download_time'] += download_time
             
             # Split data
             our_mask = df['ticker'].isin(all_tickers)
@@ -292,7 +308,7 @@ def populate_cache_bulk(
             day_time = time.time() - day_start
             stats['total_process_time'] += day_time
             
-            print(f"      ✓ {len(tickers_found)} tickers: {added} added, {skipped} skipped ({day_time:.1f}s)")
+            print(f"      ✓ {len(tickers_found)} tickers: {added} added, {skipped} skipped ({day_time:.1f}s, {source})")
             stats['days_processed'] += 1
             
         except ClientError as e:

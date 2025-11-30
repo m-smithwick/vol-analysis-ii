@@ -56,7 +56,7 @@ Need the deeper architecture or indicator breakdown? See `docs/ARCHITECTURE_REFE
    python populate_cache_bulk.py --months 12 --ticker-files ticker_lists/indices.txt ticker_lists/sector_etfs.txt
 
    # use a date range for catching up the last few days. 
-   python populate_cache_bulk.py --start 2025-11-23 --end 2025-11-27  --ticker-files cmb.txt
+   python populate_cache_bulk.py --start 2025-11-23 --end 2025-11-28  --ticker-files ticker_lists/indices.txt ticker_lists/sector_etfs.txt
    ```
    
    > 💡 **New users**: Start with Option A (Yahoo Finance). It works immediately without any setup.
