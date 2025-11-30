@@ -69,7 +69,8 @@ Need the deeper architecture or indicator breakdown? See `docs/ARCHITECTURE_REFE
    # Batch processing with various output options
    python vol_analysis.py --file ticker_lists/stocks.txt --period 12mo --save-charts
    python vol_analysis.py --file ticker_lists/ibd.txt --period 6mo --save-excel --save-charts
-   python vol_analysis.py --file cmb.txt --period 24mo --chart-backend plotly --save-charts --save-excel
+   python vol_analysis.py  --period 24mo --chart-backend plotly --save-charts --file cmb.txt --save-excel
+   python vol_analysis.py  --period 24mo --chart-backend plotly --save-charts --file ticker_lists/ibd50-nov-28.txt   
    
    # Excel export provides complete DataFrame access (60+ columns)
    # Includes: OHLCV, indicators, signals, scores, regime data
@@ -77,7 +78,7 @@ Need the deeper architecture or indicator breakdown? See `docs/ARCHITECTURE_REFE
    python vol_analysis.py --file ticker_lists/short.txt --save-excel --output-dir custom_results
 
    # Batch backtest a watchlist
-   python batch_backtest.py  -p 24mo -f cmb.txt --no-individual-reports
+   python batch_backtest.py  -p 24mo  --no-individual-reports -f cmb.txt
    # Risk-managed runs default to static stops (optimal performance validated Nov 2025)
    # Override via --stop-strategy if testing alternatives
 
