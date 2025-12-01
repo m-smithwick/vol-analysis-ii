@@ -20,11 +20,14 @@
 ## Data & Cache Layer
 
 **`data_manager.py`** - Unified data access layer (Yahoo Finance + cached data) with schema versioning and date-range helpers.  
-**`populate_cache.py` / `populate_cache_bulk.py`** - Populate or refresh cache files across ticker lists with progress reporting and error isolation.  
+**`populate_cache.py` / `populate_cache_bulk.py`** - Populate or refresh cache files across ticker lists with progress reporting and error isolation. Supports DuckDB fast mode (10-20x faster) via `--use-duckdb` flag.  
 **`refresh_cache_rest.py`** - Massive REST API script for same-day data (requires Developer/Advanced tier; reference only).  
 **`query_cache_range.py`** - CLI tool to inspect cached coverage, preview stats, and validate regime windows.  
 **`schema_manager.py`** - Owns cache schema migrations and upgrade validation.  
-**`massive_data_provider.py`** - Legacy Massive.com fetcher kept for replaying archived tests.
+**`massive_data_provider.py`** - Legacy Massive.com fetcher kept for replaying archived tests.  
+**`massive_duckdb_provider.py`** - DuckDB-based high-performance query interface for massive_cache (10-20x faster than CSV decompression). Provides indexed SQL queries with context manager support.  
+**`scripts/build_massive_index.py`** - Build DuckDB index from massive_cache for fast ticker queries (one-time 30-60s operation).  
+**`scripts/query_massive_index.py`** - CLI tool to query and test DuckDB index with statistics and coverage checks.
 
 ---
 
@@ -165,6 +168,7 @@ backtest.py
 
 **Cache & Data**
 - `BULK_CACHE_POPULATION.md`, `docs/CACHE_SCHEMA.md` - Cache architecture and schema notes  
+- `docs/DUCKDB_OPTIMIZATION.md` - DuckDB optimization guide (10-20x performance improvement for massive_cache queries)
 
 **Trading Strategy**
 - `TRADING_STRATEGY.md`, `TRADING_STRATEGY_SECTOR_AWARE.md` - Trading rules, risk logic, and sector overlays  

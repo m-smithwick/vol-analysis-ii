@@ -55,9 +55,20 @@ Need the deeper architecture or indicator breakdown? See `docs/ARCHITECTURE_REFE
    # Use multiple ticker files
    python populate_cache_bulk.py --months 12 --ticker-files ticker_lists/indices.txt ticker_lists/sector_etfs.txt
 
-   # use a date range for catching up the last few days. 
+   # Use a date range for catching up the last few days. 
    python populate_cache_bulk.py --start 2025-11-23 --end 2025-11-28  --ticker-files ticker_lists/indices.txt ticker_lists/sector_etfs.txt
    ```
+   
+   **⚡ Performance Optimization (Optional - 10-20x faster for Massive.com users):**
+   ```bash
+   # Build DuckDB index once (30-60 seconds, one-time operation)
+   python scripts/build_massive_index.py
+   
+   # Then use fast mode (4-8 min vs 41-84 min for 24 months, 50 tickers)
+   python populate_cache_bulk.py --months 24 --use-duckdb
+   python populate_cache_bulk.py --months 24 --ticker-files ibd20.txt --use-duckdb
+   ```
+   > 📖 **Details**: See `docs/DUCKDB_OPTIMIZATION.md` for complete guide
    
    > 💡 **New users**: Start with Option A (Yahoo Finance). It works immediately without any setup.
    > Option B is for advanced users with Massive.com subscriptions who need to backfill years of data quickly.
@@ -78,7 +89,7 @@ Need the deeper architecture or indicator breakdown? See `docs/ARCHITECTURE_REFE
    python vol_analysis.py --file ticker_lists/short.txt --save-excel --output-dir custom_results
 
    # Batch backtest a watchlist
-   python batch_backtest.py  -p 24mo  --no-individual-reports -f cmb.txt
+   python batch_backtest.py  -p 24mo  --no-individual-reports -f ticker_lists/ibd50-nov-28.txt
    # Risk-managed runs default to static stops (optimal performance validated Nov 2025)
    # Override via --stop-strategy if testing alternatives
 
@@ -216,6 +227,7 @@ python vol_analysis.py AAPL --config configs/base_config.yaml
 - `--start YYYY-MM-DD`: explicit start date.
 - `--end YYYY-MM-DD`: optional end date (defaults to today).
 - `--ticker-files FILE [FILE ...]`: ticker file(s) to use (space-separated, default: `stocks.txt`).
+- `--use-duckdb`: use DuckDB fast mode (10-20x faster, requires index built with `scripts/build_massive_index.py`).
 - `--no-save-others`: skip writing non-tracked tickers to `massive_cache/`.
 
 ### `batch_backtest.py`
@@ -284,6 +296,7 @@ Refer to each script's `--help` flag for full descriptions and examples.
 | Analysis scripts (purposes & overlap) | `ANALYSIS_SCRIPTS_OVERLAP.md` |
 | Cache architecture & benchmarks | `BULK_CACHE_POPULATION.md` |
 | Massive.com integration | `MASSIVE_INTEGRATION.md` |
+| **DuckDB optimization (10-20x speedup)** | `docs/DUCKDB_OPTIMIZATION.md` |
 | Sector rotation dashboard | `SECTOR_ROTATION_GUIDE.md` |
 | Sector-aware trading rules | `TRADING_STRATEGY_SECTOR_AWARE.md` |
 | Variable stop loss validation | `VARIABLE_STOP_LOSS_FINDINGS.md` |

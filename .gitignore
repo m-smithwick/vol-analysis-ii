@@ -13,6 +13,7 @@ matt_backtest/
 data_cache/
 data_cache.bk/
 massive_cache/
+massive_index.duckdb
 news_cache/
 sector_cache/
 
