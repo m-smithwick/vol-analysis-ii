@@ -320,7 +320,8 @@ def display_rotation_alerts(current: List[Dict], previous: Optional[List[Dict]] 
 def generate_dashboard_report(period: str = '3mo', 
                              output_dir: Optional[str] = None,
                              compare: bool = False,
-                             top_n: Optional[int] = None) -> str:
+                             top_n: Optional[int] = None,
+                             sectors_file: str = 'ticker_lists/sector_etfs.txt') -> str:
     """
     Generate complete sector rotation dashboard.
     
@@ -329,6 +330,7 @@ def generate_dashboard_report(period: str = '3mo',
         output_dir: Output directory for saving reports
         compare: Whether to compare with previous run
         top_n: Show only top N sectors (optional)
+        sectors_file: Path to file containing sector ETF tickers
         
     Returns:
         Complete dashboard report as string
@@ -344,8 +346,8 @@ def generate_dashboard_report(period: str = '3mo',
     report_lines.append(f"Benchmark: SPY (S&P 500)")
     
     # Analyze sectors
-    print("\n🔄 Analyzing sectors...")
-    sectors = sector_rotation.rank_sectors(period=period)
+    print(f"\n🔄 Analyzing sectors from {sectors_file}...")
+    sectors = sector_rotation.rank_sectors(period=period, sectors_file=sectors_file)
     
     if not sectors:
         report_lines.append("\n❌ Failed to analyze sectors. Check data availability.")
@@ -513,6 +515,12 @@ Examples:
         help='Show only top N sectors'
     )
     
+    parser.add_argument(
+        '--sectors-file',
+        default='ticker_lists/sector_etfs.txt',
+        help='Path to file containing sector ETF tickers (default: ticker_lists/sector_etfs.txt)'
+    )
+    
     args = parser.parse_args()
     
     try:
@@ -521,7 +529,8 @@ Examples:
             period=args.period,
             output_dir=args.output_dir,
             compare=args.compare,
-            top_n=args.top
+            top_n=args.top,
+            sectors_file=args.sectors_file
         )
         
         # Display report

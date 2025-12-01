@@ -449,8 +449,14 @@ def generate_risk_managed_aggregate_report(results: Dict, period: str, output_di
             if export_df[col].notna().any():
                 export_df[col] = export_df[col].dt.strftime("%Y-%m-%d")
         
-        # Round dollar fields to integers (no decimals)
-        dollar_cols = ['entry_price', 'exit_price', 'position_size', 'dollar_pnl', 
+        # Round PRICE fields to 2 decimals (preserve penny precision)
+        price_cols = ['entry_price', 'exit_price']
+        for col in price_cols:
+            if col in export_df.columns:
+                export_df[col] = export_df[col].round(2)  # 2 decimal places
+        
+        # Round other dollar fields to integers (no decimals needed)
+        dollar_cols = ['position_size', 'dollar_pnl', 
                        'equity_before_trade', 'portfolio_equity']
         for col in dollar_cols:
             if col in export_df.columns:
@@ -483,9 +489,11 @@ def generate_risk_managed_aggregate_report(results: Dict, period: str, output_di
                         cell.font = Font(bold=True)
                         cell.alignment = Alignment(horizontal='center')
                     else:
-                        # Format dollar columns as integers
+                        # Format price columns with 2 decimals, other dollar columns as integers
                         col_name = export_df.columns[c_idx - 1]
-                        if col_name in dollar_cols:
+                        if col_name in price_cols:
+                            cell.number_format = '#,##0.00'  # Price format with 2 decimal places
+                        elif col_name in dollar_cols:
                             cell.number_format = '#,##0'  # Integer format with thousand separators
             
             # Enable AutoFilter on header row for easy sorting/filtering

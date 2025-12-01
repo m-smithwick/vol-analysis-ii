@@ -470,7 +470,7 @@ def calculate_sector_score(ticker: str, period: str = '3mo',
 
 
 def rank_sectors(period: str = '3mo', 
-                sectors_file: str = 'sector_etfs.txt') -> List[Dict]:
+                sectors_file: str = 'ticker_lists/sector_etfs.txt') -> List[Dict]:
     """
     Analyze and rank all sectors by strength score.
     

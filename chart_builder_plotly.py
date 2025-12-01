@@ -82,6 +82,9 @@ def create_price_chart(fig, df: pd.DataFrame, ticker: str, period: str, row: int
     # Create integer-based x-axis for gap-less plotting
     x_positions = list(range(len(df)))
     date_strings = df.index.strftime('%Y-%m-%d').tolist()
+    
+    # Prepare customdata for Close price trace (includes Open price)
+    close_customdata = list(zip(date_strings, df['Open'].values))
 
     # === REGIME STATUS BACKGROUND SHADING ===
     # Shows when market/sector regime allowed signals (green) vs blocked them (red)
@@ -133,11 +136,11 @@ def create_price_chart(fig, df: pd.DataFrame, ticker: str, period: str, row: int
     fig.add_trace(go.Scatter(
         x=x_positions,
         y=df['Close'],
-        customdata=date_strings,
+        customdata=close_customdata,
         mode='lines',
         name='Close Price',
         line=dict(color='black', width=1.5),
-        hovertemplate='<b>Close</b><br>Date: %{customdata}<br>Price: $%{y:.2f}<extra></extra>'
+        hovertemplate='<b>Close Price</b><br>Date: %{customdata[0]}<br>Close: $%{y:.2f}<br>Open: $%{customdata[1]:.2f}<extra></extra>'
     ), row=row, col=1)
     
     # VWAP reference line

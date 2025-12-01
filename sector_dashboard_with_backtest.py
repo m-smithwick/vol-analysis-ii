@@ -38,13 +38,15 @@ from sector_dashboard import (
 
 
 def run_sector_backtests(period: str = '3mo', 
-                        cache_dir: str = 'sector_cache') -> Dict[str, Dict]:
+                        cache_dir: str = 'sector_cache',
+                        sectors_file: str = 'ticker_lists/sector_etfs.txt') -> Dict[str, Dict]:
     """
     Run backtests on all sector ETFs.
     
     Args:
         period: Analysis period
         cache_dir: Directory for caching backtest results
+        sectors_file: Path to file containing sector ETF tickers
         
     Returns:
         Dict mapping ticker to backtest results
@@ -70,7 +72,7 @@ def run_sector_backtests(period: str = '3mo',
     # Run batch backtest on sector ETFs
     try:
         results = batch_backtest.run_batch_backtest(
-            ticker_file='sector_etfs.txt',
+            ticker_file=sectors_file,
             period=period,
             output_dir=cache_dir,
             risk_managed=False  # Use traditional entry/exit backtest
@@ -101,7 +103,8 @@ def generate_dashboard_with_backtest(period: str = '3mo',
                                     output_dir: Optional[str] = None,
                                     compare: bool = False,
                                     top_n: Optional[int] = None,
-                                    skip_backtest: bool = False) -> str:
+                                    skip_backtest: bool = False,
+                                    sectors_file: str = 'ticker_lists/sector_etfs.txt') -> str:
     """
     Generate sector dashboard with integrated backtest data.
     
@@ -111,6 +114,7 @@ def generate_dashboard_with_backtest(period: str = '3mo',
         compare: Compare with previous run
         top_n: Show only top N sectors
         skip_backtest: Skip backtest for faster analysis (volume scores will be 0)
+        sectors_file: Path to file containing sector ETF tickers
         
     Returns:
         Complete dashboard report
@@ -132,7 +136,7 @@ def generate_dashboard_with_backtest(period: str = '3mo',
     # Run backtests if enabled
     backtest_results = {}
     if not skip_backtest:
-        backtest_results = run_sector_backtests(period)
+        backtest_results = run_sector_backtests(period, sectors_file=sectors_file)
     else:
         print("\n⚡ Quick mode: Skipping backtests (volume scores will be 0)")
     
@@ -149,9 +153,9 @@ def generate_dashboard_with_backtest(period: str = '3mo',
     )
     
     # Analyze all sectors
-    print("🔄 Analyzing sector strength...")
+    print(f"🔄 Analyzing sector strength from {sectors_file}...")
     
-    with open('sector_etfs.txt', 'r') as f:
+    with open(sectors_file, 'r') as f:
         tickers = [line.strip() for line in f if line.strip() and not line.startswith('#')]
     
     sectors = []
@@ -302,6 +306,12 @@ def main():
         help='Skip backtests for faster analysis (volume scores will be 0)'
     )
     
+    parser.add_argument(
+        '--sectors-file',
+        default='ticker_lists/sector_etfs.txt',
+        help='Path to file containing sector ETF tickers (default: ticker_lists/sector_etfs.txt)'
+    )
+    
     args = parser.parse_args()
     
     try:
@@ -311,7 +321,8 @@ def main():
             output_dir=args.output_dir,
             compare=args.compare,
             top_n=args.top,
-            skip_backtest=args.quick
+            skip_backtest=args.quick,
+            sectors_file=args.sectors_file
         )
         
         # Display report
