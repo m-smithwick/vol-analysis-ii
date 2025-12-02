@@ -201,10 +201,10 @@ def create_price_chart(fig, df: pd.DataFrame, ticker: str, period: str, row: int
         hovertemplate='<b>Resistance</b><br>Date: %{customdata}<br>%{y:.2f}<extra></extra>'
     ), row=row, col=1)
     
-    # === ENTRY SIGNALS (Using *_display columns for T+1 visualization) ===
+    # === ENTRY SIGNALS (Shows signals on the day they occur) ===
     
     # STRONG BUY SIGNALS (Large Green Dots)
-    strong_buys = df[df['Strong_Buy_display'] == True]
+    strong_buys = df[df['Strong_Buy'] == True]
     if not strong_buys.empty:
         strong_buy_positions = [i for i, idx in enumerate(df.index) if idx in strong_buys.index]
         strong_buy_dates = [date_strings[i] for i in strong_buy_positions]
@@ -224,7 +224,7 @@ def create_price_chart(fig, df: pd.DataFrame, ticker: str, period: str, row: int
         ), row=row, col=1)
     
     # MODERATE BUY SIGNALS (Medium Yellow Dots)
-    moderate_buys = df[df['Moderate_Buy_display'] == True]
+    moderate_buys = df[df['Moderate_Buy'] == True]
     if not moderate_buys.empty:
         moderate_buy_positions = [i for i, idx in enumerate(df.index) if idx in moderate_buys.index]
         moderate_buy_dates = [date_strings[i] for i in moderate_buy_positions]
@@ -244,7 +244,7 @@ def create_price_chart(fig, df: pd.DataFrame, ticker: str, period: str, row: int
         ), row=row, col=1)
     
     # STEALTH ACCUMULATION (Diamond Symbols)
-    stealth = df[df['Stealth_Accumulation_display'] == True]
+    stealth = df[df['Stealth_Accumulation'] == True]
     if not stealth.empty:
         stealth_positions = [i for i, idx in enumerate(df.index) if idx in stealth.index]
         stealth_dates = [date_strings[i] for i in stealth_positions]
@@ -264,7 +264,7 @@ def create_price_chart(fig, df: pd.DataFrame, ticker: str, period: str, row: int
         ), row=row, col=1)
     
     # CONFLUENCE SIGNALS (Star Symbols)
-    confluence = df[df['Confluence_Signal_display'] == True]
+    confluence = df[df['Confluence_Signal'] == True]
     if not confluence.empty:
         confluence_positions = [i for i, idx in enumerate(df.index) if idx in confluence.index]
         confluence_dates = [date_strings[i] for i in confluence_positions]
@@ -283,7 +283,7 @@ def create_price_chart(fig, df: pd.DataFrame, ticker: str, period: str, row: int
         ), row=row, col=1)
     
     # VOLUME BREAKOUT (Triangle Symbols)
-    breakouts = df[df['Volume_Breakout_display'] == True]
+    breakouts = df[df['Volume_Breakout'] == True]
     if not breakouts.empty:
         breakout_positions = [i for i, idx in enumerate(df.index) if idx in breakouts.index]
         breakout_dates = [date_strings[i] for i in breakout_positions]
@@ -302,10 +302,10 @@ def create_price_chart(fig, df: pd.DataFrame, ticker: str, period: str, row: int
             hovertemplate=f'<b>{labels["Volume_Breakout"]}</b><br>Date: %{{customdata}}<br>Price: $%{{y:.2f}}<extra></extra>'
         ), row=row, col=1)
     
-    # === EXIT SIGNALS (Using *_display columns for T+1 visualization) ===
+    # === EXIT SIGNALS (Shows signals on the day they occur) ===
     
     # PROFIT TAKING (Orange Dots)
-    profit_takes = df[df['Profit_Taking_display'] == True]
+    profit_takes = df[df['Profit_Taking'] == True]
     if not profit_takes.empty:
         profit_take_positions = [i for i, idx in enumerate(df.index) if idx in profit_takes.index]
         profit_take_dates = [date_strings[i] for i in profit_take_positions]
@@ -325,7 +325,7 @@ def create_price_chart(fig, df: pd.DataFrame, ticker: str, period: str, row: int
         ), row=row, col=1)
     
     # DISTRIBUTION WARNING (Gold Squares)
-    dist_warnings = df[df['Distribution_Warning_display'] == True]
+    dist_warnings = df[df['Distribution_Warning'] == True]
     if not dist_warnings.empty:
         dist_warning_positions = [i for i, idx in enumerate(df.index) if idx in dist_warnings.index]
         dist_warning_dates = [date_strings[i] for i in dist_warning_positions]
@@ -345,7 +345,7 @@ def create_price_chart(fig, df: pd.DataFrame, ticker: str, period: str, row: int
         ), row=row, col=1)
     
     # SELL SIGNALS (Red Dots)
-    sells = df[df['Sell_Signal_display'] == True]
+    sells = df[df['Sell_Signal'] == True]
     if not sells.empty:
         sell_positions = [i for i, idx in enumerate(df.index) if idx in sells.index]
         sell_dates = [date_strings[i] for i in sell_positions]
@@ -365,7 +365,7 @@ def create_price_chart(fig, df: pd.DataFrame, ticker: str, period: str, row: int
         ), row=row, col=1)
     
     # MOMENTUM EXHAUSTION (Purple X's)
-    momentum_exhausts = df[df['Momentum_Exhaustion_display'] == True]
+    momentum_exhausts = df[df['Momentum_Exhaustion'] == True]
     if not momentum_exhausts.empty:
         momentum_exhaust_positions = [i for i, idx in enumerate(df.index) if idx in momentum_exhausts.index]
         momentum_exhaust_dates = [date_strings[i] for i in momentum_exhaust_positions]
@@ -385,7 +385,7 @@ def create_price_chart(fig, df: pd.DataFrame, ticker: str, period: str, row: int
         ), row=row, col=1)
     
     # STOP LOSS TRIGGERS (Dark Red Triangles Down)
-    stop_losses = df[df['Stop_Loss_display'] == True]
+    stop_losses = df[df['Stop_Loss'] == True]
     if not stop_losses.empty:
         stop_loss_positions = [i for i, idx in enumerate(df.index) if idx in stop_losses.index]
         stop_loss_dates = [date_strings[i] for i in stop_loss_positions]
@@ -494,7 +494,7 @@ def create_volume_indicators_chart(fig, df: pd.DataFrame, row: int = 2) -> None:
     ), row=row, col=1)
     
     # Add divergence markers
-    stealth = df[df['Stealth_Accumulation_display'] == True]
+    stealth = df[df['Stealth_Accumulation'] == True]
     if not stealth.empty:
         stealth_positions = [i for i, idx in enumerate(df.index) if idx in stealth.index]
         stealth_dates = [date_strings[i] for i in stealth_positions]
@@ -510,7 +510,7 @@ def create_volume_indicators_chart(fig, df: pd.DataFrame, row: int = 2) -> None:
             hovertemplate=f'<b>{labels["Stealth_Accumulation"]}</b><br>Date: %{{customdata}}<br>%{{y:,.0f}}<extra></extra>'
         ), row=row, col=1)
     
-    strong_buys = df[df['Strong_Buy_display'] == True]
+    strong_buys = df[df['Strong_Buy'] == True]
     if not strong_buys.empty:
         strong_buy_positions = [i for i, idx in enumerate(df.index) if idx in strong_buys.index]
         strong_buy_dates = [date_strings[i] for i in strong_buy_positions]

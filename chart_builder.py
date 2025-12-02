@@ -80,75 +80,75 @@ def create_price_chart(ax, df: pd.DataFrame, ticker: str, period: str) -> None:
     ax.plot(x_positions, df['Recent_Swing_Low'], label='Swing Support', color='green', alpha=0.6, linestyle=':')
     ax.plot(x_positions, df['Recent_Swing_High'], label='Swing Resistance', color='red', alpha=0.6, linestyle=':')
     
-    # === ENTRY SIGNALS (Using *_display columns for T+1 visualization) ===
+    # === ENTRY SIGNALS (Shows signals on the day they occur) ===
     
-    # STRONG BUY SIGNALS (Large Green Dots) - Now shows on action day
-    strong_buys = df[df['Strong_Buy_display'] == True]
+    # STRONG BUY SIGNALS (Large Green Dots) - Shows on signal day
+    strong_buys = df[df['Strong_Buy'] == True]
     if not strong_buys.empty:
         strong_buy_positions = [i for i, idx in enumerate(df.index) if idx in strong_buys.index]
         ax.scatter(strong_buy_positions, strong_buys['Close'].values, color='lime', marker='o', 
                    s=150, label=get_chart_label('Strong_Buy'), zorder=10, edgecolors='darkgreen', linewidth=2)
     
-    # MODERATE BUY SIGNALS (Medium Yellow Dots) - Now shows on action day
-    moderate_buys = df[df['Moderate_Buy_display'] == True]
+    # MODERATE BUY SIGNALS (Medium Yellow Dots) - Shows on signal day
+    moderate_buys = df[df['Moderate_Buy'] == True]
     if not moderate_buys.empty:
         moderate_buy_positions = [i for i, idx in enumerate(df.index) if idx in moderate_buys.index]
         ax.scatter(moderate_buy_positions, moderate_buys['Close'].values, color='gold', marker='o', 
                    s=100, label=get_chart_label('Moderate_Buy'), zorder=9, edgecolors='orange', linewidth=1.5)
     
-    # STEALTH ACCUMULATION (Diamond Symbols) - Now shows on action day
-    stealth = df[df['Stealth_Accumulation_display'] == True]
+    # STEALTH ACCUMULATION (Diamond Symbols) - Shows on signal day
+    stealth = df[df['Stealth_Accumulation'] == True]
     if not stealth.empty:
         stealth_positions = [i for i, idx in enumerate(df.index) if idx in stealth.index]
         ax.scatter(stealth_positions, stealth['Close'].values, color='cyan', marker='D', 
                    s=80, label=get_chart_label('Stealth_Accumulation'), zorder=8, alpha=0.8)
     
-    # CONFLUENCE SIGNALS (Star Symbols) - Now shows on action day
-    confluence = df[df['Confluence_Signal_display'] == True]
+    # CONFLUENCE SIGNALS (Star Symbols) - Shows on signal day
+    confluence = df[df['Confluence_Signal'] == True]
     if not confluence.empty:
         confluence_positions = [i for i, idx in enumerate(df.index) if idx in confluence.index]
         ax.scatter(confluence_positions, confluence['Close'].values, color='magenta', marker='*', 
                    s=200, label=get_chart_label('Confluence_Signal'), zorder=11)
     
-    # VOLUME BREAKOUT (Triangle Symbols) - Now shows on action day
-    breakouts = df[df['Volume_Breakout_display'] == True]
+    # VOLUME BREAKOUT (Triangle Symbols) - Shows on signal day
+    breakouts = df[df['Volume_Breakout'] == True]
     if not breakouts.empty:
         breakout_positions = [i for i, idx in enumerate(df.index) if idx in breakouts.index]
         ax.scatter(breakout_positions, breakouts['Close'].values, color='orangered', marker='^', 
                    s=120, label=get_chart_label('Volume_Breakout'), zorder=9, edgecolors='darkred')
     
-    # === EXIT SIGNALS (Using *_display columns for T+1 visualization) ===
+    # === EXIT SIGNALS (Shows signals on the day they occur) ===
     
-    # PROFIT TAKING (Orange Dots) - Now shows on action day
-    profit_takes = df[df['Profit_Taking_display'] == True]
+    # PROFIT TAKING (Orange Dots) - Shows on signal day
+    profit_takes = df[df['Profit_Taking'] == True]
     if not profit_takes.empty:
         profit_take_positions = [i for i, idx in enumerate(df.index) if idx in profit_takes.index]
         ax.scatter(profit_take_positions, profit_takes['Close'].values, color='orange', marker='o', 
                    s=120, label=get_chart_label('Profit_Taking'), zorder=10, edgecolors='darkorange', linewidth=2)
     
-    # DISTRIBUTION WARNING (Gold Squares) - Now shows on action day
-    dist_warnings = df[df['Distribution_Warning_display'] == True]
+    # DISTRIBUTION WARNING (Gold Squares) - Shows on signal day
+    dist_warnings = df[df['Distribution_Warning'] == True]
     if not dist_warnings.empty:
         dist_warning_positions = [i for i, idx in enumerate(df.index) if idx in dist_warnings.index]
         ax.scatter(dist_warning_positions, dist_warnings['Close'].values, color='gold', marker='s', 
                    s=100, label=get_chart_label('Distribution_Warning'), zorder=9, edgecolors='darkgoldenrod', linewidth=2)
     
-    # SELL SIGNALS (Red Dots) - Now shows on action day
-    sells = df[df['Sell_Signal_display'] == True]
+    # SELL SIGNALS (Red Dots) - Shows on signal day
+    sells = df[df['Sell_Signal'] == True]
     if not sells.empty:
         sell_positions = [i for i, idx in enumerate(df.index) if idx in sells.index]
         ax.scatter(sell_positions, sells['Close'].values, color='red', marker='o', 
                    s=120, label=get_chart_label('Sell_Signal'), zorder=10, edgecolors='darkred', linewidth=2)
     
-    # MOMENTUM EXHAUSTION (Purple X's) - Now shows on action day
-    momentum_exhausts = df[df['Momentum_Exhaustion_display'] == True]
+    # MOMENTUM EXHAUSTION (Purple X's) - Shows on signal day
+    momentum_exhausts = df[df['Momentum_Exhaustion'] == True]
     if not momentum_exhausts.empty:
         momentum_exhaust_positions = [i for i, idx in enumerate(df.index) if idx in momentum_exhausts.index]
         ax.scatter(momentum_exhaust_positions, momentum_exhausts['Close'].values, color='purple', marker='x', 
                    s=120, label=get_chart_label('Momentum_Exhaustion'), zorder=9, linewidth=3)
     
-    # STOP LOSS TRIGGERS (Dark Red Triangles Down) - Now shows on action day
-    stop_losses = df[df['Stop_Loss_display'] == True]
+    # STOP LOSS TRIGGERS (Dark Red Triangles Down) - Shows on signal day
+    stop_losses = df[df['Stop_Loss'] == True]
     if not stop_losses.empty:
         stop_loss_positions = [i for i, idx in enumerate(df.index) if idx in stop_losses.index]
         ax.scatter(stop_loss_positions, stop_losses['Close'].values, color='darkred', marker='v', 
@@ -188,18 +188,18 @@ def create_volume_indicators_chart(ax, df: pd.DataFrame) -> None:
     ax.plot(x_positions, df['OBV_MA'], label='OBV MA', color='lightblue', linestyle='--', alpha=0.6)
     ax.plot(x_positions, df['AD_MA'], label='A/D MA', color='moccasin', linestyle='--', alpha=0.6)
     
-    # Add divergence markers to volume indicators panel (using display columns for T+1 timing)
-    stealth = df[df['Stealth_Accumulation_display'] == True]
+    # Add divergence markers to volume indicators panel (shows signals on signal day)
+    stealth = df[df['Stealth_Accumulation'] == True]
     if not stealth.empty:
-        # Mark stealth accumulation on A/D Line - now shows on action day
+        # Mark stealth accumulation on A/D Line - shows on signal day
         stealth_positions = [i for i, idx in enumerate(df.index) if idx in stealth.index]
         stealth_ad_values = [df.loc[df.index[i], 'AD_Line'] for i in stealth_positions]
         ax.scatter(stealth_positions, stealth_ad_values, 
                    color='cyan', marker='D', s=60, alpha=0.8, zorder=8)
     
-    strong_buys = df[df['Strong_Buy_display'] == True]
+    strong_buys = df[df['Strong_Buy'] == True]
     if not strong_buys.empty:
-        # Mark strong buys on OBV - now shows on action day
+        # Mark strong buys on OBV - shows on signal day
         strong_buy_positions = [i for i, idx in enumerate(df.index) if idx in strong_buys.index]
         strong_buy_obv_values = [df.loc[df.index[i], 'OBV'] for i in strong_buy_positions]
         ax.scatter(strong_buy_positions, strong_buy_obv_values, 
@@ -233,22 +233,22 @@ def create_volume_bars_chart(ax, ax_twin, df: pd.DataFrame) -> None:
     ax.bar(x_positions, df['Volume'], color=volume_colors, alpha=0.6, width=1)
     ax.plot(x_positions, df['Volume_MA'], label='Volume MA', color='black', linestyle='-', alpha=0.8)
     
-    # Add signal markers to volume bars (using display columns for T+1 timing)
-    breakouts = df[df['Volume_Breakout_display'] == True]
+    # Add signal markers to volume bars (shows signals on signal day)
+    breakouts = df[df['Volume_Breakout'] == True]
     if not breakouts.empty:
         breakout_positions = [i for i, idx in enumerate(df.index) if idx in breakouts.index]
         breakout_volumes = [df.loc[df.index[i], 'Volume'] for i in breakout_positions]
         ax.scatter(breakout_positions, breakout_volumes, 
                    color='orangered', marker='^', s=100, zorder=9, edgecolors='darkred')
     
-    profit_takes = df[df['Profit_Taking_display'] == True]
+    profit_takes = df[df['Profit_Taking'] == True]
     if not profit_takes.empty:
         profit_take_positions = [i for i, idx in enumerate(df.index) if idx in profit_takes.index]
         profit_take_volumes = [df.loc[df.index[i], 'Volume'] for i in profit_take_positions]
         ax.scatter(profit_take_positions, profit_take_volumes, 
                    color='orange', marker='o', s=80, zorder=9, edgecolors='darkorange')
     
-    stop_losses = df[df['Stop_Loss_display'] == True]
+    stop_losses = df[df['Stop_Loss'] == True]
     if not stop_losses.empty:
         stop_loss_positions = [i for i, idx in enumerate(df.index) if idx in stop_losses.index]
         stop_loss_volumes = [df.loc[df.index[i], 'Volume'] for i in stop_loss_positions]
@@ -272,8 +272,8 @@ def create_volume_bars_chart(ax, ax_twin, df: pd.DataFrame) -> None:
     ax_twin.axhline(y=4, color='gold', linestyle=':', alpha=0.6, label='Moderate Risk (4)')
     ax_twin.axhline(y=2, color='lightcoral', linestyle=':', alpha=0.5, label='Low Risk (2)')
     
-    # Mark actual Strong Buy signal occurrences (using display column for T+1 timing)
-    actual_strong_buys = df[df['Strong_Buy_display'] == True]
+    # Mark actual Strong Buy signal occurrences (shows signals on signal day)
+    actual_strong_buys = df[df['Strong_Buy'] == True]
     if not actual_strong_buys.empty:
         strong_buy_positions = [i for i, idx in enumerate(df.index) if idx in actual_strong_buys.index]
         ax_twin.scatter(strong_buy_positions, actual_strong_buys['Accumulation_Score'].values, 
@@ -415,14 +415,14 @@ def create_multi_timeframe_chart(results_dict: dict, ticker: str,
             ax.plot(x_positions, df['Close'], label='Close Price', color='black', linewidth=1.5)
             ax.plot(x_positions, df['VWAP'], label='VWAP', color='purple', alpha=0.7, linestyle='--')
             
-            # Add key signals (using display columns for T+1 timing)
-            strong_buys = df[df['Strong_Buy_display'] == True]
+            # Add key signals (shows signals on signal day)
+            strong_buys = df[df['Strong_Buy'] == True]
             if not strong_buys.empty:
                 strong_buy_positions = [j for j, idx in enumerate(df.index) if idx in strong_buys.index]
                 ax.scatter(strong_buy_positions, strong_buys['Close'].values, color='lime', marker='o', 
                            s=100, label=get_chart_label('Strong_Buy'), zorder=10, edgecolors='darkgreen')
             
-            sells = df[df['Sell_Signal_display'] == True]
+            sells = df[df['Sell_Signal'] == True]
             if not sells.empty:
                 sell_positions = [j for j, idx in enumerate(df.index) if idx in sells.index]
                 ax.scatter(sell_positions, sells['Close'].values, color='red', marker='o', 

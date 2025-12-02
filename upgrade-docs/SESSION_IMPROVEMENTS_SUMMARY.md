@@ -1,5 +1,84 @@
 # Session Improvements Summary
 
+## Session 2025-12-01: Chart Signal Display Fix
+
+### Goal: Fix Signal Display Timing Mismatch Between Batch Summary and Charts
+
+**Context:**
+- User reported buy signals appearing in batch summary but not visible on HTML charts
+- Batch summary showed: ANAB had Moderate Buy signal (score 7.2) on 2025-12-01
+- Charts showed no signals on same date
+- Investigation revealed timing mismatch between data sources
+
+**Problem Identified:**
+1. **Signal Generation:** Raw signals created on day T (signal detection day)
+2. **Display Columns:** System created shifted versions: `df[f"{column}_display"] = df[column].shift(1)` 
+3. **Chart Rendering:** Charts used `*_display` columns showing signals on T+1 (action day)
+4. **Data Cutoff:** When chart data ended on day T, shifted T+1 signals were cut off
+5. **Mismatch Result:** Batch summaries (raw signals) vs Charts (shifted signals)
+
+**Solution Implemented:**
+
+**1. Chart Builder Matplotlib (chart_builder.py):**
+- Changed all signal markers to use raw signal columns instead of `*_display` columns
+- Updated entry signals: Strong_Buy, Moderate_Buy, Stealth_Accumulation, etc.
+- Updated exit signals: Profit_Taking, Distribution_Warning, Sell_Signal, etc.
+- Updated volume panel markers for consistency
+
+**2. Chart Builder Plotly (chart_builder_plotly.py):**
+- Applied same fix for consistency across both chart types
+- Updated price panel, volume indicators panel, and volume bars panel
+- Maintained regime background functionality
+
+**3. Display Timing Strategy:**
+- Charts now show signals on signal detection day (T) instead of action day (T+1)
+- Immediate visual feedback when signals trigger
+- Alignment with batch summary reporting
+- No timing lag or missing signals at data boundary
+
+**Performance Results:**
+- ✅ Tested with ANAB: Analysis shows Moderate Buy signal on 2025-12-01
+- ✅ Generated new chart: `results_volume/ANAB_12mo_20221208_20251201_chart.html`
+- ✅ Signals now appear on same day in both summary and charts
+- ✅ No more confusion between detection day vs action day
+
+**Files Modified:**
+1. `chart_builder.py` - Updated all signal markers to use raw columns
+2. `chart_builder_plotly.py` - Applied same fix for consistency
+
+**Key Learnings:**
+
+**1. Display vs Processing Separation:**
+- `*_display` columns useful for backtest processing (T+1 action timing)
+- Raw signal columns better for visualization (T+0 detection timing)
+- Each serves different purpose in system architecture
+
+**2. Data Boundary Edge Cases:**
+- Shifted columns create cutoff issues at data boundaries
+- Raw columns provide complete signal visibility
+- Important for real-time analysis where latest signals matter most
+
+**3. User Experience Priority:**
+- Charts are primary user interface
+- Visual feedback should match analytical reports
+- Immediate signal visibility more valuable than theoretical T+1 timing
+
+**Benefits:**
+- ✅ Signal visibility matches batch summaries
+- ✅ No more missing signals at data boundaries
+- ✅ Immediate visual feedback when signals trigger
+- ✅ Consistent experience across chart types (matplotlib & plotly)
+- ✅ User can trust chart display matches analytical results
+
+**Usage Impact:**
+- Charts now show signals day they occur (not day after)
+- Better alignment with user workflow (see signal → investigate → act)
+- No functional impact on backtest logic (still uses display columns for trades)
+
+**Status:** Signal display timing fixed, charts now match batch summaries
+
+---
+
 ## Session 2025-12-01: yfinance Download Fix & Days Parameter
 
 ### Goal: Fix yfinance API Issues & Add Quick Cache Update Option
