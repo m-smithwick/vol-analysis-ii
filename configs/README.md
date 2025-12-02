@@ -39,11 +39,22 @@ This generates (all files in the output directory):
 
 ## Available Configurations
 
-### base_config.yaml - Production Baseline
+### conservative_config.yaml - Production Default ⭐ (RECOMMENDED)
 - **Stop Strategy**: Static (traditional fixed stops)
-- **Risk**: 0.75% per trade
-- **Time Stops**: 12 bars
-- **Use Case**: Current production settings, fully validated
+- **Entry Threshold**: 6.5 (empirically optimized - 45% better expectancy than 6.0)
+- **Risk**: 1.0% per trade (standardized across configs)
+- **Time Stops**: Disabled (let winners run)
+- **Performance**: 70% win rate, +13.35% expectancy, +9.16% median return
+- **Use Case**: **Default production configuration** - automatically loaded by vol_analysis.py and batch_backtest.py
+- **Evidence**: Based on 434-trade analysis showing 45% better expectancy vs base_config
+
+### base_config.yaml - Historical Baseline
+- **Stop Strategy**: Static (traditional fixed stops)
+- **Entry Threshold**: 6.0 (original validated threshold)
+- **Risk**: 1.0% per trade
+- **Time Stops**: 20 bars
+- **Performance**: 68% win rate, +9.17% expectancy, +6.24% median return
+- **Use Case**: Historical reference for comparison testing, superseded by conservative_config
 
 ### time_decay_config.yaml - Validated Winner ⭐
 - **Stop Strategy**: Time Decay (gradually tightens: 2.5 → 2.0 → 1.5 ATR)

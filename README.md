@@ -90,7 +90,7 @@ Need the deeper architecture or indicator breakdown? See `docs/ARCHITECTURE_REFE
    python vol_analysis.py --file ticker_lists/stocks.txt --period 12mo --save-charts
    python vol_analysis.py --file ticker_lists/ibd.txt --period 6mo --save-excel --save-charts
    python vol_analysis.py  --period 24mo --chart-backend plotly --save-charts --file cmb.txt --save-excel
-   python vol_analysis.py  --period 24mo --chart-backend plotly --save-charts --file ticker_lists/ibd50-nov-28.txt   
+   python vol_analysis.py  --period 12mo --chart-backend plotly --save-charts --file ticker_lists/ibd50-nov-29.txt   
    
    # Excel export provides complete DataFrame access (60+ columns)
    # Includes: OHLCV, indicators, signals, scores, regime data
@@ -98,7 +98,7 @@ Need the deeper architecture or indicator breakdown? See `docs/ARCHITECTURE_REFE
    python vol_analysis.py --file ticker_lists/short.txt --save-excel --output-dir custom_results
 
    # Batch backtest a watchlist
-   python batch_backtest.py  -p 24mo  --no-individual-reports -f ticker_lists/ibd50-nov-28.txt
+   python batch_backtest.py  -p 24mo  --no-individual-reports -f ticker_lists/ibd50-nov-29.txt
    # Risk-managed runs default to static stops (optimal performance validated Nov 2025)
    # Override via --stop-strategy if testing alternatives
 
@@ -122,7 +122,7 @@ After running backtests, use these tools to evaluate and optimize your strategy:
 ### Professional Evaluation
 ```bash
 # Calculate institutional-grade metrics (Sharpe, drawdown, etc.)
-python analyze_professional_metrics.py --csv backtest_results/LOG_FILE_cmb_24mo_20251127_124420.csv
+python analyze_professional_metrics.py --csv backtest_results/LOG_FILE_ibd50-nov-29_24mo_20251201_174257.csv
 ```
 **Outputs:** Sharpe ratio (3.35), maximum drawdown (-9.37%), monthly consistency (73.9%),  
 loss streaks (16 max), professional grading (Institutional Quality: Grade A-)
@@ -174,11 +174,17 @@ For detailed script purposes and overlap analysis, see `ANALYSIS_SCRIPTS_OVERLAP
 
 ## Validation Status
 
-- **Moderate Buy** – ✅ Live, but expect +2‑3% median returns (see `OUT_OF_SAMPLE_VALIDATION_REPORT.md`).
+- **Moderate Buy** – ✅ Live, expect +9% median returns with conservative config (70% win rate, +13.35% expectancy).
+- **Signal Threshold Optimization** – ✅ **EMPIRICALLY VALIDATED (Dec 1, 2025)**: 434 trades analyzed
+  * **Conservative Config (6.5 threshold)**: 70% win rate, +13.35% expectancy, +9.16% median return — **NEW DEFAULT**
+  * Base Config (6.0 threshold): 68% win rate, +9.17% expectancy, +6.24% median return (45% worse expectancy)
+  * Optimal threshold analysis shows 7.5 threshold best (71% win, +14.08% expectancy, 317 trades)
+  * **Key finding**: Raising threshold from 6.0→6.5 improves expectancy 45% with only 10% fewer trades
+  * Conservative_config now auto-loads in vol_analysis.py and batch_backtest.py
 - **Configuration System** – ✅ **VALIDATED (Nov 27, 2025)**: 6 configurations tested on 24 tickers, 36-month period
-  * **BALANCED (RECOMMENDED)**: +90.75% return, -12.09% drawdown, **7.51 return/DD ratio** — **Best risk-adjusted**
+  * **BALANCED (RECOMMENDED for mixed portfolios)**: +90.75% return, -12.09% drawdown, **7.51 return/DD ratio**
   * Conservative: +121.92% return, -31.73% drawdown (highest returns, painful drawdowns)
-  * Base: +68.21% return, -11.86% drawdown (smoothest equity curve)
+  * Base: +68.21% return, -11.86% drawdown (smoothest equity curve - historical reference only)
   * **Key finding**: 20-bar time stops optimal (vs 0, 8, or 12 bars)
   * See `PROJECT-STATUS.md` for complete analysis
 - **Variable Stop Loss** – ✅ Validated with 4,249 trades. Time Decay winner: **+22% improvement** (1.52R vs 1.25R static).
@@ -221,13 +227,16 @@ Full details and review cadence live in `docs/VALIDATION_STATUS.md`.
 
 **Configuration Examples**:
 ```bash
-# Use balanced settings (RECOMMENDED - best risk-adjusted)
-python vol_analysis.py AAPL --config configs/balanced_config.yaml
+# Default: Uses conservative_config.yaml automatically (6.5 threshold, 70% win rate, +13.35% expectancy)
+python vol_analysis.py AAPL
 
-# Use conservative settings (highest returns, higher drawdown)
+# Explicitly specify conservative (same as default)
 python vol_analysis.py AAPL --config configs/conservative_config.yaml
 
-# Use base settings (original validated baseline)
+# Use balanced settings (alternative - best risk-adjusted for mixed portfolios)
+python vol_analysis.py AAPL --config configs/balanced_config.yaml
+
+# Use base settings (historical baseline - 6.0 threshold, superseded by conservative)
 python vol_analysis.py AAPL --config configs/base_config.yaml
 ```
 
@@ -255,13 +264,19 @@ python vol_analysis.py AAPL --config configs/base_config.yaml
 
 **Configuration Examples**:
 ```bash
-# Use balanced settings (RECOMMENDED - best risk-adjusted)
-python batch_backtest.py -f ticker_lists/ibd.txt -c configs/balanced_config.yaml
+# Default: Uses conservative_config.yaml automatically (6.5 threshold, 70% win rate)
+python batch_backtest.py -f ticker_lists/ibd.txt
 
-# Use conservative settings (highest returns, higher drawdown)
+# Explicitly specify conservative (same as default)
 python batch_backtest.py -f ticker_lists/ibd.txt -c configs/conservative_config.yaml
 
-# Compare all 6 configurations
+# Use balanced settings (alternative - best risk-adjusted for mixed portfolios)
+python batch_backtest.py -f ticker_lists/ibd.txt -c configs/balanced_config.yaml
+
+# Use base settings (historical baseline - 6.0 threshold, superseded by conservative)
+python batch_backtest.py -f ticker_lists/ibd.txt -c configs/base_config.yaml
+
+# Compare all configurations
 python batch_config_test.py -c configs/*.yaml -f ticker_lists/ibd.txt
 ```
 

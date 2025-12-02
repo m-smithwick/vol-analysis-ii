@@ -27,15 +27,19 @@
 
 ### Medium Priority
 
-**1. Cached Earnings Dates** (Future Enhancement)
+**1. Position Sizing Gap: Backtest vs Live Signal Generation** (Architectural)
+   - **Issue**: Disconnect between compounding backtest and stateless live analysis
+   - **Workarounds Available**: Manual --account-value updates, extract from LOG_FILE
+   - **Future Enhancement**: Build portfolio_state.py tracker tool
+   - **Priority**: Medium (workarounds sufficient)
+   - **Date Identified**: 2025-12-01
+
+**2. Cached Earnings Dates** (Future Enhancement)
    - Currently bypassing earnings window filter (safe)
-   - Default parameter: `earnings_dates=[]` 
-   - Future: Implement earnings date cache system
+   - Default parameter: `earnings_dates=[]`
    - Impact: Low (current bypass works fine)
 
-**2. Residual Duplicate Dates in Regime Display**
-   - Display-only issue (some dates appear twice in regime tables)
-   - Does NOT affect calculations or trading logic
-   - Cosmetic fix for future cleanup
+**3. Residual Duplicate Dates in Regime Display**
+   - Display-only issue (cosmetic fix for future cleanup)
 
 ---

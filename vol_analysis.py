@@ -167,7 +167,8 @@ def print_regime_status_table(df: pd.DataFrame, ticker: str, num_days: int = 10)
     print(f"{'='*120}\n")
 
 
-def generate_analysis_text(ticker: str, df: pd.DataFrame, period: str) -> str:
+def generate_analysis_text(ticker: str, df: pd.DataFrame, period: str,
+                          account_value: float = 100000, risk_pct: float = 0.75) -> str:
     """
     Generate text analysis report for a ticker.
     
@@ -175,6 +176,8 @@ def generate_analysis_text(ticker: str, df: pd.DataFrame, period: str) -> str:
         ticker (str): Stock symbol
         df (pd.DataFrame): Analysis results dataframe
         period (str): Analysis period
+        account_value (float): Account value for position sizing (default: 100000)
+        risk_pct (float): Risk percentage per trade (default: 0.75)
         
     Returns:
         str: Formatted analysis report
@@ -283,9 +286,7 @@ def generate_analysis_text(ticker: str, df: pd.DataFrame, period: str) -> str:
     static_stop = min(swing_low - (0.5 * current_atr), 
                      current_vwap - (1.0 * current_atr))
     
-    # Position sizing (configurable account value and risk %)
-    account_value = 100000  # $100K default
-    risk_pct = 0.75
+    # Position sizing (using provided account value and risk %)
     risk_per_share = current_price - vol_regime_stop
     position_size = int((account_value * risk_pct / 100) / risk_per_share)
     position_value = current_price * position_size
@@ -359,7 +360,8 @@ def generate_analysis_text(ticker: str, df: pd.DataFrame, period: str) -> str:
 
 def analyze_ticker(ticker: str, period='6mo', save_to_file=False, output_dir='.', save_chart=False,
                    force_refresh=False, cache_only=True, show_chart=True, show_summary=True, debug=False,
-                   chart_backend: str = 'matplotlib', data_source: str = 'yfinance', config: dict = None):
+                   chart_backend: str = 'matplotlib', data_source: str = 'yfinance', config: dict = None,
+                   account_value: float = 100000, risk_pct: float = 0.75):
     """
     Retrieve and analyze price-volume data for a given ticker symbol.
     
@@ -377,6 +379,8 @@ def analyze_ticker(ticker: str, period='6mo', save_to_file=False, output_dir='.'
         chart_backend (str): Chart engine to use ('matplotlib' for PNG, 'plotly' for interactive HTML)
         data_source (str): Data source to use ('yfinance' or 'massive')
         config (dict): Optional configuration dict from YAML config file
+        account_value (float): Account value for position sizing (default: 100000)
+        risk_pct (float): Risk percentage per trade (default: 0.75)
         
     Raises:
         DataValidationError: If ticker or period is invalid
@@ -442,8 +446,8 @@ def analyze_ticker(ticker: str, period='6mo', save_to_file=False, output_dir='.'
                 # Validate output directory is writable
                 validate_file_path(output_dir, check_exists=True, check_writable=True)
                 
-                # Generate analysis text
-                analysis_text = generate_analysis_text(ticker, df, period)
+                # Generate analysis text with account value and risk percentage
+                analysis_text = generate_analysis_text(ticker, df, period, account_value, risk_pct)
                 
                 # Write to file with error handling
                 try:
@@ -884,7 +888,22 @@ Note: Legacy periods (1y, 2y, 5y, etc.) are automatically converted to month equ
     
     parser.add_argument(
         '--config',
-        help='Path to YAML configuration file (e.g., configs/aggressive_config.yaml). Overrides individual parameters.'
+        default='configs/conservative_config.yaml',
+        help='Path to YAML configuration file (default: configs/conservative_config.yaml - empirically optimized 6.5 threshold, +45%% better expectancy). Overrides individual parameters.'
+    )
+    
+    parser.add_argument(
+        '--account-value',
+        type=float,
+        default=100000,
+        help='Account value for position sizing (default: 100000 = $100K). Used for calculating position sizes in trade logs and volume results.'
+    )
+    
+    parser.add_argument(
+        '--risk-pct',
+        type=float,
+        default=0.75,
+        help='Risk percentage per trade (default: 0.75%%). Recommended range: 0.5-1.0%%. Controls position sizing based on stop distance.'
     )
     
     args = parser.parse_args()
@@ -908,6 +927,16 @@ Note: Legacy periods (1y, 2y, 5y, etc.) are automatically converted to month equ
     # Configure logging verbosity based on debug flag
     log_level = "DEBUG" if args.debug else "WARNING"
     setup_logging(log_level=log_level)
+    
+    # Validate risk management parameters
+    if args.risk_pct < 0.1 or args.risk_pct > 2.0:
+        print(f"⚠️  Warning: Risk percentage should be between 0.1% and 2.0%")
+        print(f"   Current value: {args.risk_pct}%")
+        print(f"   Proceeding anyway, but consider using recommended range: 0.5-1.0%")
+    
+    if args.account_value < 10000:
+        print(f"⚠️  Warning: Account value seems very low: ${args.account_value:,.0f}")
+        print(f"   Position sizing may result in very small positions")
     
     try:
         # Handle cache management commands first
@@ -959,7 +988,9 @@ Note: Legacy periods (1y, 2y, 5y, etc.) are automatically converted to month equ
                     debug=args.debug,
                     chart_backend=args.chart_backend,
                     data_source=args.data_source,
-                    config=config_dict
+                    config=config_dict,
+                    account_value=args.account_value,
+                    risk_pct=args.risk_pct
                 )
 
                 if args.validate_thresholds:

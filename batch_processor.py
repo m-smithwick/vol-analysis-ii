@@ -172,6 +172,28 @@ def export_dataframe_to_excel(df: pd.DataFrame, ticker: str, period: str,
             logger.error(error_msg)
             raise FileOperationError(error_msg)
 
+def extract_data_end_date(result: Dict) -> Optional[datetime]:
+    """
+    Extract the data end date from a result's filename.
+    
+    Args:
+        result: Result dictionary with 'filename' key
+        
+    Returns:
+        datetime object of the data end date, or None if cannot parse
+    """
+    try:
+        # Filename format: TICKER_PERIOD_STARTDATE_ENDDATE_analysis.txt
+        filename = result['filename']
+        parts = filename.split('_')
+        if len(parts) >= 4:
+            data_date_str = parts[3]  # e.g., "20251201"
+            return datetime.strptime(data_date_str, '%Y%m%d')
+    except (ValueError, IndexError, KeyError):
+        return None
+    return None
+
+
 def check_data_staleness(results: List[Dict], warning_threshold_hours: int = 24) -> Dict[str, Any]:
     """
     Check if any tickers have stale data and return warning information.
@@ -278,6 +300,34 @@ def calculate_batch_metrics(df: pd.DataFrame, account_value: float = 500000) -> 
     strong_signal_active = df['Strong_Buy'].iloc[-1] if 'Strong_Buy' in df.columns and len(df) > 0 else False
     confluence_signal_active = df['Confluence_Signal'].iloc[-1] if 'Confluence_Signal' in df.columns and len(df) > 0 else False
     
+    # NEW: Check if this is a NEW signal (wasn't active yesterday) to match backtest behavior
+    # Backtest only enters on FIRST occurrence of signal, not on continuing signals
+    is_new_moderate_signal = False
+    is_new_strong_signal = False
+    is_new_confluence_signal = False
+    
+    if len(df) >= 2:
+        # Check if signal is new (wasn't active on previous trading day)
+        if moderate_signal_active:
+            previous_moderate = df['Moderate_Buy'].iloc[-2]
+            is_new_moderate_signal = not previous_moderate
+        
+        if strong_signal_active:
+            previous_strong = df['Strong_Buy'].iloc[-2]
+            is_new_strong_signal = not previous_strong
+        
+        if confluence_signal_active:
+            previous_confluence = df['Confluence_Signal'].iloc[-2]
+            is_new_confluence_signal = not previous_confluence
+    else:
+        # Only 1 day of data - must be new
+        is_new_moderate_signal = moderate_signal_active
+        is_new_strong_signal = strong_signal_active
+        is_new_confluence_signal = confluence_signal_active
+    
+    # Overall: is there ANY new entry signal?
+    is_new_entry_signal = is_new_moderate_signal or is_new_strong_signal or is_new_confluence_signal
+    
     # Recent signal counts (last 5 trading days for actionable recency)
     recent_df = df.tail(5)
     recent_moderate_count = recent_df['Moderate_Buy'].sum()
@@ -312,6 +362,7 @@ def calculate_batch_metrics(df: pd.DataFrame, account_value: float = 500000) -> 
             if risk_per_share > 0:
                 position_size = int(risk_amount / risk_per_share)
                 risk_dollars = position_size * risk_per_share
+                total_cost = position_size * current_price  # Total capital required
                 
                 # Calculate profit targets
                 r_distance = risk_per_share
@@ -323,6 +374,7 @@ def calculate_batch_metrics(df: pd.DataFrame, account_value: float = 500000) -> 
                     'stop_price': stop_price,
                     'risk_per_share': risk_per_share,
                     'risk_dollars': risk_dollars,
+                    'total_cost': total_cost,  # NEW: Total transaction cost
                     'target_2r': target_2r,
                     'r_multiple_distance': r_distance
                 }
@@ -335,6 +387,7 @@ def calculate_batch_metrics(df: pd.DataFrame, account_value: float = 500000) -> 
         'moderate_signal_active': moderate_signal_active,
         'strong_signal_active': strong_signal_active,
         'confluence_signal_active': confluence_signal_active,
+        'is_new_entry_signal': is_new_entry_signal,  # NEW: Is this signal's first occurrence?
         'recent_moderate_count': recent_moderate_count,
         'total_moderate_signals': df['Moderate_Buy'].sum(),
         
@@ -1087,9 +1140,48 @@ def process_batch(ticker_file: str, period='12mo', output_dir='results_volume',
                     # Add position sizing details if available
                     if result.get('position_sizing'):
                         pos = result['position_sizing']
-                        print(f"       💰 Position: {pos['shares']:,} shares @ ${pos['entry_price']:.2f} | "
-                              f"Stop: ${pos['stop_price']:.2f} | Risk: ${pos['risk_dollars']:.0f} | "
+                        print(f"       💰 Transaction: {pos['shares']:,} shares × ${pos['entry_price']:.2f} = ${pos['total_cost']:,.0f}")
+                        print(f"       🛑 Stop: ${pos['stop_price']:.2f} | Risk: ${pos['risk_dollars']:.0f} | "
                               f"Target (+2R): ${pos['target_2r']:.2f}")
+                
+                # Calculate and display daily totals - ONLY for signals from most recent market day
+                # Find the most recent data end date across all active signals
+                results_with_dates = [(r, extract_data_end_date(r)) for r in sorted_moderate_results if r.get('position_sizing')]
+                results_with_dates = [(r, d) for r, d in results_with_dates if d is not None]
+                
+                if results_with_dates:
+                    most_recent_date = max(d for _, d in results_with_dates)
+                    
+                    # Split into fresh (same day) and stale (old data)
+                    fresh_results = [r for r, d in results_with_dates if d == most_recent_date]
+                    stale_results = [r for r, d in results_with_dates if d < most_recent_date]
+                    
+                    # Further filter fresh results to only NEW signals (matches backtest behavior)
+                    new_results = [r for r in fresh_results if r.get('is_new_entry_signal', True)]
+                    continuing_results = [r for r in fresh_results if not r.get('is_new_entry_signal', True)]
+                    
+                    # Calculate totals for NEW signals only (matches backtest: only enters on first occurrence)
+                    total_capital_required = sum(r['position_sizing']['total_cost'] for r in new_results)
+                    total_risk_exposure = sum(r['position_sizing']['risk_dollars'] for r in new_results)
+                    num_new_positions = len(new_results)
+                    
+                    # Calculate amounts for continuing and stale signals
+                    continuing_capital = sum(r['position_sizing']['total_cost'] for r in continuing_results)
+                    num_continuing = len(continuing_results)
+                    excluded_capital = sum(r['position_sizing']['total_cost'] for r in stale_results)
+                    excluded_positions = len(stale_results)
+                    
+                    if num_new_positions > 0 or num_continuing > 0:
+                        print(f"\n  {'━' * 70}")
+                        if num_new_positions > 0:
+                            print(f"  💵 NEW SIGNALS TODAY: ${total_capital_required:,.0f} ({num_new_positions} new positions)")
+                            print(f"  📊 Total Risk: ${total_risk_exposure:,.0f} ({total_risk_exposure/500000*100:.2f}% of $500K)")
+                            print(f"  📈 Capital Utilization: {total_capital_required/500000*100:.1f}%")
+                        if num_continuing > 0:
+                            print(f"  🔵 Continuing signals: ${continuing_capital:,.0f} ({num_continuing} already active)")
+                        if excluded_positions > 0:
+                            print(f"  ⏳ Stale data excluded: ${excluded_capital:,.0f} ({excluded_positions} positions)")
+                        print(f"  {'━' * 70}")
             
             print(f"\n{PROFIT_DISPLAY} SIGNALS (Empirically validated - ≥7.0 threshold for 96.1% win rate):")
             if not sorted_profit_results:
@@ -1185,9 +1277,48 @@ def process_batch(ticker_file: str, period='12mo', output_dir='results_volume',
                         # Add position sizing details if available
                         if result.get('position_sizing'):
                             pos = result['position_sizing']
-                            f.write(f"     → Position: {pos['shares']:,} shares @ ${pos['entry_price']:.2f} | "
-                                   f"Stop: ${pos['stop_price']:.2f} | Risk: ${pos['risk_dollars']:.0f} | "
+                            f.write(f"     → Transaction: {pos['shares']:,} shares × ${pos['entry_price']:.2f} = ${pos['total_cost']:,.0f}\n")
+                            f.write(f"     → Stop: ${pos['stop_price']:.2f} | Risk: ${pos['risk_dollars']:.0f} | "
                                    f"Target (+2R): ${pos['target_2r']:.2f}\n")
+                    
+                    # Calculate and display daily totals - ONLY for signals from most recent market day
+                    # Find the most recent data end date across all active signals
+                    results_with_dates = [(r, extract_data_end_date(r)) for r in active_moderate if r.get('position_sizing')]
+                    results_with_dates = [(r, d) for r, d in results_with_dates if d is not None]
+                    
+                    if results_with_dates:
+                        most_recent_date = max(d for _, d in results_with_dates)
+                        
+                        # Split into fresh (same day) and stale (old data)
+                        fresh_results = [r for r, d in results_with_dates if d == most_recent_date]
+                        stale_results = [r for r, d in results_with_dates if d < most_recent_date]
+                        
+                        # Further filter fresh results to only NEW signals (matches backtest behavior)
+                        new_results = [r for r in fresh_results if r.get('is_new_entry_signal', True)]
+                        continuing_results = [r for r in fresh_results if not r.get('is_new_entry_signal', True)]
+                        
+                        # Calculate totals for NEW signals only (matches backtest: only enters on first occurrence)
+                        total_capital_required = sum(r['position_sizing']['total_cost'] for r in new_results)
+                        total_risk_exposure = sum(r['position_sizing']['risk_dollars'] for r in new_results)
+                        num_new_positions = len(new_results)
+                        
+                        # Calculate amounts for continuing and stale signals
+                        continuing_capital = sum(r['position_sizing']['total_cost'] for r in continuing_results)
+                        num_continuing = len(continuing_results)
+                        excluded_capital = sum(r['position_sizing']['total_cost'] for r in stale_results)
+                        excluded_positions = len(stale_results)
+                        
+                        if num_new_positions > 0 or num_continuing > 0:
+                            f.write(f"\n{'━' * 80}\n")
+                            if num_new_positions > 0:
+                                f.write(f"💵 NEW SIGNALS TODAY: ${total_capital_required:,.0f} ({num_new_positions} new positions)\n")
+                                f.write(f"📊 Total Risk: ${total_risk_exposure:,.0f} ({total_risk_exposure/500000*100:.2f}% of $500K)\n")
+                                f.write(f"📈 Capital Utilization: {total_capital_required/500000*100:.1f}%\n")
+                            if num_continuing > 0:
+                                f.write(f"🔵 Continuing signals: ${continuing_capital:,.0f} ({num_continuing} already active)\n")
+                            if excluded_positions > 0:
+                                f.write(f"⏳ Stale data excluded: ${excluded_capital:,.0f} ({excluded_positions} positions)\n")
+                            f.write(f"{'━' * 80}\n")
                 
                 f.write(f"\n{PROFIT_DISPLAY} SIGNALS (Empirically validated - ≥7.0 threshold for 96.1% win rate):\n")
                 f.write("-" * 110 + "\n")

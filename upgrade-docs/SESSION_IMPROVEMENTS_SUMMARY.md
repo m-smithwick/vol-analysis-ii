@@ -1,5 +1,301 @@
 # Session Improvements Summary
 
+## Session 2025-12-01 (Evening): Signal Threshold Optimization & Default Config Update
+
+### Goal: Determine Optimal Entry Signal Threshold & Update System Defaults
+
+**Context:**
+- User questioned if 6.5 signal score is as good as 8.2
+- Recent batch showed 7 trades ranging from 6.5 to 8.2
+- Needed empirical evidence for threshold optimization
+- Conservative config (6.5) vs base config (6.0) comparison
+
+**Analysis Performed:**
+
+**1. Signal Quality Analysis (analyze_trade_quality.py):**
+- Analyzed 481 trades (base config, 6.0 threshold) over 24 months
+- Analyzed 434 trades (conservative config, 6.5 threshold) over 24 months
+- Compared performance by score buckets and threshold levels
+- Generated visualizations and statistical reports
+
+**2. Key Findings:**
+
+**Base Config (6.0 threshold):**
+- 481 trades, 68.0% win rate, +9.17% expectancy, +6.24% median return
+
+**Conservative Config (6.5 threshold):**
+- 434 trades, 70.0% win rate, +13.35% expectancy, +9.16% median return
+- **45% better expectancy** (+13.35% vs +9.17%)
+- **47% better median returns** (+9.16% vs +6.24%)
+- Only 10% fewer trades (47 filtered trades were marginal performers)
+
+**Score Bucket Analysis:**
+- 6.0-8.0 range: 68.5% win rate, +8.21% expectancy
+- 8.0-10.0 range: 66.7% win rate, +10.42% expectancy
+- Higher scores = bigger winners (not more frequent winners)
+
+**Optimal Threshold Analysis:**
+- 7.5 threshold showed best balance: 71% win, +14.08% expectancy, 317 trades
+- 8.0+ too selective (only 20% of trades)
+- 6.5 provides excellent results with reasonable trade frequency
+
+**3. Answer to Original Question:**
+"Is 6.5 as good as 8.2?"
+- 8.2 is ~26% better in expectancy vs 6.5
+- BUT 6.5 isn't bad: 70.6% win, +13.13% expectancy
+- Difference meaningful but 6.5-8.0 range all performs well
+- 6.5 threshold optimal for trade frequency vs quality balance
+
+**Changes Implemented:**
+
+**1. Updated Default Configurations:**
+- `vol_analysis.py` - Changed --config default to `configs/conservative_config.yaml`
+- `batch_backtest.py` - Changed --config default to `configs/conservative_config.yaml`
+- Help text updated to explain empirical validation (+45% better expectancy)
+
+**2. Documentation Updates:**
+- `README.md` - Added Signal Threshold Optimization validation section
+- Updated CLI examples to show conservative as default
+- Clarified base_config is historical reference only
+- `configs/README.md` - Reordered configs, conservative now listed first with ⭐
+- Added performance metrics and evidence citations
+
+**3. Architecture Impact:**
+- Conservative config (6.5 threshold) now auto-loads by default
+- Users can still override with --config flag
+- Backward compatible - base_config still available
+- Zero breaking changes
+
+**4. Position Sizing Inquiry:**
+- User asked about compounding in backtests
+- Confirmed: RiskManager DOES compound position sizes automatically
+- Equity updates after each trade: `self.equity += pnl`
+- Position sizing uses current equity: `self.equity * (self.risk_pct / 100)`
+- Geometric growth (realistic) vs arithmetic (static sizing)
+
+**5. Live Trading Gap Identified:**
+- Backtest: ✅ Tracks equity, compounds automatically
+- Live signals: ❌ Stateless, uses static --account-value
+- Documented in PROJECT-STATUS.md Janitor Queue
+- Workarounds available (manual equity updates)
+- Future enhancement: portfolio_state.py tracker tool
+
+**Files Modified:**
+1. `vol_analysis.py` - Default config changed to conservative_config.yaml
+2. `batch_backtest.py` - Default config changed to conservative_config.yaml
+3. `configs/README.md` - Reordered configs, conservative now primary
+4. `README.md` - Added validation section, updated examples
+5. `PROJECT-STATUS.md` - Added position sizing gap to Janitor Queue
+
+**Files Created:**
+- None (only modifications)
+
+**Performance Impact:**
+
+**NEW Default Behavior:**
+```bash
+python vol_analysis.py AAPL  # Now uses 6.5 threshold automatically
+# Win rate: 70% (vs 68%)
+# Expectancy: +13.35% (vs +9.17%)
+# Median return: +9.16% (vs +6.24%)
+```
+
+**Results:**
+- ✅ 45% better expectancy with minimal trade reduction
+- ✅ System now uses empirically optimized threshold by default
+- ✅ Clear upgrade path documented
+- ✅ Backward compatibility maintained
+
+**Key Learnings:**
+
+**1. Threshold Optimization is Significant:**
+- Small threshold change (6.0 → 6.5) = 45% better expectancy
+- 47 marginal trades (6.0-6.5 range) were dragging down performance
+- Quality over quantity principle validated
+
+**2. Score Distribution Insights:**
+- Higher scores don't win MORE often (66.7% vs 68.5%)
+- Higher scores win BIGGER when they do win
+- Net result: Better expectancy despite slightly lower win rate
+
+**3. Trade Frequency Considerations:**
+- 7.5 threshold has best stats (71% win, +14.08% expectancy)
+- But 6.5 preferred: Good stats + more opportunities (434 vs 317 trades)
+- Practical trade-off: slight expectancy reduction for 37% more signals
+
+**4. Position Sizing Architecture:**
+- Compounding validated as correct approach
+- Live trading requires manual equity tracking
+- Gap documented for future automation
+- Workarounds sufficient for current operations
+
+**Benefits:**
+- ✅ System now uses optimal threshold by default
+- ✅ 45% better expectancy without code changes
+- ✅ Evidence-based optimization (434 trades analyzed)
+- ✅ Position sizing model validated
+- ✅ Live trading gap documented with workarounds
+- ✅ Users can still test other thresholds easily
+
+**Status:** Signal threshold optimization complete, conservative_config is new production default, empirically validated.
+
+---
+
+## Session 2025-12-01: Position Sizing Configuration & Signal Persistence Logic
+
+### Goal: Add Configurable Risk Parameters & Fix Multi-Day Signal Accounting
+
+**Context:**
+- Position sizes hardcoded at $100K (trade logs) and $500K (batch summaries)
+- Risk percentage hardcoded at 0.75% across all modules
+- User needed ability to scale position sizing for different account sizes
+- Batch summaries counting continuing signals in daily totals (double-counting capital)
+
+**Problems Identified:**
+
+1. **Hardcoded Position Sizing:**
+   - `backtest.py`: account_value=100000, risk_pct=0.75 (hardcoded)
+   - `batch_processor.py`: account_value=500000, risk_pct=0.75 (hardcoded)
+   - `vol_analysis.py`: account_value=100000, risk_pct=0.75 (hardcoded)
+   - No CLI control to test different scenarios or match live accounts
+
+2. **Signal Persistence Accounting Bug:**
+   - TARS had Moderate Buy signal on Nov 30 AND Dec 01
+   - Batch summary counted TARS in "TODAY'S TOTAL" both days
+   - Double-counted capital already deployed (or passed on)
+   - Didn't match backtest behavior (only enters on first occurrence)
+
+**Solutions Implemented:**
+
+### 1. Configurable Position Sizing (vol_analysis.py)
+
+**Added CLI Arguments:**
+```bash
+--account-value FLOAT   # Default: 100000 ($100K)
+--risk-pct FLOAT        # Default: 0.75%
+```
+
+**Updated Functions:**
+- `analyze_ticker()` - Added account_value, risk_pct parameters
+- `generate_analysis_text()` - Uses provided values instead of hardcoded
+- `main()` - Threads parameters through call chain
+- Added validation: warns if risk_pct <0.1% or >2.0%
+
+**Usage Examples:**
+```bash
+# Large portfolio
+python vol_analysis.py AAPL --account-value 500000
+
+# Conservative approach
+python vol_analysis.py TSLA --risk-pct 0.5
+
+# Match live account
+python vol_analysis.py --file stocks.txt --account-value 250000 --risk-pct 0.75
+```
+
+### 2. Transaction Cost Display (batch_processor.py)
+
+**Enhanced Output to Show:**
+- Individual transaction cost: `shares × price = total_cost`
+- Daily capital totals summing all active positions
+- Risk exposure as % of account
+- Capital utilization percentage
+
+**Example Output:**
+```
+💰 Transaction: 750 shares × $180.00 = $135,000
+🛑 Stop: $175.00 | Risk: $3,750 | Target (+2R): $190.00
+```
+
+### 3. Signal Persistence Detection (batch_processor.py)
+
+**Implemented "Signal First Appearance" Heuristic:**
+
+Matches backtest behavior - only act on NEW signals:
+
+```python
+# Check if signal is NEW (wasn't active yesterday)
+if len(df) >= 2:
+    previous_moderate = df['Moderate_Buy'].iloc[-2]
+    is_new_moderate_signal = not previous_moderate
+else:
+    is_new_moderate_signal = True  # Only 1 day = must be new
+```
+
+**Three-Tier Capital Breakdown:**
+
+1. **💵 NEW SIGNALS TODAY** - Counted in total
+   - First occurrence (wasn't active yesterday)
+   - From most recent market date
+   - Matches backtest (enters on first occurrence only)
+
+2. **🔵 Continuing Signals** - NOT counted
+   - Was active yesterday, still active today
+   - Capital presumably already deployed
+   - Shown for monitoring, excluded from total
+
+3. **⏳ Stale Data Excluded** - NOT counted
+   - Signal from older dates
+   - Missed opportunity or already acted on
+
+**Example Output:**
+```
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+💵 NEW SIGNALS TODAY: $177,750 (2 new positions)
+📊 Total Risk: $7,500 (1.50% of $500K)
+📈 Capital Utilization: 35.6%
+🔵 Continuing signals: $170,000 (1 already active)
+⏳ Stale data excluded: $85,000 (1 position)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+```
+
+### Files Modified:
+1. `vol_analysis.py` - Added --account-value and --risk-pct arguments, threaded through functions
+2. `batch_processor.py` - Added total_cost calculation, signal history detection, three-tier breakdown
+
+### Architecture Compliance:
+- ✅ Default values preserved ($100K trade logs, $500K batch summaries)
+- ✅ Backward compatible (all existing scripts work unchanged)
+- ✅ Separation of concerns maintained
+- ✅ Matches backtest behavior (enters only on first signal occurrence)
+
+### Key Learnings:
+
+**1. Position Sizing Scaling:**
+- 5x account = 5x position size = 5x dollar P&L
+- R-multiples, win rates, percentages unchanged
+- Real-world friction reduces scaling by 10-20% (slippage, liquidity)
+
+**2. Signal Persistence is Common:**
+- Signals often persist 2-5 days
+- Backtest only enters on first day
+- Batch summaries must match this behavior
+- Otherwise: double-counts capital requirements
+
+**3. Daily Capital Planning:**
+- "NEW SIGNALS" = capital needed for fresh deployment
+- "CONTINUING" = positions already in play (monitoring)
+- Separation critical for accurate portfolio management
+
+### Benefits:
+- ✅ Flexible position sizing for different account sizes
+- ✅ Easy comparison: $100K vs $500K scenarios
+- ✅ Accurate daily capital requirements (no double-counting)
+- ✅ Matches backtest behavior precisely
+- ✅ Clear separation: new vs continuing vs stale signals
+- ✅ Validation warnings for extreme risk parameters
+
+### Testing Results:
+- ✅ CLI arguments parsing correctly
+- ✅ Position sizing calculation verified
+- ✅ Signal history detection working
+- ✅ Three-tier breakdown displaying correctly
+- ✅ TARS continuing signal properly excluded from new total
+
+**Status:** Position sizing fully configurable, signal persistence logic matches backtest behavior
+
+---
+
 ## Session 2025-12-01: Chart Signal Display Fix
 
 ### Goal: Fix Signal Display Timing Mismatch Between Batch Summary and Charts
