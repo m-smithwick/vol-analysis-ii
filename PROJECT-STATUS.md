@@ -1,33 +1,41 @@
 # Project Status
 
-**Last Updated**: 2025-11-28  
-**Current Status**: ✅ Configuration system complete and validated
+**Last Updated**: 2025-12-01  
+**Current Status**: ✅ yfinance downloads fixed, system operational
 
 ---
 
-## 🎯 Current System State
+## 🎯 Current Context
 
-**Production Ready:**
-- ✅ Configuration-based testing framework operational
-- ✅ 6 validated configurations available
-- ✅ Empirical strategy selection framework documented
-- ✅ Batch comparison tools working
+Recent session fixed yfinance API issues and added quick cache update capability.
 
-**Recommended Configuration:**
-- Use `configs/balanced_config.yaml` for best risk-adjusted returns
-- See `docs/CONFIGURATION_STRATEGY_ANALYSIS.md` for portfolio-specific recommendations
+**Key improvements:**
+- Timezone-aware datetime handling (fixes JSON decode errors)
+- Exclusive end date fix (includes today's data)
+- New -d/--days parameter for quick updates
+- API throttling protection (1s delay every 10 tickers)
 
 ---
 
-## 📋 Outstanding Tasks
+## 🏗️ Architectural Impact
 
-### High Priority
+**No architectural changes** - Pure bug fixes and usability improvements.
 
-**None** - System is production-ready
+All changes in data layer (data_manager.py, populate_cache.py) maintain existing interfaces and backward compatibility.
+
+---
+
+## 📋 Active Plan
+
+System is operational. No active work in progress.
+
+---
+
+## 🧹 Janitor Queue
 
 ### Medium Priority
 
-1. **Cached Earnings Dates** (Future Enhancement)
+**1. Cached Earnings Dates** (Future Enhancement)
    - Currently bypassing earnings window filter (safe)
    - Default parameter: `earnings_dates=[]` 
    - Future: Implement earnings date cache system
@@ -35,62 +43,9 @@
 
 ### Low Priority
 
-2. **Residual Duplicate Dates in Regime Display**
+**2. Residual Duplicate Dates in Regime Display**
    - Display-only issue (some dates appear twice in regime tables)
    - Does NOT affect calculations or trading logic
    - Cosmetic fix for future cleanup
 
-3. **populate_cache_bulk.py Performance Optimization** ✅ **COMPLETED (2025-11-30)**
-   - **Implementation**: DuckDB-based intermediary index layer
-   - **Performance**: 10-20x faster (4-8 min vs 41-84 min for 24 months)
-   - **Architecture**: Three-tier system (massive_cache → massive_index.duckdb → data_cache)
-   - **Key Features**:
-     * SQL-indexed queries (O(1) ticker lookups vs O(days) sequential scan)
-     * Reads gzip directly (no manual decompression)
-     * Incremental updates via INSERT (1s vs 30s for Parquet rewrite)
-     * Backward compatible (legacy mode still available)
-     * Auto-fallback if DuckDB unavailable
-   - **Usage**: `python populate_cache_bulk.py --months 24 --use-duckdb`
-   - **Setup**: One-time index build: `python scripts/build_massive_index.py` (30-60s)
-   - **Documentation**: `docs/DUCKDB_OPTIMIZATION.md`
-   - **Related files**: 
-     * `massive_duckdb_provider.py` - Query interface
-     * `scripts/build_massive_index.py` - Index builder
-     * `scripts/query_massive_index.py` - Testing tool
-     * `populate_cache_bulk.py` - Updated with `--use-duckdb` flag
-   - **Next Steps**: Test on real data, benchmark actual performance
-
 ---
-
-## 📚 Key Documentation
-
-**For configuration selection:**
-- `docs/CONFIGURATION_STRATEGY_ANALYSIS.md` - Empirical study across 6 portfolio types
-
-**For configuration details:**
-- `configs/README.md` - Configuration system guide
-
-**For system validation:**
-- `STRATEGY_VALIDATION_COMPLETE.md` - Signal validation results
-
-**For session history:**
-- `upgrade-docs/SESSION_IMPROVEMENTS_SUMMARY.md` - Complete changelog
-
-**For architecture:**
-- `CODE_MAP.txt` - Module responsibilities and dependencies
-
----
-
-## 🚀 Quick Start
-
-```bash
-# Compare configurations on your ticker list
-python batch_config_test.py -c configs/*.yaml -f ticker_lists/YOUR_LIST.txt
-
-# Use recommended configuration
-python batch_backtest.py -f ticker_lists/ibd.txt -c configs/balanced_config.yaml
-```
-
----
-
-**Next Session Focus**: System is ready. Choose configuration based on your portfolio type and begin testing/trading.

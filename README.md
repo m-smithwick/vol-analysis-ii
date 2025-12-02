@@ -36,10 +36,19 @@ Need the deeper architecture or indicator breakdown? See `docs/ARCHITECTURE_REFE
    
    **Option A: Yahoo Finance (Recommended - No credentials needed)**
    ```bash
-   # Start with 1 month to test
+   # Populate all known ticker files with 1 month
    python populate_cache.py --all -m 1
    
-   # Scale up to 24 months
+   # Populate specific ticker file with 6 months
+   python populate_cache.py -f ticker_lists/ibd.txt -m 6
+   
+   # Quick daily update (5 days) - ideal for keeping cache current
+   python populate_cache.py -f ticker_lists/short.txt -d 5
+   
+   # Update with 30 days of data
+   python populate_cache.py --file stocks.txt -d 30
+   
+   # Scale up to 24 months for full history
    python populate_cache.py --all -m 24
    ```
    

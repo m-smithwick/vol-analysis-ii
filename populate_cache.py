@@ -5,12 +5,14 @@ Downloads 3 years of data for all tickers in specified files.
 
 import argparse
 from datetime import datetime, timedelta
+import time
 import data_manager
 from error_handler import setup_logging, logger
 
 def populate_cache_for_tickers(
     ticker_file: str,
-    months: int = 36,
+    months: int = None,
+    days: int = None,
     interval: str = "1d",
     force_refresh: bool = False,
     data_source: str = "yfinance"
@@ -20,7 +22,8 @@ def populate_cache_for_tickers(
     
     Args:
         ticker_file: Path to file with tickers
-        months: Number of months of history to download
+        months: Number of months of history to download (use months OR days, not both)
+        days: Number of days of history to download (use months OR days, not both)
         interval: Data interval
         force_refresh: Redownload even if cached
         data_source: Data source to use ('yfinance' or 'massive')
@@ -28,15 +31,27 @@ def populate_cache_for_tickers(
     Returns:
         Tuple of (success_count, fail_count)
     """
+    # Default to 36 months if neither specified
+    if months is None and days is None:
+        months = 36
+    
+    # Construct period string and calculate date range
+    if days is not None:
+        period = f"{days}d"
+        period_display = f"{days} days"
+        end_date = datetime.now()
+        start_date = end_date - timedelta(days=days)
+    else:
+        period = f"{months}mo"
+        period_display = f"{months} months (≈{months/12:.1f} years)"
+        end_date = datetime.now()
+        start_date = end_date - timedelta(days=months * 30)
+    
     # Read tickers
     tickers = data_manager.read_ticker_file(ticker_file)
     
     logger.info(f"Populating cache for {len(tickers)} tickers from {ticker_file}")
-    logger.info(f"Period: {months} months ({months/12:.1f} years), Interval: {interval}, Data Source: {data_source}")
-    
-    # Calculate date range for checking coverage
-    end_date = datetime.now()
-    start_date = end_date - timedelta(days=months * 30)
+    logger.info(f"Period: {period_display}, Interval: {interval}, Data Source: {data_source}")
     
     success_count = 0
     fail_count = 0
@@ -46,7 +61,7 @@ def populate_cache_for_tickers(
     print(f"📥 CACHE POPULATION: {ticker_file}")
     print(f"{'='*70}")
     print(f"Tickers: {len(tickers)}")
-    print(f"Period: {months} months (≈{months/12:.1f} years)")
+    print(f"Period: {period_display}")
     print(f"Interval: {interval}")
     print(f"Data Source: {data_source}")
     print(f"Force Refresh: {force_refresh}")
@@ -70,11 +85,13 @@ def populate_cache_for_tickers(
                         continue
             
             # Download data (smart function will cache it)
+            # Must set cache_only=False to allow downloads
             df = data_manager.get_smart_data(
                 ticker=ticker,
-                period=f"{months}mo",
+                period=period,
                 interval=interval,
                 force_refresh=force_refresh,
+                cache_only=False,  # Allow downloading from API
                 data_source=data_source
             )
             
@@ -86,6 +103,12 @@ def populate_cache_for_tickers(
             logger.error(f"Failed to cache {ticker}: {e}")
             fail_count += 1
             continue
+        
+        finally:
+            # Add 1-second delay after every 10 tickers to avoid API throttling
+            if i % 10 == 0 and i < len(tickers):
+                print(f"    ⏸️  Pausing 1 second to avoid API throttling...")
+                time.sleep(1)
     
     # Summary
     print(f"\n{'='*70}")
@@ -101,7 +124,8 @@ def populate_cache_for_tickers(
     return success_count, fail_count
 
 def populate_all_ticker_files(
-    months: int = 36,
+    months: int = None,
+    days: int = None,
     interval: str = "1d",
     force_refresh: bool = False,
     data_source: str = "yfinance"
@@ -110,7 +134,8 @@ def populate_all_ticker_files(
     Populate cache for all ticker files in the project.
     
     Args:
-        months: Number of months of history
+        months: Number of months of history (use months OR days, not both)
+        days: Number of days of history (use months OR days, not both)
         interval: Data interval
         force_refresh: Force redownload
         data_source: Data source to use ('yfinance' or 'massive')
@@ -144,6 +169,7 @@ def populate_all_ticker_files(
         success, fail = populate_cache_for_tickers(
             ticker_file=ticker_file,
             months=months,
+            days=days,
             interval=interval,
             force_refresh=force_refresh,
             data_source=data_source
@@ -175,14 +201,17 @@ Examples:
   # Populate single file with 3 years of daily data (yfinance)
   python populate_cache.py -f ibd.txt -m 36
   
+  # Populate with 5 days of data (quick updates)
+  python populate_cache.py -f stocks.txt -d 5
+  
+  # Populate with 30 days of data
+  python populate_cache.py -f ticker_lists/short.txt -d 30
+  
   # Populate all ticker files with 24 months from Massive.com
   python populate_cache.py --all -m 24 --data-source massive
   
-  # Force refresh even if cached
-  python populate_cache.py -f stocks.txt -m 36 --force
-  
-  # Use Massive.com as data source
-  python populate_cache.py --all -m 24 --data-source massive
+  # Force refresh with 10 days
+  python populate_cache.py -f stocks.txt -d 10 --force
         """
     )
     
@@ -197,11 +226,17 @@ Examples:
         help='Populate all ticker files in current directory'
     )
     
-    parser.add_argument(
+    # Period group - months OR days (mutually exclusive)
+    period_group = parser.add_mutually_exclusive_group()
+    period_group.add_argument(
         '-m', '--months',
         type=int,
-        default=36,
-        help='Months of history to download (default: 36 = 3 years)'
+        help='Months of history to download (e.g., 1, 6, 36). Default: 36 if neither -m nor -d specified'
+    )
+    period_group.add_argument(
+        '-d', '--days',
+        type=int,
+        help='Days of history to download (e.g., 5, 10, 30). Useful for quick cache updates'
     )
     parser.add_argument(
         '-i', '--interval',
@@ -226,6 +261,7 @@ Examples:
     if args.all:
         populate_all_ticker_files(
             months=args.months,
+            days=args.days,
             interval=args.interval,
             force_refresh=args.force,
             data_source=args.data_source
@@ -234,6 +270,7 @@ Examples:
         populate_cache_for_tickers(
             ticker_file=args.file,
             months=args.months,
+            days=args.days,
             interval=args.interval,
             force_refresh=args.force,
             data_source=args.data_source

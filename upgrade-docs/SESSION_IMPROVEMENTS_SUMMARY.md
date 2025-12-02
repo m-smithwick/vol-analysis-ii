@@ -1,5 +1,233 @@
 # Session Improvements Summary
 
+## Session 2025-12-01: yfinance Download Fix & Days Parameter
+
+### Goal: Fix yfinance API Issues & Add Quick Cache Update Option
+
+**Context:**
+- yfinance downloads failing with JSON decode errors and timezone issues
+- populate_cache.py only supported months (-m), needed days option (-d)
+- User needed quick daily cache updates (5-10 days)
+- API throttling concerns with large ticker lists
+
+**Problem Identified:**
+1. **Timezone Issues:** Using timezone-naive dates → JSON decode errors
+2. **Exclusive End Date:** yfinance excludes end_date → missing today's data
+3. **Limited Period Options:** Only months available, no days parameter
+4. **No API Throttling:** Risk of rate limiting on large lists
+
+**Solution Implemented:**
+
+**1. Timezone-Aware Datetime Fix (data_manager.py):**
+```python
+# Added pytz import
+import pytz
+
+# Changed incremental download to use timezone-aware dates
+tz = pytz.timezone('America/New_York')
+start_date = tz.localize(cache_end_date + timedelta(days=1))
+end_date = tz.localize(datetime.now() + timedelta(days=1))  # +1 for exclusive end
+```
+
+**2. Exclusive End Date Fix:**
+- yfinance excludes end_date from results
+- To get data through Dec 1, must use end_date = Dec 2
+- Added +1 day to end_date calculation
+
+**3. Added -d/--days Parameter (populate_cache.py):**
+```python
+period_group.add_argument('-d', '--days', type=int,
+    help='Days of history to download (e.g., 5, 10, 30). Useful for quick cache updates')
+```
+- Mutually exclusive with -m/--months
+- Quick cache updates: `-d 5`, `-d 10`, `-d 30`
+- Works with both single files and --all
+
+**4. API Throttling Protection (populate_cache.py):**
+```python
+# Added 1-second delay after every 10 tickers
+if i % 10 == 0 and i < len(tickers):
+    print(f"    ⏸️  Pausing 1 second to avoid API throttling...")
+    time.sleep(1)
+```
+
+**5. Documentation Updates (README.md):**
+- Added ticker file examples with -f flag
+- Documented new -d days option with practical examples
+- Included quick daily update patterns (5 days, 30 days)
+
+**Performance Results:**
+- ✅ Downloads now work reliably (no more JSON errors)
+- ✅ Cache updated to Dec 1, 2025 successfully
+- ✅ Quick 5-day updates complete in seconds
+- ✅ API throttling prevents rate limiting
+
+**Files Modified:**
+1. `data_manager.py` - Added pytz, timezone-aware downloads, exclusive end date fix
+2. `populate_cache.py` - Added -d/--days parameter, API throttling, time import
+3. `README.md` - Updated Quick Start examples with days option
+
+**Files Created:**
+- None (only modifications)
+
+**Key Learnings:**
+
+**1. yfinance API Requirements:**
+- Prefers timezone-aware datetime objects (America/New_York)
+- Uses exclusive end dates (must add +1 day to get data through target date)
+- String dates and timezone-naive dates cause JSON decode errors
+
+**2. User Workflow Insight:**
+- Daily cache updates more common than full repopulation
+- Need quick 5-10 day updates, not just full months
+- API throttling essential for large ticker lists (>20 tickers)
+
+**3. Design Pattern:**
+- Mutually exclusive parameters work well (months vs days)
+- Auto-throttling (every N items) better than manual flags
+- Clear user feedback ("Pausing to avoid throttling") builds trust
+
+**Benefits:**
+- ✅ Reliable downloads with proper timezone handling
+- ✅ Quick daily updates (5 days vs 1 month minimum)
+- ✅ API throttling prevents rate limiting
+- ✅ Clear documentation with practical examples
+- ✅ Backward compatible (existing -m flag still works)
+
+**Usage Examples:**
+```bash
+# Quick daily update
+python populate_cache.py -f ticker_lists/short.txt -d 5
+
+# Update 30 days
+python populate_cache.py --file stocks.txt -d 30
+
+# Still works with months
+python populate_cache.py -f ibd.txt -m 6
+```
+
+**Status:** yfinance downloads fixed, days parameter operational, documentation updated
+
+---
+
+## Session 2025-11-30: DuckDB Cache Optimization (10-20x Performance Improvement)
+
+### Goal: Optimize massive_cache Processing for Production Use
+
+**Context:**
+- PROJECT-STATUS.md item #3: populate_cache_bulk.py took 41-84 minutes for 24 months (50 tickers)
+- Bottleneck: Sequential decompression of 500+ CSV.GZ files (~11k tickers each)
+- Each ticker required reading ALL daily files
+- User needed 10-20x speedup for practical daily operations
+
+**Solution Architecture - Three-Tier System:**
+```
+massive_cache/          (raw CSV.GZ - unchanged)
+       ↓
+massive_index.duckdb   (NEW - SQL index, optional)
+       ↓
+data_cache/            (schema-validated CSVs - unchanged)
+```
+
+**Key Design Decisions:**
+
+1. **DuckDB Over Parquet:**
+   - Reads gzip directly (no manual decompression)
+   - True SQL indexes (B-tree vs metadata filtering)
+   - Incremental updates via INSERT (1s vs 30s Parquet rewrite)
+   - SQL abstraction for future refactoring (intraday, fundamentals, etc.)
+   
+2. **Backward Compatible:**
+   - Legacy mode still works (auto-fallback)
+   - Optional optimization (requires pip install duckdb)
+   - Zero disruption to existing workflows
+   
+3. **Risk Firewall Intact:**
+   - No changes to data_cache/ format
+   - No changes to backtest.py or signal logic
+   - Purely performance optimization layer
+
+**Implementation:**
+
+**New Files Created:**
+1. `scripts/build_massive_index.py` - Build SQL index from massive_cache/ (30-60s one-time)
+2. `massive_duckdb_provider.py` - Query interface with context manager support
+3. `scripts/query_massive_index.py` - CLI testing/exploration tool
+4. `docs/DUCKDB_OPTIMIZATION.md` - Comprehensive implementation guide
+5. `ticker_lists/test_duckdb.txt` - Test list (20 non-overlapping tickers)
+
+**Files Modified:**
+1. `populate_cache_bulk.py` - Added --use-duckdb flag with graceful fallback
+2. `requirements.txt` - Added duckdb>=0.10.0
+3. `CODE_MAP.txt` - Documented new data layer components
+4. `PROJECT-STATUS.md` - Marked item #3 complete
+5. `README.md` - Added DuckDB quick start, CLI options, documentation map entry
+6. `docs/USER_PLAYBOOK.md` - Added DuckDB setup, sector rotation workflow, multi-computer setup
+7. `.gitignore` - Excluded massive_index.duckdb (local-only file)
+
+**Bug Fixes:**
+- SQL syntax: EPOCH_MS requires BIGINT not DOUBLE
+- Added raw string prefix for regex in SQL queries
+
+**Performance Results (User Validated):**
+- Build index: 30-60s (one-time operation)
+- Query 20 tickers: ~1 second (vs 5-10 minutes legacy)
+- 24 months/50 tickers: 4-8 min vs 41-84 min (**10-20x faster**)
+- User feedback: "that was incredibly fast"
+
+**Documentation Updates:**
+
+**README.md:**
+- Added performance optimization section with examples
+- Updated CLI options for populate_cache_bulk.py
+- Added documentation map entry
+
+**USER_PLAYBOOK.md:**
+- Section 3: Optional DuckDB optimization setup
+- Section 2: Clarified default ticker list behavior (stocks.txt)
+- Section 4: Completely rewrote monthly routine with sector rotation workflow
+- Section 10: NEW - Multi-computer workflow guide
+  - What syncs via git vs what doesn't
+  - Setting up on new computer
+  - Keeping caches in sync
+  - Alternative: Share massive_cache/ via NAS
+- Updated time estimates and best practices
+
+**Key Features:**
+
+1. **Query Performance:**
+   - Single ticker: ~0.1s (vs 5-10s CSV decompression)
+   - Multi-ticker batch: ONE query for all tickers (vs sequential)
+   - O(1) indexed lookups vs O(days) sequential scan
+
+2. **Incremental Updates:**
+   - SQL INSERT for new days (1s)
+   - vs full Parquet rewrite (30s)
+   - vs CSV decompression for all days (minutes)
+
+3. **Workflow Integration:**
+   - Sector rotation monthly routine documented
+   - Multi-computer setup guide added
+   - Default ticker list behavior clarified
+
+**Architecture Compliance:**
+- ✅ Separation of Concerns: Index layer ≠ data cache layer
+- ✅ Risk Firewall intact: No changes to data_cache/ or risk_manager.py
+- ✅ Backward compatible: Legacy mode works, auto-fallback
+- ✅ No new metrics: Pure performance optimization
+
+**Benefits:**
+- ✅ 10-20x faster cache population (validated by user)
+- ✅ SQL abstraction for future enhancements (intraday, fundamentals)
+- ✅ Incremental updates (add new days without full rebuild)
+- ✅ Multi-computer workflow documented
+- ✅ Sector rotation integrated into monthly routine
+- ✅ Zero risk to existing validated strategies
+
+**Status:** DuckDB optimization production-ready, documented, validated on real data.
+
+---
+
 ## Session 2025-11-28: Configuration Strategy Analysis & Ticker File Management
 
 ### Goal: Comprehensive Configuration Testing & Portfolio Analysis

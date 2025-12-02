@@ -9,6 +9,7 @@ import os
 import yfinance as yf
 from datetime import datetime, timedelta
 from pathlib import Path
+import pytz
 
 # Import error handling framework
 from error_handler import (
@@ -443,20 +444,27 @@ def get_smart_data(ticker: str, period: str, interval: str = "1d", force_refresh
     logger.info(f"Cache is {days_behind} days behind - downloading recent data for {ticker} ({interval})")
     
     try:
-        # Try using period parameter instead of start/end dates to avoid timezone conflicts
-        days_to_download = days_behind + 1  # +1 to include today
-        period_param = f"{min(days_to_download, 60)}d"  # Cap at 60d for safety with intraday data
-        logger.debug(f"Using period parameter: {period_param} instead of explicit dates to avoid timezone issues")
+        # Use timezone-aware datetime objects for reliable downloads (fixed per user's working code)
+        tz = pytz.timezone('America/New_York')
         
-        new_data = yf.download(ticker, period=period_param, interval=interval, auto_adjust=True)
+        # Calculate start date (day after last cached date)
+        start_date_naive = cache_end_date + timedelta(days=1)
         
-        # If nothing was returned or the download failed, try the old way as fallback
-        if new_data.empty:
-            logger.debug(f"Period-based download returned no data, trying date-based download as fallback")
-            # Download from day after last cached date to today
-            # Ensure we're using timezone-naive dates for Yahoo Finance API
-            start_date = (cache_end_date + timedelta(days=1)).replace(tzinfo=None).strftime('%Y-%m-%d')
-            new_data = yf.download(ticker, start=start_date, interval=interval, auto_adjust=True)
+        # Make it timezone-aware if it isn't already
+        if start_date_naive.tzinfo is None:
+            start_date = tz.localize(start_date_naive)
+        else:
+            start_date = start_date_naive.astimezone(tz)
+        
+        # End date must be +1 day AFTER the last day we want (yfinance uses exclusive end date)
+        # To get data through today, we need tomorrow as end_date
+        end_date_naive = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0) + timedelta(days=1)
+        end_date = tz.localize(end_date_naive)
+        
+        logger.debug(f"Downloading with timezone-aware dates: {start_date.date()} to {end_date.date()} (end is exclusive)")
+        
+        # Download using timezone-aware datetime objects (this is what works reliably)
+        new_data = yf.download(ticker, start=start_date, end=end_date, interval=interval, auto_adjust=True)
     except Exception as e:
         logger.warning(f"Error downloading recent data: {str(e)}")
         logger.info(f"Falling back to cached data")
