@@ -43,7 +43,9 @@ Need the deeper architecture or indicator breakdown? See `docs/ARCHITECTURE_REFE
    python populate_cache.py -f ticker_lists/ibd.txt -m 6
    
    # Quick daily update (5 days) - ideal for keeping cache current
-   python populate_cache.py -f ticker_lists/short.txt -d 5
+   python populate_cache.py  -d 5 -f ticker_lists/ibd50-nov-29.txt 
+   python populate_cache.py  -d 5 -f ticker_lists/indices.txt
+   python populate_cache.py  -d 5 -f ticker_lists/sector_etfs.txt
    
    # Update with 30 days of data
    python populate_cache.py --file stocks.txt -d 30
@@ -75,7 +77,7 @@ Need the deeper architecture or indicator breakdown? See `docs/ARCHITECTURE_REFE
    
    # Then use fast mode (4-8 min vs 41-84 min for 24 months, 50 tickers)
    python populate_cache_bulk.py --months 24 --use-duckdb
-   python populate_cache_bulk.py --months 24 --ticker-files ibd20.txt --use-duckdb
+   python populate_cache_bulk.py --months 24 --use-duckdb --ticker-files ticker_lists/ibd50-nov-29.txt 
    ```
    > 📖 **Details**: See `docs/DUCKDB_OPTIMIZATION.md` for complete guide
    
