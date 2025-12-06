@@ -707,10 +707,171 @@ def calculate_streaks(df: pd.DataFrame) -> Dict:
 
 
 # ============================================================================
+# PHASE 1, STEP 7: CAPITAL DEPLOYMENT ANALYSIS
+# ============================================================================
+
+def calculate_capital_deployment(df: pd.DataFrame) -> Dict:
+    """
+    Calculate capital deployment patterns across all trades.
+    
+    VALIDATION INSIGHT:
+    - Shows how much capital is actually deployed at any point in time
+    - Critical for position sizing and risk management decisions
+    - Reveals if you're over/under deploying capital
+    
+    This builds a timeline showing deployed capital on each calendar day,
+    considering all concurrent open positions.
+    
+    Returns:
+        Dictionary with:
+        - max_deployment: Peak capital deployed at any point
+        - avg_deployment: Average capital deployed
+        - max_concurrent_positions: Most trades open simultaneously
+        - avg_concurrent_positions: Average number of open trades
+        - deployment_percentiles: 50th, 75th, 95th percentiles
+        - max_deployment_date: When peak deployment occurred
+        - utilization_pct: Average % of equity deployed
+        - grade: Performance grade
+        - assessment: Text assessment
+    """
+    print("\n" + "="*80)
+    print("CALCULATING CAPITAL DEPLOYMENT (Portfolio Management)")
+    print("="*80)
+    
+    # Build timeline of all trades
+    # For each trade, we know: entry_date, exit_date, position_size, entry_price
+    
+    # Get date range
+    start_date = df['entry_date'].min()
+    end_date = df['exit_date'].max()
+    
+    # Create daily date range
+    date_range = pd.date_range(start=start_date, end=end_date, freq='D')
+    
+    # Initialize deployment tracking
+    daily_deployment = pd.Series(0.0, index=date_range)
+    daily_positions = pd.Series(0, index=date_range)
+    
+    # For each trade, mark capital deployed from entry to exit
+    for idx, trade in df.iterrows():
+        entry_date = trade['entry_date']
+        exit_date = trade['exit_date']
+        
+        # Calculate capital deployed
+        position_size = trade.get('position_size', 0)
+        entry_price = trade.get('entry_price', 0)
+        deployed_capital = position_size * entry_price
+        
+        # Mark all days this position was open
+        mask = (date_range >= entry_date) & (date_range <= exit_date)
+        daily_deployment[mask] += deployed_capital
+        daily_positions[mask] += 1
+    
+    # Calculate statistics
+    max_deployment = daily_deployment.max()
+    avg_deployment = daily_deployment.mean()
+    median_deployment = daily_deployment.median()
+    
+    # Percentiles
+    pct_50 = daily_deployment.quantile(0.50)
+    pct_75 = daily_deployment.quantile(0.75)
+    pct_95 = daily_deployment.quantile(0.95)
+    
+    # Position concurrency
+    max_concurrent = daily_positions.max()
+    avg_concurrent = daily_positions.mean()
+    
+    # Find when max deployment occurred
+    max_deployment_date = daily_deployment.idxmax()
+    
+    # Calculate utilization percentage
+    # Use average equity across the period
+    avg_equity = df['portfolio_equity'].mean()
+    utilization_pct = (avg_deployment / avg_equity) * 100 if avg_equity > 0 else 0
+    
+    # Display results
+    print(f"\n💰 CAPITAL DEPLOYMENT ANALYSIS:")
+    print(f"  Analysis Period:       {start_date.date()} to {end_date.date()}")
+    print(f"  Total Days Analyzed:   {len(date_range)}")
+    print(f"\n📊 DEPLOYMENT STATISTICS:")
+    print(f"  Max Capital Deployed:  ${max_deployment:,.0f}")
+    print(f"  Max Deployment Date:   {max_deployment_date.date()}")
+    print(f"  Average Deployment:    ${avg_deployment:,.0f}")
+    print(f"  Median Deployment:     ${median_deployment:,.0f}")
+    print(f"\n📈 DEPLOYMENT PERCENTILES:")
+    print(f"  50th Percentile:       ${pct_50:,.0f}")
+    print(f"  75th Percentile:       ${pct_75:,.0f}")
+    print(f"  95th Percentile:       ${pct_95:,.0f}")
+    print(f"\n🔢 POSITION CONCURRENCY:")
+    print(f"  Max Concurrent Trades: {int(max_concurrent)}")
+    print(f"  Avg Concurrent Trades: {avg_concurrent:.1f}")
+    print(f"\n⚙️  CAPITAL EFFICIENCY:")
+    print(f"  Average Portfolio Equity: ${avg_equity:,.0f}")
+    print(f"  Average Utilization:      {utilization_pct:.1f}%")
+    
+    # Professional assessment
+    print(f"\n🎯 PROFESSIONAL ASSESSMENT:")
+    if 60 <= utilization_pct <= 80:
+        assessment = "EXCELLENT (Efficient capital deployment)"
+        grade = "A"
+        interpretation = "Optimal deployment - actively trading while maintaining reserves"
+    elif 40 <= utilization_pct < 60:
+        assessment = "GOOD (Moderate deployment)"
+        grade = "B+"
+        interpretation = "Good balance - could potentially deploy more capital"
+    elif 80 < utilization_pct <= 90:
+        assessment = "GOOD (High deployment)"
+        grade = "B+"
+        interpretation = "High utilization - ensure adequate reserves for new signals"
+    elif utilization_pct < 40:
+        assessment = "CONSERVATIVE (Under-deployed)"
+        grade = "C"
+        interpretation = "Significant idle capital - could increase position sizes"
+    else:
+        assessment = "AGGRESSIVE (Over-deployed)"
+        grade = "C"
+        interpretation = "Very high utilization - limited capacity for new opportunities"
+    
+    print(f"  Utilization Grade:     {grade}")
+    print(f"  Assessment:            {assessment}")
+    print(f"  Interpretation:        {interpretation}")
+    
+    # Additional insights
+    print(f"\n💡 PORTFOLIO INSIGHTS:")
+    print(f"  • You typically have {avg_concurrent:.1f} positions open at once")
+    print(f"  • Peak of {int(max_concurrent)} concurrent trades on {max_deployment_date.date()}")
+    print(f"  • Average capital deployed: ${avg_deployment:,.0f} ({utilization_pct:.0f}% of equity)")
+    
+    if utilization_pct < 50:
+        print(f"  • Consider: You have capacity for larger positions or more signals")
+    elif utilization_pct > 85:
+        print(f"  • Caution: Limited reserve capacity for new opportunities")
+    else:
+        print(f"  • Well-balanced deployment strategy")
+    
+    return {
+        'max_deployment': max_deployment,
+        'avg_deployment': avg_deployment,
+        'median_deployment': median_deployment,
+        'pct_50': pct_50,
+        'pct_75': pct_75,
+        'pct_95': pct_95,
+        'max_concurrent_positions': int(max_concurrent),
+        'avg_concurrent_positions': avg_concurrent,
+        'max_deployment_date': max_deployment_date,
+        'avg_equity': avg_equity,
+        'utilization_pct': utilization_pct,
+        'grade': grade,
+        'assessment': assessment,
+        'interpretation': interpretation
+    }
+
+
+# ============================================================================
 # PHASE 2: GENERATE COMPREHENSIVE REPORT
 # ============================================================================
 
-def generate_final_report(df, drawdown, sharpe, winloss, monthly, streaks) -> str:
+def generate_final_report(df, drawdown, sharpe, winloss, monthly, streaks, deployment) -> str:
     """
     Generate comprehensive professional evaluation report.
     
@@ -848,9 +1009,39 @@ def generate_final_report(df, drawdown, sharpe, winloss, monthly, streaks) -> st
     report.append("Grade: A (Highly consistent performance)")
     report.append("")
     
-    # Section 4: Resilience Analysis
+    # Section 4: Capital Efficiency Analysis
     report.append("="*80)
-    report.append("SECTION 4: RESILIENCE ANALYSIS")
+    report.append("SECTION 4: CAPITAL EFFICIENCY")
+    report.append("="*80)
+    report.append("")
+    report.append("Capital Deployment Analysis:")
+    report.append(f"  Max Capital Deployed:    ${deployment['max_deployment']:,.0f}")
+    report.append(f"  Max Deployment Date:     {deployment['max_deployment_date'].date()}")
+    report.append(f"  Average Deployment:      ${deployment['avg_deployment']:,.0f}")
+    report.append(f"  Median Deployment:       ${deployment['median_deployment']:,.0f}")
+    report.append("")
+    report.append("Position Concurrency:")
+    report.append(f"  Max Concurrent Trades:   {deployment['max_concurrent_positions']}")
+    report.append(f"  Avg Concurrent Trades:   {deployment['avg_concurrent_positions']:.1f}")
+    report.append("")
+    report.append("Capital Utilization:")
+    report.append(f"  Average Portfolio Equity: ${deployment['avg_equity']:,.0f}")
+    report.append(f"  Average Utilization:      {deployment['utilization_pct']:.1f}%")
+    report.append(f"  Assessment:               {deployment['assessment']}")
+    report.append(f"  Grade:                    {deployment['grade']}")
+    report.append("")
+    report.append("Portfolio Insights:")
+    report.append(f"  • Typically {deployment['avg_concurrent_positions']:.1f} positions open")
+    report.append(f"  • Peak: {deployment['max_concurrent_positions']} concurrent trades")
+    report.append(f"  • Avg deployed: ${deployment['avg_deployment']:,.0f} ({deployment['utilization_pct']:.0f}% of equity)")
+    report.append(f"  • {deployment['interpretation']}")
+    report.append("")
+    report.append(f"Grade: {deployment['grade']} ({deployment['assessment']})")
+    report.append("")
+    
+    # Section 5: Resilience Analysis
+    report.append("="*80)
+    report.append("SECTION 5: RESILIENCE ANALYSIS")
     report.append("="*80)
     report.append("")
     report.append("Streak Analysis:")
@@ -1053,6 +1244,14 @@ def generate_final_report(df, drawdown, sharpe, winloss, monthly, streaks) -> st
     report.append(f"Best Month:                  {monthly['best_month_return']:.2f}%")
     report.append(f"Worst Month:                 {monthly['worst_month_return']:.2f}%")
     report.append("")
+    report.append("CAPITAL DEPLOYMENT METRICS")
+    report.append("-"*80)
+    report.append(f"Max Capital Deployed:        ${deployment['max_deployment']:,.0f}")
+    report.append(f"Avg Capital Deployed:        ${deployment['avg_deployment']:,.0f}")
+    report.append(f"Capital Utilization:         {deployment['utilization_pct']:.1f}%")
+    report.append(f"Max Concurrent Positions:    {deployment['max_concurrent_positions']}")
+    report.append(f"Avg Concurrent Positions:    {deployment['avg_concurrent_positions']:.1f}")
+    report.append("")
     report.append("RESILIENCE METRICS")
     report.append("-"*80)
     report.append(f"Longest Win Streak:          {streaks['max_win_streak']} trades")
@@ -1137,6 +1336,9 @@ def main():
     # Step 6: Calculate Consecutive Streaks
     streak_metrics = calculate_streaks(df)
     
+    # Step 7: Calculate Capital Deployment
+    deployment_metrics = calculate_capital_deployment(df)
+    
     print("\n" + "="*80)
     print("✅ PHASE 1 COMPLETE: All Core Metrics Calculated")
     print("="*80)
@@ -1146,6 +1348,7 @@ def main():
     print(f"  3. Win/Loss Ratio:     {winloss_metrics['grade']} - {winloss_metrics['assessment']}")
     print(f"  4. Monthly Consistency:{monthly_metrics['grade']} - {monthly_metrics['assessment']}")
     print(f"  5. Loss Streak:        {streak_metrics['grade']} - {streak_metrics['assessment']}")
+    print(f"  6. Capital Deployment: {deployment_metrics['grade']} - {deployment_metrics['assessment']}")
     print(f"\n📊 KEY METRICS AT A GLANCE:")
     print(f"  • Drawdown: {drawdown_metrics['max_dd_pct']:.2f}%")
     print(f"  • Sharpe: {sharpe_metrics['sharpe_ratio']:.2f}")
@@ -1153,6 +1356,7 @@ def main():
     print(f"  • W/L Ratio: {winloss_metrics['win_loss_ratio']:.2f}x")
     print(f"  • Positive Months: {monthly_metrics['positive_pct']:.1f}%")
     print(f"  • Max Loss Streak: {streak_metrics['max_loss_streak']} trades")
+    print(f"  • Capital Utilization: {deployment_metrics['utilization_pct']:.1f}%")
     
     # Generate Final Report
     print("\n" + "="*80)
@@ -1161,7 +1365,7 @@ def main():
     
     report_content = generate_final_report(
         df, drawdown_metrics, sharpe_metrics, 
-        winloss_metrics, monthly_metrics, streak_metrics
+        winloss_metrics, monthly_metrics, streak_metrics, deployment_metrics
     )
     
     # Save to file

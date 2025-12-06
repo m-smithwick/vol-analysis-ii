@@ -1,7 +1,7 @@
 ================================================================================
 PROFESSIONAL TRADING PERFORMANCE EVALUATION
 ================================================================================
-Analysis Date: 2025-12-01 22:05:00
+Analysis Date: 2025-12-04 22:17:56
 Data Period: 2023-10-17 to 2025-12-01
 Total Trades: 306
 Equity: $99,000 → $249,476 (+152.00%)
@@ -113,7 +113,35 @@ Monthly Performance:
 Grade: A (Highly consistent performance)
 
 ================================================================================
-SECTION 4: RESILIENCE ANALYSIS
+SECTION 4: CAPITAL EFFICIENCY
+================================================================================
+
+Capital Deployment Analysis:
+  Max Capital Deployed:    $471,289
+  Max Deployment Date:     2025-09-17
+  Average Deployment:      $242,767
+  Median Deployment:       $260,784
+
+Position Concurrency:
+  Max Concurrent Trades:   53
+  Avg Concurrent Trades:   29.1
+
+Capital Utilization:
+  Average Portfolio Equity: $173,964
+  Average Utilization:      139.5%
+  Assessment:               AGGRESSIVE (Over-deployed)
+  Grade:                    C
+
+Portfolio Insights:
+  • Typically 29.1 positions open
+  • Peak: 53 concurrent trades
+  • Avg deployed: $242,767 (140% of equity)
+  • Very high utilization - limited capacity for new opportunities
+
+Grade: C (AGGRESSIVE (Over-deployed))
+
+================================================================================
+SECTION 5: RESILIENCE ANALYSIS
 ================================================================================
 
 Streak Analysis:
@@ -284,6 +312,14 @@ Positive Months:             19/26 (73.1%)
 Average Monthly Return:      3.50%
 Best Month:                  15.67%
 Worst Month:                 -3.26%
+
+CAPITAL DEPLOYMENT METRICS
+--------------------------------------------------------------------------------
+Max Capital Deployed:        $471,289
+Avg Capital Deployed:        $242,767
+Capital Utilization:         139.5%
+Max Concurrent Positions:    53
+Avg Concurrent Positions:    29.1
 
 RESILIENCE METRICS
 --------------------------------------------------------------------------------
