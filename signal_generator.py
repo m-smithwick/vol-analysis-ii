@@ -9,13 +9,13 @@ This module contains all buy/sell signal detection logic, including:
 
 All functions operate on pandas DataFrames with OHLCV data and technical indicators.
 
-Updated 2025-11-22: Applied MINIMUM_ACCUMULATION_SCORE = 7.0 global filter
+Updated 2025-12-05: Simplified threshold system - individual signal thresholds from
+configs are now the sole authority. No global filters applied.
 """
 
 import pandas as pd
 import numpy as np
 from typing import Tuple
-from threshold_config import MINIMUM_ACCUMULATION_SCORE
 
 
 def calculate_accumulation_score(df: pd.DataFrame) -> pd.Series:
@@ -489,8 +489,8 @@ def generate_all_entry_signals(df: pd.DataFrame, apply_prefilters: bool = True,
     column exists, raw signals are preserved with _raw suffix and filtered signals
     are created that respect liquidity, price, and earnings window filters.
     
-    Updated 2025-11-22: Applies MINIMUM_ACCUMULATION_SCORE global threshold to all signals.
-    Updated 2025-11-27: Accepts configurable thresholds from YAML config files.
+    Updated 2025-12-05: Simplified threshold system - uses only config-based thresholds.
+    No global filters applied. Individual signal thresholds are authoritative.
     
     This convenience function generates:
     - Accumulation Score
@@ -533,25 +533,7 @@ def generate_all_entry_signals(df: pd.DataFrame, apply_prefilters: bool = True,
     df['Confluence_Signal'] = generate_confluence_signals(df)
     df['Volume_Breakout'] = generate_volume_breakout_signals(df)
     
-    # Apply minimum accumulation score threshold
-    # If thresholds provided from config, use minimum from config
-    # Otherwise use MINIMUM_ACCUMULATION_SCORE (7.0 default)
-    if thresholds:
-        # Find minimum threshold from config (allows configs to control filtering)
-        config_thresholds = [
-            thresholds.get('strong_buy', 7.0),
-            thresholds.get('moderate_buy_pullback', 6.0),
-            thresholds.get('stealth_accumulation', 4.0),
-            thresholds.get('volume_breakout', 6.0)
-        ]
-        min_threshold = min(config_thresholds)
-        accumulation_filter = df['Accumulation_Score'] >= min_threshold
-    else:
-        # Use hardcoded default (backward compatibility)
-        accumulation_filter = df['Accumulation_Score'] >= MINIMUM_ACCUMULATION_SCORE
-    
-    for col in signal_columns:
-        df[col] = df[col] & accumulation_filter
+    # No global filter - individual signal thresholds (from config or defaults) are authoritative
     
     # Apply pre-filters if available and requested
     if apply_prefilters and 'Pre_Filter_OK' in df.columns:

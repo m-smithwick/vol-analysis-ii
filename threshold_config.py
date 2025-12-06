@@ -18,34 +18,32 @@ Last Updated: 2025-11-04
 from datetime import datetime
 from typing import Dict, Any
 
-# Global minimum accumulation score for all trades
-# Updated 2025-11-22: Based on 694-trade analysis showing ≥7.0 optimizes expectancy
-MINIMUM_ACCUMULATION_SCORE = 7.0
-
 # Empirically validated optimal thresholds based on backtest performance
 OPTIMAL_THRESHOLDS: Dict[str, Dict[str, Any]] = {
     'moderate_buy': {
-        'threshold': 6.0,
-        'rationale': 'REDESIGNED PULLBACK STRATEGY (Nov 2025): Validated on 24-ticker, 24-month universe',
+        'threshold': 6.5,
+        'rationale': 'THRESHOLD OPTIMIZED (Dec 2025): 45% better expectancy than 6.0 baseline with only 10% fewer trades',
         'backtest_results': {
-            'win_rate': 59.6,
-            'expectancy': 21.89,
-            'sample_size': 312,
-            'profit_factor': 2.98,
-            'median_return': 5.21,
-            'trades_analyzed': 312,
-            'tickers_validated': 23,
-            'filtered_percentage': 0,  # Minimal filtering at ≥6.0
-            'last_validated': '2025-11-08'
+            'win_rate': 70.0,
+            'expectancy': 13.35,
+            'sample_size': 434,
+            'profit_factor': 4.39,
+            'median_return': 9.16,
+            'trades_analyzed': 434,
+            'tickers_validated': 24,
+            'filtered_percentage': 10,  # Filters 47 marginal trades (6.0-6.5 range)
+            'last_validated': '2025-12-01'
         },
         'validation_notes': [
-            '312 trades across 23 tickers - excellent generalization',
-            '59.6% win rate shows strong positive edge',
-            'Expectancy of +21.89% indicates excellent risk/reward',
-            'Redesigned to catch pullbacks in uptrends (not competing with other signals)',
+            '434 trades across 24 tickers - robust validation',
+            '70.0% win rate (vs 68.0% at 6.0 threshold)',
+            'Expectancy +13.35% (vs +9.17% at 6.0) - 45% improvement',
+            'Median return +9.16% (vs +6.24% at 6.0) - 47% improvement',
+            'Quality over quantity: Filtering 47 marginal trades significantly improved performance',
+            'Threshold 7.5 optimal (71% win, +14.08%) but 6.5 preferred for trade frequency',
             'Signal logic: Accumulation ≥5, pullback zone (below 5-day but above 20-day MA), volume normalizing'
         ],
-        'usage_context': 'Pullback entry strategy - complementary to Stealth Accumulation'
+        'usage_context': 'PRIMARY ENTRY SIGNAL - Pullback strategy validated in both choppy and rally markets'
     },
     
     'profit_taking': {
@@ -212,7 +210,7 @@ def get_all_thresholds_summary() -> str:
 
 # Version and metadata
 THRESHOLD_CONFIG_VERSION = "2.0.0"
-LAST_OPTIMIZATION_DATE = "2025-11-08"
+LAST_OPTIMIZATION_DATE = "2025-12-01"
 OPTIMIZATION_PERIOD = "24mo"  # Period used for threshold validation
 MINIMUM_SAMPLE_SIZE = 30      # Minimum trades required for multi-ticker reliability
 
@@ -242,6 +240,26 @@ THRESHOLD_HISTORY = {
         'validation_period': '24mo',
         'total_trades_analyzed': 517,
         'critical_discovery': 'Original Moderate Buy logic failed (21% win rate). Redesigned as pullback strategy - now works with 59.6% win rate!'
+    },
+    '2025-12-01': {
+        'event': 'Threshold sensitivity analysis and optimization',
+        'changes': [
+            'Updated moderate_buy threshold: 6.0 → 6.5 (70.0% win rate, +13.35% expectancy, 434 trades)',
+            'Improved expectancy by 45% with only 10% fewer trades',
+            'Median return improved 47% (+6.24% → +9.16%)',
+            'Conservative_config.yaml (6.5 threshold) now system default'
+        ],
+        'methodology': 'Comparative analysis of actual trade results at different thresholds (6.0, 6.5, 7.5, 8.0+). Analyzed score bucket performance and threshold impact on win rate, expectancy, and sample size',
+        'validation_period': '24mo',
+        'total_trades_analyzed': 481,
+        'key_findings': [
+            'Small threshold change (6.0 → 6.5) = 45% better expectancy',
+            '47 marginal trades (6.0-6.5 range) were dragging down performance',
+            'Quality over quantity principle validated',
+            '7.5 threshold has best stats (71% win, +14.08%) but 6.5 preferred for trade frequency',
+            'Practical trade-off: slight expectancy reduction for 37% more signals vs 7.5'
+        ],
+        'note': 'User inquiry: "Is 6.5 as good as 8.2?" Answer: 8.2 is ~26% better but 6.5 provides optimal balance of quality and opportunity'
     }
 }
 

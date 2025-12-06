@@ -215,7 +215,10 @@ def check_data_staleness(results: List[Dict], warning_threshold_hours: int = 24)
     for result in results:
         # Extract data end date from filename (e.g., NBIX_12mo_20241112_20251110_analysis.txt)
         # Format: TICKER_PERIOD_STARTDATE_ENDDATE_analysis.txt
-        filename = result['filename']
+        filename = result.get('filename')
+        if not filename:
+            # Skip results without filenames (non-actionable tickers didn't get files created)
+            continue
         parts = filename.split('_')
         
         if len(parts) >= 4:
@@ -250,6 +253,41 @@ def check_data_staleness(results: List[Dict], warning_threshold_hours: int = 24)
         'max_age_hours': int(max_age_hours),
         'max_age_days': int(max_age_hours / 24) if max_age_hours > 0 else 0
     }
+
+def is_ticker_actionable(metrics: Dict[str, Any]) -> bool:
+    """
+    Determine if a ticker has actionable buy or sell signals.
+    
+    Actionable signals are those that:
+    1. Are currently active (on the most recent trading day)
+    2. Meet empirically validated threshold requirements
+    
+    Args:
+        metrics (Dict[str, Any]): Calculated batch metrics from calculate_batch_metrics()
+        
+    Returns:
+        bool: True if ticker has actionable buy or sell signals
+    """
+    # Check for actionable BUY signals
+    has_actionable_buy = (
+        # Moderate Buy: Active + exceeds ≥6.5 threshold (64.3% win rate)
+        (metrics['moderate_signal_active'] and metrics['moderate_exceeds_threshold']) or
+        # Strong Buy: Always actionable when active
+        metrics['strong_signal_active'] or
+        # Confluence: Always actionable when active
+        metrics['confluence_signal_active'] or
+        # Stealth Accumulation: Active + exceeds ≥4.5 threshold (58.7% win rate)
+        (metrics['stealth_signal_active'] and metrics['stealth_exceeds_threshold'])
+    )
+    
+    # Check for actionable SELL signals
+    has_actionable_sell = (
+        # Profit Taking: Active + exceeds ≥7.0 threshold (96.1% win rate)
+        metrics['profit_signal_active'] and metrics['profit_exceeds_threshold']
+    )
+    
+    return has_actionable_buy or has_actionable_sell
+
 
 def calculate_batch_metrics(df: pd.DataFrame, account_value: float = 500000) -> Dict[str, Any]:
     """
@@ -454,7 +492,10 @@ def generate_html_summary(results: List[Dict], errors: List[Dict], period: str,
     
     def build_chart_filename(result_entry: Dict[str, Any]) -> Optional[str]:
         """Construct the expected chart filename (PNG or HTML) from the analysis filename."""
-        parts = result_entry['filename'].split('_')
+        filename = result_entry.get('filename')
+        if not filename:
+            return None
+        parts = filename.split('_')
         if len(parts) < 4:
             return None
         return f"{result_entry['ticker']}_{period}_{parts[2]}_{parts[3]}_chart.{chart_extension}"
@@ -916,7 +957,7 @@ def read_ticker_file(filepath: str) -> List[str]:
         return tickers
 
 def process_batch(ticker_file: str, period='12mo', output_dir='results_volume', 
-                 save_charts=False, save_excel=False, generate_html=True, verbose=True,
+                 save_charts=False, save_excel=False, text_only=False, generate_html=True, verbose=True,
                  chart_backend: str = 'matplotlib', data_source: str = 'yfinance'):
     """
     Process multiple tickers from a file and save individual analysis reports.
@@ -927,7 +968,8 @@ def process_batch(ticker_file: str, period='12mo', output_dir='results_volume',
         output_dir (str): Directory to save output files
         save_charts (bool): Whether to save chart images
         save_excel (bool): Whether to save Excel files with complete DataFrame data
-        generate_html (bool): Whether to generate interactive HTML summary
+        text_only (bool): If True, skip all chart generation and HTML summary (fastest mode)
+        generate_html (bool): Whether to generate interactive HTML summary (ignored if text_only=True)
         verbose (bool): Print progress output during batch processing
         chart_backend (str): Chart engine ('matplotlib' PNG or 'plotly' HTML) passed to analyze_ticker
         data_source (str): Data source to use ('yfinance' or 'massive')
@@ -990,59 +1032,44 @@ def process_batch(ticker_file: str, period='12mo', output_dir='results_volume',
     results = []
     errors = []
     
+    # ============================================================================
+    # PASS 1: Analyze all tickers and calculate metrics (NO FILES, NO CHARTS)
+    # ============================================================================
+    if verbose:
+        print(f"\n📊 PASS 1: Analyzing {len(tickers)} tickers (calculating metrics only, no files)...")
+    
     for i, ticker in enumerate(tickers, 1):
         if verbose:
-            print(f"\n[{i}/{len(tickers)}] Processing {ticker}...")
+            print(f"[{i}/{len(tickers)}] {ticker}...", end=' ')
         
         try:
             # Use error context for individual ticker processing
             with ErrorContext("processing ticker", ticker=ticker, index=f"{i}/{len(tickers)}"):
-                # Analyze ticker with file output (no interactive chart display in batch mode)
-                result = analyze_ticker(
+                # Analyze ticker WITHOUT saving any files (just get DataFrame)
+                df = analyze_ticker(
                     ticker=ticker,
                     period=period,
-                    save_to_file=True,
+                    save_to_file=False,  # NO FILES in Pass 1
                     output_dir=output_dir,
-                    save_chart=True,  # Always save charts in batch mode (can't display interactively)
-                    show_chart=False,  # Don't display charts interactively in batch mode
-                    show_summary=False,  # Don't print verbose summaries in batch mode
-                    debug=verbose,
+                    save_chart=False,  # NO CHARTS in Pass 1
+                    show_chart=False,
+                    show_summary=False,
+                    debug=False,  # Quiet mode for metrics calculation
                     chart_backend=chart_backend,
                     data_source=data_source
                 )
                 
-                if isinstance(result, tuple):
-                    df, filepath = result
-                    filename = os.path.basename(filepath)
-                    logger.info(f"Successfully processed {ticker}: {filename}")
-                    if verbose:
-                        print(f"✅ {ticker}: Analysis saved to {filename}")
-                    
-                    # Export to Excel if requested
-                    excel_filename = None
-                    if save_excel:
-                        try:
-                            excel_filename = export_dataframe_to_excel(df, ticker, period, output_dir)
-                            if verbose and excel_filename:
-                                print(f"📊 {ticker}: Excel data saved to {excel_filename}")
-                        except FileOperationError as e:
-                            logger.warning(f"Excel export failed for {ticker}: {str(e)}")
-                            if verbose:
-                                print(f"⚠️  {ticker}: Excel export failed - {str(e)}")
-                        except Exception as e:
-                            logger.error(f"Unexpected Excel export error for {ticker}: {str(e)}")
-                            if verbose:
-                                print(f"⚠️  {ticker}: Excel export failed - {str(e)}")
-                    
-                    # Calculate metrics using empirically validated thresholds
-                    batch_metrics = calculate_batch_metrics(df)
-                    
-                    results.append({
-                        'ticker': ticker,
-                        'filename': filename,
-                        'excel_filename': excel_filename,  # Add Excel filename to results
-                        **batch_metrics  # Unpack all calculated metrics with threshold compliance
-                    })
+                # Calculate metrics using empirically validated thresholds
+                batch_metrics = calculate_batch_metrics(df)
+                
+                results.append({
+                    'ticker': ticker,
+                    'df': df,  # Store DataFrame for Pass 2
+                    **batch_metrics
+                })
+                
+                if verbose:
+                    print(f"✅")
                     
         except DataDownloadError as e:
             # Handle data availability errors more gracefully
@@ -1070,6 +1097,99 @@ def process_batch(ticker_file: str, period='12mo', output_dir='results_volume',
             print(f"❌ {error_msg}")
             errors.append({'ticker': ticker, 'error': str(e)})
             continue
+    
+    # ============================================================================
+    # PASS 2: Save files (text + charts + Excel) ONLY for actionable tickers
+    # ============================================================================
+    # Filter for actionable tickers using the new function
+    actionable_results = [r for r in results if is_ticker_actionable(r)]
+    
+    if actionable_results:
+        if verbose:
+            print(f"\n📊 PASS 2: Creating files for {len(actionable_results)} actionable tickers...")
+            print(f"   (Files only created for tickers with active + validated signals)")
+            print(f"   Skipping {len(results) - len(actionable_results)} non-actionable tickers")
+        
+        for i, result in enumerate(actionable_results, 1):
+            ticker = result['ticker']
+            df = result['df']  # Get DataFrame from Pass 1
+            
+            if verbose:
+                # Show signal type for context
+                signal_types = []
+                if result['strong_signal_active']:
+                    signal_types.append('Strong Buy')
+                elif result['confluence_signal_active']:
+                    signal_types.append('Confluence')
+                elif result['moderate_signal_active'] and result['moderate_exceeds_threshold']:
+                    signal_types.append('Moderate Buy')
+                if result['stealth_signal_active'] and result['stealth_exceeds_threshold']:
+                    signal_types.append('Stealth')
+                if result['profit_signal_active'] and result['profit_exceeds_threshold']:
+                    signal_types.append('Profit Taking')
+                
+                signal_str = ', '.join(signal_types) if signal_types else 'Unknown'
+                print(f"  [{i}/{len(actionable_results)}] {ticker} ({signal_str})...", end=' ')
+            
+            try:
+                # Generate filename with date range (same format as before)
+                start_date = df.index[0].strftime('%Y%m%d')
+                end_date = df.index[-1].strftime('%Y%m%d')
+                
+                # Save text analysis file
+                from vol_analysis import generate_analysis_text
+                analysis_text = generate_analysis_text(ticker, df, period)
+                text_filename = f"{ticker}_{period}_{start_date}_{end_date}_analysis.txt"
+                text_filepath = os.path.join(output_dir, text_filename)
+                
+                with open(text_filepath, 'w') as f:
+                    f.write(analysis_text)
+                
+                # Update result with filename for HTML generation
+                result['filename'] = text_filename
+                
+                # Save chart if requested
+                if not text_only and (save_charts or generate_html):
+                    # Respect the chart_backend parameter
+                    normalized_backend = (chart_backend or 'matplotlib').lower()
+                    is_plotly = normalized_backend == 'plotly'
+                    
+                    if is_plotly:
+                        # Use plotly for HTML charts
+                        from chart_builder_plotly import generate_analysis_chart as generate_chart_plotly
+                        chart_filename = f"{ticker}_{period}_{start_date}_{end_date}_chart.html"
+                        chart_path = os.path.join(output_dir, chart_filename)
+                        generate_chart_plotly(df=df, ticker=ticker, period=period,
+                                            save_path=chart_path, show=False)
+                    else:
+                        # Use matplotlib for PNG charts
+                        from chart_builder import generate_analysis_chart
+                        chart_filename = f"{ticker}_{period}_{start_date}_{end_date}_chart.png"
+                        chart_path = os.path.join(output_dir, chart_filename)
+                        generate_analysis_chart(df=df, ticker=ticker, period=period, 
+                                              save_path=chart_path, show=False)
+                
+                # Save Excel if requested
+                if save_excel:
+                    try:
+                        excel_filename = export_dataframe_to_excel(df, ticker, period, output_dir)
+                        result['excel_filename'] = excel_filename
+                    except Exception as e:
+                        logger = get_logger()
+                        logger.warning(f"Excel export failed for {ticker}: {str(e)}")
+                
+                if verbose:
+                    print(f"✅")
+                    
+            except Exception as e:
+                logger = get_logger()
+                logger.error(f"File generation failed for {ticker}: {str(e)}")
+                if verbose:
+                    print(f"⚠️  Failed: {str(e)}")
+    else:
+        if verbose:
+            print(f"\n📊 PASS 2: No actionable tickers found - no files will be created")
+            print(f"   All {len(results)} tickers lack active signals meeting empirical thresholds")
     
     # Generate summary report
     if results:
@@ -1270,9 +1390,10 @@ def process_batch(ticker_file: str, period='12mo', output_dir='results_volume',
                             signal_status = "No Signal"
                         
                         threshold_status = "✅" if result['moderate_exceeds_threshold'] else "❌"
+                        filename = result.get('filename', 'N/A')
                         f.write(f"{i:<4} {result['ticker']:<6} {result['moderate_buy_score']:<7.1f} "
                                f"{threshold_status}≥{result['moderate_threshold']:<6.1f} {signal_status:<13} {result['recent_moderate_count']:<5} "
-                               f"{result['total_moderate_signals']:<5} {result['filename']}\n")
+                               f"{result['total_moderate_signals']:<5} {filename}\n")
                         
                         # Add position sizing details if available
                         if result.get('position_sizing'):
@@ -1331,9 +1452,10 @@ def process_batch(ticker_file: str, period='12mo', output_dir='results_volume',
                     for i, result in enumerate(active_profit, 1):
                         signal_status = "EXIT NOW!" if result['profit_signal_active'] else "No Signal"
                         threshold_status = "✅" if result['profit_exceeds_threshold'] else "❌"
+                        filename = result.get('filename', 'N/A')
                         f.write(f"{i:<4} {result['ticker']:<6} {result['profit_taking_score']:<7.1f} "
                                f"{threshold_status}≥{result['profit_threshold']:<6.1f} {signal_status:<13} {result['recent_profit_count']:<5} "
-                               f"{result['filename']}\n")
+                               f"{filename}\n")
                 
                 f.write(f"\n{STEALTH_DISPLAY} SIGNALS (Empirically validated - ≥4.5 threshold for 58.7% win rate):\n")
                 f.write("-" * 110 + "\n")
@@ -1346,9 +1468,10 @@ def process_batch(ticker_file: str, period='12mo', output_dir='results_volume',
                     for i, result in enumerate(active_stealth, 1):
                         signal_status = "ACTIVE NOW" if result['stealth_signal_active'] else "No Signal"
                         threshold_status = "✅" if result['stealth_exceeds_threshold'] else "❌"
+                        filename = result.get('filename', 'N/A')
                         f.write(f"{i:<4} {result['ticker']:<6} {result['stealth_score']:<7.1f} "
                                f"{threshold_status}≥{result['stealth_threshold']:<6.1f} {signal_status:<13} {result['recent_stealth_count']:<5} "
-                               f"{result['price_change_pct']:<+7.1f} {result['total_stealth_signals']:<5} {result['filename']}\n")
+                               f"{result['price_change_pct']:<+7.1f} {result['total_stealth_signals']:<5} {filename}\n")
                 
                 logger.info(f"Batch summary saved to {summary_filename}")
         
@@ -1357,35 +1480,17 @@ def process_batch(ticker_file: str, period='12mo', output_dir='results_volume',
             print(f"⚠️ Warning: Could not save summary file: {str(e)}")
         
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-        if generate_html:
-            if not save_charts:
-                if verbose:
-                    print(f"\n📊 HTML requested - generating charts for interactive summary...")
-                for i, ticker in enumerate([r['ticker'] for r in results[:5]], 1):
-                    if verbose:
-                        print(f"  Generating chart {i}/5: {ticker}...")
-                    try:
-                        analyze_ticker(
-                            ticker=ticker,
-                            period=period,
-                            save_to_file=False,
-                            output_dir=output_dir,
-                            save_chart=True,
-                            force_refresh=False,
-                            show_chart=False,
-                            show_summary=False,
-                            debug=verbose,
-                            chart_backend=chart_backend
-                        )
-                    except Exception as e:
-                        print(f"    ⚠️ Chart generation failed for {ticker}: {str(e)}")
-            
+        
+        # Generate HTML summary if requested (charts already created in Pass 2)
+        if generate_html and not text_only:
             html_filename = generate_html_summary(
                 results, errors, period, output_dir, timestamp, chart_backend=chart_backend, ticker_file_base=ticker_file_base
             )
             if verbose:
                 print(f"\n🌐 Interactive HTML summary generated: {html_filename}")
                 print(f"   📂 Open in VS Code for clickable charts and analysis links")
+        elif text_only and verbose:
+            print(f"\n⚡ Text-only mode: Skipped chart and HTML generation for maximum speed")
         
         if verbose:
             print(f"\n📄 Summary report saved: {summary_filename}")

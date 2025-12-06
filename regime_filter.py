@@ -268,10 +268,12 @@ def calculate_historical_regime_series(ticker: str, df: pd.DataFrame) -> tuple:
         df_index_normalized_unique = df_index_normalized[~df_index_normalized.duplicated(keep='first')]
         
         # Align with DataFrame dates (handles weekends/holidays)
-        market_regime_aligned = spy_data['Market_Regime_OK'].reindex(
+        # Convert to bool BEFORE reindex to avoid pandas downcasting warning
+        market_regime_aligned = spy_data['Market_Regime_OK'].astype(bool).reindex(
             df_index_normalized_unique, 
-            method='ffill'  # Forward-fill for non-trading days
-        ).infer_objects(copy=False).fillna(False)  # Conservative: missing data = regime FAIL
+            method='ffill',  # Forward-fill for non-trading days
+            fill_value=False  # Conservative: missing data = regime FAIL
+        )
         
         # If we had duplicates, expand back to match original index
         if len(df_index_normalized_unique) != len(df_index_normalized):
@@ -286,10 +288,12 @@ def calculate_historical_regime_series(ticker: str, df: pd.DataFrame) -> tuple:
         market_regime.index = df.index
         
         # Same process for sector regime
-        sector_regime_aligned = sector_data['Sector_Regime_OK'].reindex(
+        # Convert to bool BEFORE reindex to avoid pandas downcasting warning
+        sector_regime_aligned = sector_data['Sector_Regime_OK'].astype(bool).reindex(
             df_index_normalized_unique,
-            method='ffill'
-        ).infer_objects(copy=False).fillna(False)
+            method='ffill',
+            fill_value=False
+        )
         
         if len(df_index_normalized_unique) != len(df_index_normalized):
             sector_regime = pd.Series(index=df_index_normalized, dtype=bool)
@@ -710,8 +714,8 @@ def add_all_sector_regime_columns(df: pd.DataFrame) -> pd.DataFrame:
                 # Remove duplicates from df_index_norm to avoid reindex issues
                 df_index_norm_unique = df_index_norm[~df_index_norm.duplicated(keep='first')]
                 
-                # Align with DataFrame dates
-                regime_aligned = etf_data[col_name].reindex(df_index_norm_unique, method='ffill').fillna(False)
+                # Align with DataFrame dates - convert to bool BEFORE reindex to avoid pandas downcasting warning
+                regime_aligned = etf_data[col_name].astype(bool).reindex(df_index_norm_unique, method='ffill', fill_value=False)
                 
                 # Handle duplicates if they existed
                 if len(df_index_norm_unique) != len(df_index_norm):
@@ -780,7 +784,7 @@ def add_regime_columns_to_df(df: pd.DataFrame, ticker: str) -> pd.DataFrame:
             spy_data.index = spy_data.index.tz_localize(None)
         df_index_norm = df.index.tz_localize(None) if df.index.tz is not None else df.index
         
-        df['spy_regime_ok'] = spy_data['spy_regime_ok'].reindex(df_index_norm, method='ffill').fillna(False)
+        df['spy_regime_ok'] = spy_data['spy_regime_ok'].astype(bool).reindex(df_index_norm, method='ffill').fillna(False)
         df['spy_regime_ok'].index = df.index  # Restore original index
     else:
         df['spy_regime_ok'] = False
@@ -803,7 +807,7 @@ def add_regime_columns_to_df(df: pd.DataFrame, ticker: str) -> pd.DataFrame:
                 etf_data.index = etf_data.index.tz_localize(None)
             df_index_norm = df.index.tz_localize(None) if df.index.tz is not None else df.index
             
-            df[col_name] = etf_data[col_name].reindex(df_index_norm, method='ffill').fillna(False)
+            df[col_name] = etf_data[col_name].astype(bool).reindex(df_index_norm, method='ffill').fillna(False)
             df[col_name].index = df.index  # Restore original index
         else:
             df[col_name] = False

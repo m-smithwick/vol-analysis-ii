@@ -16,10 +16,10 @@
 - Stop strategy parameters (all 5 strategies)
 
 ### Signal Thresholds
-- `strong_buy`: Accumulation score threshold (6.0 default)
-- `moderate_buy_pullback`: Pullback entry threshold (5.5-6.5 range)
+- `strong_buy`: Accumulation score threshold (6.5 default)
+- `moderate_buy_pullback`: Pullback entry threshold (6.5 validated - was 6.0, Dec 2025 optimization)
 - `stealth_accumulation`: Early entry threshold (4.0 default)
-- `volume_breakout`: Breakout threshold (6.0 default)
+- `volume_breakout`: Breakout threshold (6.5 default)
 
 ### Regime Filters
 - `enable_spy_regime`: SPY 200-day MA filter (true/false)
@@ -232,15 +232,15 @@ moving_averages:
 (df['Accumulation_Score'] < 2)   # Very low accumulation (exit)
 (df['Accumulation_Score'] < 3)   # Low accumulation (momentum exhaustion)
 (df['Accumulation_Score'] < 4)   # Waning accumulation (profit taking)
-(df['Accumulation_Score'] >= 5)  # Moderate accumulation (moderate buy)
+(df['Accumulation_Score'] >= 5)  # Moderate accumulation (moderate buy base)
 (df['Accumulation_Score'] >= 6)  # High accumulation (confluence, stealth)
 (df['Accumulation_Score'] >= 7)  # Very high accumulation (strong buy)
 ```
 
 **Impact**:
-- These are already partially in config as `entry` thresholds
-- But exit logic uses hardcoded values
-- Should extract to `exit_logic_params`
+- Signal thresholds in configs control MINIMUM score to generate signal
+- Exit logic uses hardcoded accumulation level boundaries
+- Note: Moderate Buy uses score ≥5 internally but filtered to ≥6.5 via config threshold
 
 **Recommended Config Addition**:
 ```yaml
@@ -248,10 +248,12 @@ accumulation_levels:
   very_low: 2    # For exit urgency
   low: 3         # For momentum exhaustion
   waning: 4      # For profit taking detection
-  moderate: 5    # For moderate buy base
+  moderate: 5    # For moderate buy base signal (then filtered by config threshold)
   high: 6        # For confluence/stealth
-  very_high: 7   # For strong buy
+  very_high: 7   # For strong buy (per conservative_config.yaml default)
 ```
+
+**Note**: As of Dec 2025, individual signal thresholds from config files are the sole authority. No global filters applied.
 
 ---
 

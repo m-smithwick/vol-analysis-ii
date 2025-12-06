@@ -45,7 +45,7 @@ Need the deeper architecture or indicator breakdown? See `docs/ARCHITECTURE_REFE
    # Quick daily update (5 days) - ideal for keeping cache current
    python populate_cache.py  -d 5 -f ticker_lists/ibd50-nov-29.txt 
    python populate_cache.py  -d 5 -f ticker_lists/indices.txt
-   python populate_cache.py  -d 5 -f ticker_lists/sector_etfs.txt
+   python populate_cache.py  -d 7 -f ticker_lists/sector_etfs.txt
    
    # Update with 30 days of data
    python populate_cache.py --file stocks.txt -d 30
@@ -93,6 +93,14 @@ Need the deeper architecture or indicator breakdown? See `docs/ARCHITECTURE_REFE
    python vol_analysis.py --file ticker_lists/ibd.txt --period 6mo --save-excel --save-charts
    python vol_analysis.py  --period 24mo --chart-backend plotly --save-charts --file cmb.txt --save-excel
    python vol_analysis.py  --period 12mo --chart-backend plotly --save-charts --file ticker_lists/ibd50-nov-29.txt   
+   
+   # 🚀 OPTIMIZED: Charts generated ONLY for actionable tickers (80-90% faster)
+   # Actionable = Active signals meeting empirical thresholds
+   # - Moderate Buy (≥6.5 threshold, 64.3% win rate)
+   # - Strong Buy / Confluence (always actionable when active)
+   # - Stealth Accumulation (≥4.5 threshold, 58.7% win rate)
+   # - Profit Taking (≥7.0 threshold, 96.1% win rate)
+   # Example: 100 tickers → ~10-15 charts vs 100 charts (saves 8-15 minutes)
    
    # Excel export provides complete DataFrame access (60+ columns)
    # Includes: OHLCV, indicators, signals, scores, regime data

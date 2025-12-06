@@ -206,8 +206,8 @@ def prepare_analysis_dataframe(
     if config:
         signal_thresholds = config.get('signal_thresholds', {}).get('entry', {})
     
-    # Generate all signals using unified function (applies MINIMUM_ACCUMULATION_SCORE filter)
-    # Updated 2025-11-22: Uses generate_all_entry_signals() which applies global threshold
+    # Generate all signals using unified function
+    # Updated 2025-12-05: Individual signal thresholds from config are authoritative
     # Updated 2025-11-27: Passes configurable thresholds from YAML config files
     df = signal_generator.generate_all_entry_signals(df, apply_prefilters=False, thresholds=signal_thresholds)
     df = signal_generator.generate_all_exit_signals(df)

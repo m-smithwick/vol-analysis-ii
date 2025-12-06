@@ -832,6 +832,12 @@ Note: Legacy periods (1y, 2y, 5y, etc.) are automatically converted to month equ
     )
     
     parser.add_argument(
+        '--text-only',
+        action='store_true',
+        help='Text-only mode: skip all chart generation and HTML summary (fastest for large batches)'
+    )
+    
+    parser.add_argument(
         '--chart-backend',
         choices=['matplotlib', 'plotly'],
         default='matplotlib',
@@ -962,6 +968,7 @@ Note: Legacy periods (1y, 2y, 5y, etc.) are automatically converted to month equ
                 output_dir=args.output_dir,
                 save_charts=args.save_charts,
                 save_excel=args.save_excel,
+                text_only=args.text_only,
                 chart_backend=args.chart_backend,
                 verbose=args.debug,
                 data_source=args.data_source
