@@ -41,7 +41,8 @@ def run_batch_backtest(ticker_file: str, period: str = '12mo',
                       risk_pct: float = 0.75,
                       stop_strategy: str = DEFAULT_STOP_STRATEGY,
                       time_stop_bars: int = DEFAULT_TIME_STOP_BARS,
-                      save_individual_reports: bool = True) -> Dict:
+                      save_individual_reports: bool = True,
+                      config: dict = None) -> Dict:
     """
     Run backtests on all tickers in a file and aggregate results.
     
@@ -57,6 +58,7 @@ def run_batch_backtest(ticker_file: str, period: str = '12mo',
         stop_strategy (str): Stop strategy when using risk-managed mode
         time_stop_bars (int): Number of bars before TIME_STOP exit if <+1R (default from risk_constants.py)
         save_individual_reports (bool): Save individual text reports per ticker (default: True)
+        config (dict): Optional configuration dict from YAML config file (for signal thresholds, exit params, etc.)
         
     Returns:
         Dict: Aggregated backtest results across all tickers
@@ -163,7 +165,8 @@ def run_batch_backtest(ticker_file: str, period: str = '12mo',
                         period=fetch_period,
                         data_source='yfinance',
                         force_refresh=False,
-                        verbose=False
+                        verbose=False,
+                        config=config
                     )
                     
                     # Filter to requested date range if specified
@@ -1101,11 +1104,13 @@ def main():
     args = parser.parse_args()
     
     # Load configuration if provided (overrides command-line defaults)
+    config_dict = None
     if args.config:
         try:
             print(f"\n📋 Loading configuration from {args.config}...")
             config_loader = load_config(args.config)
             config_loader.print_summary()
+            config_dict = config_loader.config
             
             # Extract parameters from config
             risk_params = config_loader.get_risk_manager_params()
@@ -1150,7 +1155,8 @@ def main():
         risk_pct=args.risk_pct,
         stop_strategy=args.stop_strategy,
         time_stop_bars=args.time_stop_bars,
-        save_individual_reports=args.save_individual_reports
+        save_individual_reports=args.save_individual_reports,
+        config=config_dict
     )
     
     if not results or not results['all_paired_trades']:

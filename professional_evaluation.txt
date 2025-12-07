@@ -1,10 +1,10 @@
 ================================================================================
 PROFESSIONAL TRADING PERFORMANCE EVALUATION
 ================================================================================
-Analysis Date: 2025-12-07 13:57:19
+Analysis Date: 2025-12-07 14:52:57
 Data Period: 2022-03-23 to 2025-12-05
-Total Trades: 1099
-Equity: $101,233 → $436,396 (+331.08%)
+Total Trades: 1747
+Equity: $101,233 → $363,895 (+259.46%)
 
 ================================================================================
 EXECUTIVE SUMMARY
@@ -21,17 +21,17 @@ KEY FINDINGS
 ================================================================================
 
 Strengths:
-  • Exceptional returns: +331.1% over 24 months (48.6% annualized)
-  • Elite Sharpe Ratio: 2.13 (>2.0 is excellent)
-  • Minimal drawdown: -39.43% (institutional grade)
-  • High consistency: 60.9% positive months
-  • Professional win rate: 59.3%
+  • Exceptional returns: +259.5% over 24 months (41.5% annualized)
+  • Elite Sharpe Ratio: 1.83 (>2.0 is excellent)
+  • Minimal drawdown: -23.90% (institutional grade)
+  • High consistency: 73.8% positive months
+  • Professional win rate: 44.5%
   • Regime-agnostic: Works in choppy and rally markets
 
 Concerns:
   • Long loss streak: 19 consecutive losses
   • Psychological challenge: Requires exceptional discipline
-  • W/L ratio modest: 1.29x (acceptable but not exceptional)
+  • W/L ratio modest: 2.09x (acceptable but not exceptional)
 
 Critical Notes:
   • Use MEDIAN not MEAN: Outliers inflate averages 3-20x (validated)
@@ -42,10 +42,10 @@ Critical Notes:
 SECTION 1: RETURN ANALYSIS
 ================================================================================
 
-Total Return:        +331.08%
+Total Return:        +259.46%
 Time Period:         3.69 years
-Annualized Return:   48.62%
-Annual Volatility:   17.85%
+Annualized Return:   41.47%
+Annual Volatility:   16.98%
 
 Comparison to Benchmarks:
   vs Retail Traders:     EXCEPTIONAL (typical: 10-20% annual)
@@ -53,9 +53,9 @@ Comparison to Benchmarks:
   vs Professional Avg:   ELITE (hedge funds: 8-15% annual)
 
 Trade Statistics:
-  Total Trades:         1099
-  Wins:                 652 (59.3%)
-  Losses:               447 (40.7%)
+  Total Trades:         1747
+  Wins:                 777 (44.5%)
+  Losses:               968 (55.5%)
 
 Grade: A+ (Exceptional returns by any standard)
 
@@ -64,29 +64,29 @@ SECTION 2: RISK ANALYSIS
 ================================================================================
 
 Maximum Drawdown:
-  Peak Equity:         $107,035.00
-  Peak Date:           2022-04-07
-  Trough Equity:       $64,836.00
-  Trough Date:         2023-02-01
-  Maximum Drawdown:    -39.43%
-  Duration:            300 days
-  Recovery Date:       2023-06-29
-  Recovery Time:       148 days
-  Assessment:          CONCERNING (High risk)
-  Grade:               C
+  Peak Equity:         $105,569.00
+  Peak Date:           2022-04-01
+  Trough Equity:       $80,336.00
+  Trough Date:         2023-01-25
+  Maximum Drawdown:    -23.90%
+  Duration:            299 days
+  Recovery Date:       2023-06-14
+  Recovery Time:       140 days
+  Assessment:          ACCEPTABLE (Retail acceptable)
+  Grade:               B-
 
 Sharpe Ratio:
-  Annual Return:       48.62%
-  Annual Volatility:   17.85%
+  Annual Return:       41.47%
+  Annual Volatility:   16.98%
   Risk-Free Rate:      4.0%
-  Sharpe Ratio:        2.13
-  Assessment:          EXCELLENT (Elite performance)
-  Grade:               A
+  Sharpe Ratio:        1.83
+  Assessment:          GOOD (Professional grade)
+  Grade:               B+
 
 Risk Assessment: INSTITUTIONAL QUALITY
   • <10% drawdown on 145% returns is exceptional
   • Sharpe 3.35 indicates elite risk-adjusted performance
-  • Low volatility (17.8%) for high returns
+  • Low volatility (17.0%) for high returns
 
 Grade: A (Exceptional risk management)
 
@@ -95,20 +95,20 @@ SECTION 3: CONSISTENCY ANALYSIS
 ================================================================================
 
 Win Rate Analysis:
-  Overall Win Rate:    59.3%
-  Win/Loss Ratio:      1.29x
-  Average Win:         $1,099.26 (16.64%)
-  Average Loss:        $-850.85 (-12.47%)
+  Overall Win Rate:    44.5%
+  Win/Loss Ratio:      2.09x
+  Average Win:         $840.22 (10.93%)
+  Average Loss:        $-401.81 (-4.92%)
 
 Monthly Performance:
-  Total Months:        46
-  Positive Months:     28 (60.9%)
-  Negative Months:     18 (39.1%)
-  Average Month:       3.19%
-  Median Month:        1.79%
-  Best Month:          36.56%
-  Worst Month:         -11.66%
-  Assessment:          GOOD (Consistent)
+  Total Months:        42
+  Positive Months:     31 (73.8%)
+  Negative Months:     11 (26.2%)
+  Average Month:       3.06%
+  Median Month:        2.49%
+  Best Month:          21.41%
+  Worst Month:         -7.89%
+  Assessment:          EXCELLENT (Highly consistent)
 
 Grade: A (Highly consistent performance)
 
@@ -117,25 +117,25 @@ SECTION 4: CAPITAL EFFICIENCY
 ================================================================================
 
 Capital Deployment Analysis:
-  Max Capital Deployed:    $986,109
-  Max Deployment Date:     2025-12-05
-  Average Deployment:      $447,531
-  Median Deployment:       $470,698
+  Max Capital Deployed:    $882,750
+  Max Deployment Date:     2023-11-29
+  Average Deployment:      $307,417
+  Median Deployment:       $322,921
 
 Position Concurrency:
-  Max Concurrent Trades:   130
-  Avg Concurrent Trades:   69.5
+  Max Concurrent Trades:   90
+  Avg Concurrent Trades:   34.5
 
 Capital Utilization:
-  Average Portfolio Equity: $250,013
-  Average Utilization:      179.0%
+  Average Portfolio Equity: $211,558
+  Average Utilization:      145.3%
   Assessment:               AGGRESSIVE (Over-deployed)
   Grade:                    C
 
 Portfolio Insights:
-  • Typically 69.5 positions open
-  • Peak: 130 concurrent trades
-  • Avg deployed: $447,531 (179% of equity)
+  • Typically 34.5 positions open
+  • Peak: 90 concurrent trades
+  • Avg deployed: $307,417 (145% of equity)
   • Very high utilization - limited capacity for new opportunities
 
 Grade: C (AGGRESSIVE (Over-deployed))
@@ -145,45 +145,46 @@ SECTION 5: RESILIENCE ANALYSIS
 ================================================================================
 
 Streak Analysis:
-  Longest Win Streak:  25 trades
+  Longest Win Streak:  16 trades
   Longest Loss Streak: 19 trades ⚠️
-  Current Streak:      2 losses
+  Current Streak:      1 wins
   Assessment:          DIFFICULT (High risk of giving up)
   Grade:               C
 
 Maximum Losing Streak Details (19 consecutive losses):
 --------------------------------------------------------------------------------
-  Period:            2025-03-21 to 2025-04-07
-  Duration:          17 days
-  Total Loss:        $-17,739
-  Average Loss:      $-934
+  Period:            2022-04-07 to 2022-04-12
+  Duration:          5 days
+  Total Loss:        $-9,115
+  Average Loss:      $-480
 
   Trade-by-Trade Breakdown:
   #   Date         Ticker   P&L          Profit%   R-Mult    Exit Type           
   ---------------------------------------------------------------------------------------------
-  1   2025-03-21   CCEP     $      -68   -0.69%   -0.06R SIGNAL_EXIT         
-  2   2025-03-31   MCHP     $     -972  -35.09%   -1.00R HARD_STOP           
-  3   2025-04-03   AMZN     $   -1,204  -14.43%   -1.17R HARD_STOP           
-  4   2025-04-03   ASML     $   -1,208  -17.72%   -1.31R HARD_STOP           
-  5   2025-04-03   CTSH     $   -1,022  -16.33%   -1.00R HARD_STOP           
-  6   2025-04-03   KLAC     $     -996  -14.47%   -1.00R HARD_STOP           
-  7   2025-04-03   META     $     -532   -9.10%   -0.56R SIGNAL_EXIT         
-  8   2025-04-03   NXPI     $   -1,156  -21.20%   -1.15R HARD_STOP           
-  9   2025-04-03   QCOM     $   -2,270  -12.50%   -2.30R HARD_STOP           
-  10  2025-04-04   TXN      $     -949  -23.86%   -0.97R SIGNAL_EXIT         
-  11  2025-04-04   REGN     $     -590  -49.55%   -1.00R HARD_STOP           
-  12  2025-04-04   PDD      $     -114   -1.50%   -0.12R SIGNAL_EXIT         
-  13  2025-04-04   IDXX     $   -1,173   -7.27%   -1.23R HARD_STOP           
-  14  2025-04-04   BKR      $   -1,455  -22.82%   -1.48R HARD_STOP           
-  15  2025-04-04   ANSS     $     -937  -11.16%   -0.97R SIGNAL_EXIT         
-  16  2025-04-04   ABNB     $     -979  -17.72%   -1.00R HARD_STOP           
-  17  2025-04-04   HON      $     -924  -14.74%   -0.94R SIGNAL_EXIT         
-  18  2025-04-07   PEP      $     -702   -5.11%   -0.71R SIGNAL_EXIT         
-  19  2025-04-07   XEL      $     -488   -6.21%   -0.47R SIGNAL_EXIT         
+  1   2022-04-07   TTWO     $   -1,000   -5.44%   -1.00R HARD_STOP           
+  2   2022-04-08   TXN      $     -279   -5.60%   -0.29R SIGNAL_EXIT         
+  3   2022-04-08   SBUX     $     -998   -5.19%   -1.00R HARD_STOP           
+  4   2022-04-08   MU       $     -999   -7.19%   -1.00R HARD_STOP           
+  5   2022-04-08   CSGP     $     -298   -7.15%   -0.30R SIGNAL_EXIT         
+  6   2022-04-08   HON      $     -391   -3.31%   -0.39R SIGNAL_EXIT         
+  7   2022-04-08   AVGO     $     -130   -6.90%   -0.16R SIGNAL_EXIT         
+  8   2022-04-08   MSFT     $     -322   -4.01%   -0.33R SIGNAL_EXIT         
+  9   2022-04-11   IDXX     $     -420   -5.51%   -0.43R SIGNAL_EXIT         
+  10  2022-04-11   SNPS     $     -179   -2.67%   -0.18R SIGNAL_EXIT         
+  11  2022-04-11   QCOM     $     -999  -10.62%   -1.00R HARD_STOP           
+  12  2022-04-11   ISRG     $     -404   -2.48%   -0.41R SIGNAL_EXIT         
+  13  2022-04-11   DASH     $     -144   -1.82%    0.86R TRAIL_STOP          
+  14  2022-04-11   ABNB     $     -102   -4.07%   -0.11R SIGNAL_EXIT         
+  15  2022-04-11   AMAT     $     -997  -12.50%   -1.00R HARD_STOP           
+  16  2022-04-11   AAPL     $     -315   -4.76%   -0.32R SIGNAL_EXIT         
+  17  2022-04-11   CPRT     $      -40   -3.16%   -0.04R SIGNAL_EXIT         
+  18  2022-04-11   ADSK     $     -992   -6.97%   -1.00R HARD_STOP           
+  19  2022-04-12   BIIB     $     -106   -1.92%   -0.11R SIGNAL_EXIT         
 
   Exit Type Analysis:
-    • HARD_STOP: 11 trades (57.9%)
-    • SIGNAL_EXIT: 8 trades (42.1%)
+    • SIGNAL_EXIT: 12 trades (63.2%)
+    • HARD_STOP: 6 trades (31.6%)
+    • TRAIL_STOP: 1 trades (5.3%)
 
 Psychological Challenge:
   Enduring 19 consecutive losses tests even experienced traders.
@@ -241,9 +242,9 @@ Strengths for Professionals:
   • 74% positive months shows consistency
 
 Questions Answered:
-  1. Max drawdown? -39.43% → EXCELLENT
-  2. Sharpe ratio? 2.13 → EXCELLENT
-  3. Monthly consistency? 60.9% positive → EXCELLENT
+  1. Max drawdown? -23.90% → EXCELLENT
+  2. Sharpe ratio? 1.83 → EXCELLENT
+  3. Monthly consistency? 73.8% positive → EXCELLENT
   4. Worst losing streak? 19 trades → CHALLENGING
   5. Outlier dependency? Validated: Median-based expectations
   6. Bear markets? Works in choppy (56% win)
@@ -278,7 +279,7 @@ SHORT-TERM (Next 3 Months):
 
 POSITION SIZING RECOMMENDATIONS:
 
-Based on -39.43% drawdown and 19-trade loss streak:
+Based on -23.90% drawdown and 19-trade loss streak:
 
 Conservative (Capital Preservation):
   - Risk 0.5-1% per trade
@@ -306,40 +307,40 @@ DETAILED METRICS TABLE
 
 PERFORMANCE METRICS
 --------------------------------------------------------------------------------
-Total Return:                +331.08%
+Total Return:                +259.46%
 Time Period:                 3.69 years
-Annualized Return:           48.62%
-Total Trades:                1099
-Win Rate:                    59.3%
+Annualized Return:           41.47%
+Total Trades:                1747
+Win Rate:                    44.5%
 
 RISK METRICS
 --------------------------------------------------------------------------------
-Maximum Drawdown:            -39.43%
-Sharpe Ratio:                2.13
-Annual Volatility:           17.85%
-Win/Loss Ratio:              1.29x
+Maximum Drawdown:            -23.90%
+Sharpe Ratio:                1.83
+Annual Volatility:           16.98%
+Win/Loss Ratio:              2.09x
 
 CONSISTENCY METRICS
 --------------------------------------------------------------------------------
-Positive Months:             28/46 (60.9%)
-Average Monthly Return:      3.19%
-Best Month:                  36.56%
-Worst Month:                 -11.66%
+Positive Months:             31/42 (73.8%)
+Average Monthly Return:      3.06%
+Best Month:                  21.41%
+Worst Month:                 -7.89%
 
 CAPITAL DEPLOYMENT METRICS
 --------------------------------------------------------------------------------
-Max Capital Deployed:        $986,109
-Avg Capital Deployed:        $447,531
-Capital Utilization:         179.0%
-Max Concurrent Positions:    130
-Avg Concurrent Positions:    69.5
+Max Capital Deployed:        $882,750
+Avg Capital Deployed:        $307,417
+Capital Utilization:         145.3%
+Max Concurrent Positions:    90
+Avg Concurrent Positions:    34.5
 
 RESILIENCE METRICS
 --------------------------------------------------------------------------------
-Longest Win Streak:          25 trades
+Longest Win Streak:          16 trades
 Longest Loss Streak:         19 trades
-Average Win:                 $1,099.26
-Average Loss:                $-850.85
+Average Win:                 $840.22
+Average Loss:                $-401.81
 
 ================================================================================
 FINAL VERDICT

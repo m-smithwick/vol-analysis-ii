@@ -1,296 +1,264 @@
-# Implementation Plan: MA Crossdown Exit Signal
+# Implementation Plan: Fix MA_Crossdown Parameter Propagation in Batch Backtest
 
 ## [Overview]
+Fix parameter propagation failure preventing MA_Crossdown exit signals from working in batch backtests.
 
-Add a configurable moving average crossdown exit signal to the conservative trading profile, enabling trend-following discipline when price breaks below a specified moving average (default 48-day to avoid crowd behavior at 50-day).
+This is a classic multi-entry-point parameter propagation bug documented in `.clinerules/parameter-propagation.md`. The MA_Crossdown feature works correctly in single-ticker mode (`vol_analysis.py`) because it passes the config dict through the entire chain. However, `batch_backtest.py` loads the config but never passes it to the analysis pipeline, causing MA_Crossdown signals to be disabled (all False values).
 
-This implementation adds a new exit signal type that complements the existing volume/momentum-based exits (Momentum Exhaustion, Profit Taking, Distribution Warning) by introducing trend structure confirmation. The signal will be fully configurable through the YAML config system, allowing empirical testing of different MA periods, confirmation requirements, and buffer zones without code modifications.
-
-The implementation follows the established patterns in the codebase: signal generation in `signal_generator.py`, configuration validation in `config_loader.py`, and integration through the existing signal threshold system. The configurable approach enables testing both conservative (2-day confirmation) and aggressive (1-day) exit strategies while maintaining backward compatibility with existing configurations.
+The fix threads the config parameter through the batch backtest path to match the working single-ticker pattern. This is a minimal 3-location change that maintains backward compatibility while enabling all config-based features (MA_Crossdown, signal thresholds, etc.) to work in batch mode.
 
 ## [Types]
+No new types required - using existing dict type for config parameter.
 
-No new type definitions required.
-
-The implementation uses existing Python types and data structures:
-- `pd.Series` for signal boolean flags (existing pattern)
-- `pd.DataFrame` for price/indicator data (existing pattern)
-- `dict` for exit_params configuration (existing pattern in risk_manager.py)
-- Standard Python types: `int`, `float`, `bool` for parameters
-
-Configuration structure (YAML):
-```yaml
-exit_signal_params:
-  ma_crossdown:
-    enabled: bool          # Whether signal is active
-    ma_period: int         # MA period (e.g., 48, 50, 60)
-    confirmation_days: int # Days below MA required (1=immediate, 2=conservative)
-    buffer_pct: float      # Optional buffer to reduce whipsaws (0.0 = no buffer)
+The config dict structure is already defined and validated by `ConfigLoader`:
+```python
+config: Dict[str, Any] = {
+    'config_name': str,
+    'risk_management': {...},
+    'signal_thresholds': {...},
+    'exit_signal_params': {
+        'ma_crossdown': {
+            'enabled': bool,
+            'ma_period': int,
+            'confirmation_days': int,
+            'buffer_pct': float
+        }
+    },
+    'regime_filters': {...},
+    'profit_management': {...},
+    'backtest': {...}
+}
 ```
 
 ## [Files]
-
-Modifications required to integrate MA crossdown exit signal into configuration and signal generation system.
+Modify one existing file to add config parameter to the batch backtest pipeline.
 
 **Files to Modify:**
+- `batch_backtest.py` (3 changes in 3 locations):
+  1. Line 36: Add `config` parameter to `run_batch_backtest()` function signature
+  2. Line 161: Add `config=config` to `prepare_analysis_dataframe()` call
+  3. Line 1143: Add `config=config_dict` to `run_batch_backtest()` call in `main()`
 
-1. **`signal_generator.py`** 
-   - Add `generate_ma_crossdown_signals()` function (new)
-   - Modify `generate_all_exit_signals()` to accept `exit_params` parameter
-   - Add MA crossdown signal to exit signal list
-
-2. **`configs/conservative_config.yaml`**
-   - Add `exit_signal_params` section with MA crossdown configuration
-   - Add `ma_crossdown` to `signal_thresholds.exit` dictionary  
-   - Add `ma_crossdown` to `enabled_exit_signals` list
-
-3. **`config_loader.py`**
-   - Add validation for optional `exit_signal_params` section
-   - Add `get_exit_signal_params()` method to extract parameters
-
-4. **`vol_analysis.py`**
-   - Extract exit_params from config
-   - Pass exit_params to `generate_all_exit_signals()` call
-
-5. **`backtest.py`**
-   - Add `ma_crossdown` to exit_signal_keys list in relevant functions
-   - Ensure signal is included in backtest analysis
-
-6. **`CODE_MAP.txt`**
-   - Update signal_generator.py description to mention MA crossdown
-   - Update conservative_config.yaml description
-
-7. **`configs/README.md`**
-   - Document new exit_signal_params section
-   - Provide usage examples
-
-**No New Files Created**
-
-**No Files Deleted**
+**No files to create or delete.**
 
 ## [Functions]
-
-Modifications to signal generation and configuration loading to support parameterized exit signals.
-
-**New Functions:**
-
-1. **`generate_ma_crossdown_signals()` in `signal_generator.py`**
-   ```python
-   def generate_ma_crossdown_signals(
-       df: pd.DataFrame,
-       ma_period: int = 50,
-       confirmation_days: int = 1,
-       buffer_pct: float = 0.0
-   ) -> pd.Series
-   ```
-   - Purpose: Detect when price crosses below moving average
-   - Parameters: MA period, confirmation requirement, buffer zone
-   - Returns: Boolean Series indicating crossdown signals
-   - Logic: Calculate MA, detect crossdown with optional confirmation
-   - Location: Add after `generate_stop_loss_signals()` in signal_generator.py
+Modify one function signature and update two function calls.
 
 **Modified Functions:**
 
-1. **`generate_all_exit_signals()` in `signal_generator.py`**
-   - Current signature: `def generate_all_exit_signals(df: pd.DataFrame) -> pd.DataFrame`
-   - New signature: `def generate_all_exit_signals(df: pd.DataFrame, exit_params: dict = None) -> pd.DataFrame`
-   - Changes:
-     - Add optional `exit_params` parameter
-     - Extract MA crossdown parameters from exit_params if provided
-     - Call `generate_ma_crossdown_signals()` with extracted parameters
-     - Add 'MA_Crossdown' column to returned DataFrame
+1. **`run_batch_backtest()` in `batch_backtest.py` (line 36)**
+   - Current signature:
+     ```python
+     def run_batch_backtest(ticker_file: str, period: str = '12mo',
+                           start_date: str = None, end_date: str = None,
+                           output_dir: str = 'backtest_results',
+                           risk_managed: bool = True,
+                           account_value: float = 100000,
+                           risk_pct: float = 0.75,
+                           stop_strategy: str = DEFAULT_STOP_STRATEGY,
+                           time_stop_bars: int = DEFAULT_TIME_STOP_BARS,
+                           save_individual_reports: bool = True) -> Dict:
+     ```
+   - New signature (add config parameter):
+     ```python
+     def run_batch_backtest(ticker_file: str, period: str = '12mo',
+                           start_date: str = None, end_date: str = None,
+                           output_dir: str = 'backtest_results',
+                           risk_managed: bool = True,
+                           account_value: float = 100000,
+                           risk_pct: float = 0.75,
+                           stop_strategy: str = DEFAULT_STOP_STRATEGY,
+                           time_stop_bars: int = DEFAULT_TIME_STOP_BARS,
+                           save_individual_reports: bool = True,
+                           config: dict = None) -> Dict:
+     ```
+   - Change: Add `config: dict = None` as final parameter (maintains backward compatibility)
+   - Also update docstring to document the new parameter
 
-2. **`get_exit_signal_params()` in `config_loader.py`** (NEW METHOD)
-   - Signature: `def get_exit_signal_params(self) -> Dict[str, Any]`
-   - Purpose: Extract exit signal parameters from config
-   - Returns: Dict with exit signal params, or empty dict if not present
-   - Location: Add after `get_regime_config()` method
+2. **`prepare_analysis_dataframe()` call in `run_batch_backtest()` (line 161)**
+   - Current call:
+     ```python
+     df = prepare_analysis_dataframe(
+         ticker=ticker,
+         period=fetch_period,
+         data_source='yfinance',
+         force_refresh=False,
+         verbose=False
+     )
+     ```
+   - New call:
+     ```python
+     df = prepare_analysis_dataframe(
+         ticker=ticker,
+         period=fetch_period,
+         data_source='yfinance',
+         force_refresh=False,
+         verbose=False,
+         config=config
+     )
+     ```
+   - Change: Add `config=config` parameter to pass config through
 
-3. **Signal generation calls in `vol_analysis.py`**
-   - Locate calls to `generate_all_exit_signals(df)`
-   - Modify to: `generate_all_exit_signals(df, exit_params=exit_params)`
-   - Extract exit_params from config loader before calling
+3. **`run_batch_backtest()` call in `main()` (line 1143)**
+   - Current call (approximately line 1143):
+     ```python
+     results = run_batch_backtest(
+         ticker_file=args.ticker_file,
+         period=args.period,
+         start_date=args.start_date,
+         end_date=args.end_date,
+         output_dir=args.output_dir,
+         risk_managed=args.risk_managed,
+         account_value=args.account_value,
+         risk_pct=args.risk_pct,
+         stop_strategy=args.stop_strategy,
+         time_stop_bars=args.time_stop_bars,
+         save_individual_reports=args.save_individual_reports
+     )
+     ```
+   - New call:
+     ```python
+     results = run_batch_backtest(
+         ticker_file=args.ticker_file,
+         period=args.period,
+         start_date=args.start_date,
+         end_date=args.end_date,
+         output_dir=args.output_dir,
+         risk_managed=args.risk_managed,
+         account_value=args.account_value,
+         risk_pct=args.risk_pct,
+         stop_strategy=args.stop_strategy,
+         time_stop_bars=args.time_stop_bars,
+         save_individual_reports=args.save_individual_reports,
+         config=config_dict
+     )
+     ```
+   - Change: Add `config=config_dict` parameter (config_dict already exists at line 1109)
+   - Note: The variable name is `config_dict` in main(), not `config`
 
-**No Functions Removed**
+**No functions to create or remove.**
 
 ## [Classes]
+No class modifications required.
 
-Modifications to ConfigLoader class to validate and extract exit signal parameters.
-
-**Modified Classes:**
-
-1. **`ConfigLoader` in `config_loader.py`**
-   - File: `config_loader.py`
-   - Changes:
-     - Add optional `exit_signal_params` to config structure (not required for backward compatibility)
-     - Add validation method `_validate_exit_signal_params()` (optional validation)
-     - Add accessor method `get_exit_signal_params()` to extract params
-   - Methods added:
-     - `get_exit_signal_params(self) -> Dict[str, Any]`: Returns exit signal params or empty dict
-   - Methods modified:
-     - `_validate_structure()`: Add exit_signal_params to optional sections (not required)
-
-**No New Classes**
-
-**No Classes Removed**
+All necessary classes already exist:
+- `ConfigLoader` in `config_loader.py` (already working)
+- Risk management classes (already working)
+- Signal generation classes (already working)
 
 ## [Dependencies]
+No dependency changes required.
 
-No new external dependencies required. Implementation uses existing project dependencies.
-
-**Existing Dependencies Used:**
-- `pandas` - Already in requirements.txt (DataFrame operations, rolling means)
-- `numpy` - Already in requirements.txt (numerical operations)
-- `yaml` - Already in requirements.txt (config file loading)
-
-**No New Dependencies Added**
-
-**No Version Changes Required**
+All required imports already exist in `batch_backtest.py`:
+- `from config_loader import load_config, ConfigValidationError` (line 30)
+- `from analysis_service import prepare_analysis_dataframe` (line 26)
 
 ## [Testing]
+Verify fix with both single-ticker and batch paths to ensure parameter propagation works.
 
-Comprehensive testing strategy to validate MA crossdown exit signal implementation and integration.
+**Test Strategy:**
 
-**Test Files Required:**
+1. **Verify Single-Ticker Path Still Works (Baseline)**
+   ```bash
+   python vol_analysis.py AAPL --period 6mo --config configs/conservative_config.yaml
+   ```
+   - Expected: MA_Crossdown column present with some True values
+   - Check: Count signals in output
 
-1. **Unit Tests** (create new test file)
-   - `tests/test_ma_crossdown_exit.py` (NEW)
-   - Test `generate_ma_crossdown_signals()` function:
-     - Test simple crossdown detection (1-day)
-     - Test 2-day confirmation requirement
-     - Test buffer zone functionality
-     - Test edge cases (all NaN, all above MA, all below MA)
-     - Test different MA periods (20, 48, 50, 60)
+2. **Test Batch Path With Fix**
+   ```bash
+   # Create small test file
+   echo "AAPL" > test_ma_crossdown.txt
+   
+   # Run batch backtest
+   python batch_backtest.py \
+     -f test_ma_crossdown.txt \
+     -c configs/conservative_config.yaml \
+     --start-date 2024-06-07 \
+     --end-date 2025-12-05 \
+     --no-individual-reports
+   ```
+   - Expected: MA_Crossdown exit signals appear in LOG_FILE CSV
+   - Check: Column MA_Crossdown exists and has some True values
+   - Verify: Exit types include signal-based exits
 
-2. **Integration Tests** (modify existing test files)
-   - `tests/test_conservative_config.py` (NEW or add to existing config tests)
-   - Test config loading with exit_signal_params
-   - Test backward compatibility (configs without exit_signal_params)
-   - Validate parameter extraction
+3. **Cross-Path Validation (Critical Test)**
+   ```bash
+   # Run same ticker through both paths
+   python vol_analysis.py AAPL --period 6mo --config configs/conservative_config.yaml > single.txt
+   
+   echo "AAPL" > single_ticker.txt
+   python batch_backtest.py -f single_ticker.txt -c configs/conservative_config.yaml \
+     --start-date 2024-06-07 --end-date 2025-12-05 --no-individual-reports
+   
+   # Compare signal counts - should be identical or very close
+   grep "MA_Crossdown" single.txt
+   # Check LOG_FILE CSV for MA_Crossdown column
+   ```
+   - Expected: Both paths generate similar MA_Crossdown signal counts
+   - If different: Parameter propagation still has issues
 
-3. **Manual Testing** (documented test cases)
-   - Single ticker test: `python vol_analysis.py AAPL --period 12mo`
-   - Verify MA crossdown signals appear in results
-   - Compare with/without MA crossdown enabled
-   - Historical backtest: `python batch_backtest.py -p 12mo -f ticker_lists/short.txt`
-   - Verify exit type distribution includes MA crossdowns
+4. **Test Without Config (Backward Compatibility)**
+   ```bash
+   python batch_backtest.py -f test_ma_crossdown.txt --period 6mo
+   ```
+   - Expected: Runs without errors (uses defaults)
+   - MA_Crossdown column created with all False (no config provided)
 
-**Existing Tests to Modify:**
+5. **Verify Exit Signal Distribution**
+   - Open generated LOG_FILE CSV
+   - Check `exit_type` column for variety of exit types
+   - Before fix: No SIGNAL_EXIT types (all TIME_STOP, HARD_STOP, etc.)
+   - After fix: Some SIGNAL_EXIT types should appear when MA_Crossdown triggers
 
-- None (new feature, shouldn't break existing tests)
-- Run full test suite to ensure no regressions: `pytest tests/`
-
-**Validation Strategy:**
-
-1. **Correctness Validation:**
-   - Compare MA calculations with manual calculations
-   - Verify crossdown detection matches expected behavior
-   - Test confirmation logic with known data sequences
-
-2. **Integration Validation:**
-   - Run batch backtest comparing results with/without MA crossdown
-   - Verify exit type attribution is correct
-   - Check that MA crossdown doesn't interfere with other exit signals
-
-3. **Performance Validation:**
-   - Compare execution time with/without MA crossdown (should be negligible)
-   - Verify no memory leaks with large datasets
+**Test Files:**
+- Use existing test infrastructure
+- No new test files needed (this is a bug fix, not new feature)
+- Can add regression test later to prevent recurrence
 
 ## [Implementation Order]
+Implement changes in specific order to ensure safe testing at each step.
 
-Sequential implementation steps to minimize integration conflicts and enable incremental testing.
+1. **Modify `run_batch_backtest()` signature** (line 36 in batch_backtest.py)
+   - Add `config: dict = None` parameter
+   - Update docstring to document config parameter
+   - Rationale: Add parameter first so subsequent calls can use it
 
-**Step-by-step Implementation:**
+2. **Update `prepare_analysis_dataframe()` call** (line 161 in batch_backtest.py)
+   - Add `config=config` to the call
+   - Rationale: Thread parameter through to analysis service
 
-1. **Add MA crossdown signal generation function** (`signal_generator.py`)
-   - Implement `generate_ma_crossdown_signals()` 
-   - Add comprehensive docstring with examples
-   - Test function in isolation with sample data
+3. **Update `run_batch_backtest()` call in main()** (line 1143 in batch_backtest.py)
+   - Add `config=config_dict` to the call
+   - Rationale: Complete the parameter chain from main() to analysis
 
-2. **Update signal generation to accept parameters** (`signal_generator.py`)
-   - Modify `generate_all_exit_signals()` signature
-   - Add exit_params parameter handling
-   - Call MA crossdown function with extracted params
-   - Maintain backward compatibility (exit_params=None)
+4. **Test with single ticker batch** (validation)
+   - Run batch backtest with one ticker
+   - Verify MA_Crossdown signals appear
+   - Compare to single-ticker mode results
 
-3. **Add configuration sections** (`configs/conservative_config.yaml`)
-   - Add `exit_signal_params.ma_crossdown` section
-   - Add `ma_crossdown` to exit thresholds (value: 5.0)
-   - Add `ma_crossdown` to enabled_exit_signals list
+5. **Test with full batch** (final validation)
+   - Run with full ticker list (e.g., nasdaq100.txt)
+   - Verify results show MA_Crossdown exit signals
+   - Check LOG_FILE CSV for signal distribution
 
-4. **Update configuration loader** (`config_loader.py`)
-   - Add `get_exit_signal_params()` method
-   - Add optional validation for exit_signal_params (if present)
-   - Test config loading with new sections
+6. **Update CODE_MAP.txt documentation** (if successful)
+   - Document that this parameter propagation bug was fixed
+   - Note the importance of testing BOTH entry points when adding features
+   - Reference `.clinerules/parameter-propagation.md`
 
-5. **Integrate into vol_analysis.py**
-   - Extract exit_params from config using `get_exit_signal_params()`
-   - Pass exit_params to `generate_all_exit_signals()`
-   - Test with single ticker run
+**Total Implementation Time: ~10 minutes**
+- Code changes: 3 lines
+- Testing: 5-10 minutes
+- Documentation: 2-3 minutes
 
-6. **Update backtest integration** (`backtest.py`)
-   - Add 'MA_Crossdown' or 'ma_crossdown' to exit_signals list
-   - Verify signal appears in backtest reports
+**Risk Level: Low**
+- Backward compatible (config defaults to None)
+- Minimal code changes
+- Follows established pattern from vol_analysis.py
 
-7. **Test implementation**
-   - Run unit tests (if created)
-   - Run single ticker test: `python vol_analysis.py AAPL --period 12mo`
-   - Run batch backtest: `python batch_backtest.py -p 12mo -f ticker_lists/short.txt`
-   - Compare results with/without MA crossdown enabled
-
-8. **Documentation updates**
-   - Update `CODE_MAP.txt` with MA crossdown signal description
-   - Update `configs/README.md` with exit_signal_params documentation
-   - Add usage examples to config README
-
-9. **Final validation**
-   - Run full test suite: `pytest tests/`
-   - Run batch backtest on larger ticker list
-   - Review and commit changes
-
-**Dependencies Between Steps:**
-- Step 2 depends on Step 1 (function must exist before calling it)
-- Step 5 depends on Steps 2-4 (all components must be ready)
-- Step 6 depends on Step 5 (signal must be generated before backtesting)
-- Steps 7-9 depend on Steps 1-6 (implementation must be complete)
-
-**Estimated Time:** 2-3 hours total
-- Steps 1-2: 30 minutes (signal generation)
-- Steps 3-4: 20 minutes (configuration)
-- Step 5: 15 minutes (integration)
-- Step 6: 10 minutes (backtest update)
-- Steps 7-9: 45-90 minutes (testing and documentation)
-
----
-
-## Implementation Notes
-
-**Key Design Decisions:**
-
-1. **Configurable by default**: Enables testing different strategies without code changes
-2. **Backward compatible**: Configs without exit_signal_params still work (exit_params=None)
-3. **Consistent patterns**: Follows existing signal generation patterns in codebase
-4. **48-day default**: Avoids crowd behavior at exact 50-day MA
-5. **1-day confirmation default**: Faster exits, can be increased to 2 days for conservative approach
-
-**Integration Points:**
-
-- Signal generation: `signal_generator.generate_all_exit_signals()`
-- Configuration: `config_loader.ConfigLoader.get_exit_signal_params()`
-- Vol analysis: Pass exit_params to signal generation
-- Backtest: Include ma_crossdown in exit signal lists
-- Risk manager: No changes needed (uses exit signals as-is)
-
-**Testing Priority:**
-
-1. High: Unit test signal generation function
-2. High: Integration test with vol_analysis.py
-3. Medium: Batch backtest comparison
-4. Low: Performance testing (MA calc is fast)
-
-**Future Enhancements:**
-
-- Add to other config profiles (balanced, aggressive)
-- Test exponential moving average (EMA) variant
-- Add to exit strategy comparison reports
-- Consider multiple MA periods (e.g., 20/50 double crossdown)
+**Success Criteria:**
+- Batch backtests show MA_Crossdown exit signals in LOG_FILE CSV
+- Exit type distribution includes SIGNAL_EXIT types
+- Single-ticker and batch paths produce consistent results for same ticker
+- No regression in tests without config file

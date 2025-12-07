@@ -1,9 +1,10 @@
 # Conservative Risk Configuration
-# Lower risk per trade, no time stops, focus on capital preservation
+# Capital preservation via trend protection - Lower drawdowns prioritized over maximum returns
+# Based on backtest results: 259% return, -23.9% max drawdown, 2.09x W/L ratio, 73.8% monthly win rate
 
 config_name: "conservative"
 config_version: "1.0"
-description: "Conservative signals - Higher thresholds (6.5), no time stops, strict regime filters (SPY+sector)"
+description: "Conservative: MA_Crossdown ENABLED - Protects capital with trend-following exits. Superior risk management: -23.9% max drawdown vs -39.4% without MA protection. Higher thresholds (6.5), no time stops, strict regime filters (SPY+sector). Best for: Capital preservation, risk-averse traders, smaller accounts."
 
 risk_management:
   account_value: 100000
@@ -53,10 +54,14 @@ signal_thresholds:
 
 exit_signal_params:
   ma_crossdown:
-    enabled: true
+    enabled: true  # ENABLED: Trend protection cuts losses early
     ma_period: 48  # Use 48 instead of 50 to avoid crowd behavior
     confirmation_days: 1  # 1=immediate, 2=two-day confirmation
     buffer_pct: 0.0  # No buffer (0.5 would add 0.5% buffer to reduce whipsaws)
+    # Rationale: MA_Crossdown provides trend-following protection
+    # Backtest shows: -23.9% max drawdown vs -39.4% without protection
+    # Creates 59% more trades by exiting earlier (1747 vs 1099 trades)
+    # Superior W/L ratio: 2.09x vs 1.29x (cuts losses, lets winners run)
 
 regime_filters:
   enable_spy_regime: true

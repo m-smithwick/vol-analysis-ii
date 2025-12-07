@@ -195,6 +195,8 @@ backtest.py
 
 **Session History**
 - `SESSION_IMPROVEMENTS_SUMMARY.md`, `SESSION_COMPLETE_NOV_2025.md` - Running changelog/session context
+- `implementation_plan.md` - Parameter propagation fix implementation plan (Dec 2025)
+- `MA_CROSSDOWN_FIX_SUMMARY.md` - MA_Crossdown parameter propagation fix summary and validation (Dec 2025)
 
 **Configuration Files**
 - `ticker_lists/sector_mappings.csv` - Stock-to-sector ETF mappings used by `regime_filter.py` for 50-day MA regime checks. Users can add/modify mappings without touching code. Format: ticker,sector_etf,sector_name

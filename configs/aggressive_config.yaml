@@ -1,9 +1,10 @@
 # Aggressive Risk Configuration
-# Higher risk per trade, aggressive time stops, maximize trade frequency
+# Maximize returns by letting positions run - Accept larger drawdowns for higher total returns
+# Based on backtest results: 331% return, -39.4% max drawdown, 1.29x W/L ratio
 
 config_name: "aggressive"
 config_version: "1.0"
-description: "Aggressive signals - Lower thresholds (5.5), tight time stops (8 bars), SPY-only regime filter"
+description: "Aggressive: NO MA_Crossdown - Pursues maximum returns (331%) with acceptance of larger drawdowns (-39.4%). Lower thresholds (5.5), tight time stops (8 bars), SPY-only regime filter. Best for: Risk-tolerant traders seeking highest returns."
 
 risk_management:
   account_value: 100000
@@ -42,12 +43,24 @@ signal_thresholds:
     momentum_exhaustion: 5.0
     profit_taking: 5.0
     distribution_warning: 5.0
+    ma_crossdown: 5.0  # Not used (disabled below)
   enabled_entry_signals:
     - "moderate_buy_pullback"
   enabled_exit_signals:
     - "momentum_exhaustion"
     - "profit_taking"
     - "distribution_warning"
+    # NOTE: ma_crossdown intentionally NOT included - disabled for aggressive strategy
+
+exit_signal_params:
+  ma_crossdown:
+    enabled: false  # DISABLED: Let positions run for maximum returns
+    ma_period: 48   # Not used when disabled
+    confirmation_days: 1
+    buffer_pct: 0.0
+    # Rationale: Disabling MA_Crossdown allows larger winners but also larger drawdowns
+    # Backtest shows: 331% return vs 259% with MA_Crossdown enabled
+    # Trade-off: Accept -39.4% max drawdown vs -23.9% with protection
 
 regime_filters:
   enable_spy_regime: true

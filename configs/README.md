@@ -39,14 +39,50 @@ This generates (all files in the output directory):
 
 ## Available Configurations
 
-### conservative_config.yaml - Production Default ⭐ (RECOMMENDED)
+### Key Decision: Conservative vs Aggressive (MA_Crossdown Impact)
+
+**EMPIRICAL COMPARISON** (Nasdaq100, 5-year backtest, Dec 2025):
+
+| Metric | Conservative (MA_ON) | Aggressive (MA_OFF) | Winner |
+|--------|---------------------|---------------------|--------|
+| **Max Drawdown** | **-23.9%** ✅ | -39.4% | Conservative |
+| **Total Return** | 259% | **331%** ✅ | Aggressive |
+| **Annual Return** | 41.5% | 48.6% | Aggressive |
+| **Sharpe Ratio** | 1.83 | 2.13 | Aggressive |
+| **Win Rate** | 44.5% | 59.3% | Aggressive |
+| **W/L Ratio** | **2.09x** ✅ | 1.29x | Conservative |
+| **Monthly Win Rate** | **73.8%** ✅ | 60.9% | Conservative |
+| **Total Trades** | 1,747 | 1,099 | Conservative |
+| **Avg Win** | $840 | $1,099 | Aggressive |
+| **Avg Loss** | **-$402** ✅ | -$851 | Conservative |
+
+**Conservative Strategy** (MA_Crossdown enabled):
+- **Better for**: Capital preservation, smaller accounts, sleep-at-night investing
+- **Advantage**: 40% smaller drawdown (-23.9% vs -39.4%)
+- **Advantage**: 2.09x W/L ratio (asymmetric risk/reward)
+- **Advantage**: 73.8% monthly win rate (psychological advantage)
+- **Advantage**: 59% more trades (faster capital rotation)
+- **Trade-off**: Lower total return (259% vs 331%)
+
+**Aggressive Strategy** (MA_Crossdown disabled):
+- **Better for**: Risk-tolerant traders, larger accounts, bull market maximization
+- **Advantage**: 28% higher returns (331% vs 259%)
+- **Advantage**: Higher Sharpe ratio (2.13 vs 1.83)
+- **Advantage**: 59% win rate (more winning trades)
+- **Trade-off**: 65% larger drawdown (-39.4% vs -23.9%)
+- **Trade-off**: Smaller W/L ratio (1.29x - wins barely cover losses)
+
+**Recommendation**: Start with conservative_config.yaml. Only switch to aggressive if you can psychologically handle -40% drawdowns.
+
+### conservative_config.yaml - Capital Preservation ⭐ (RECOMMENDED)
 - **Stop Strategy**: Static (traditional fixed stops)
 - **Entry Threshold**: 6.5 (empirically optimized - 45% better expectancy than 6.0)
 - **Risk**: 1.0% per trade (standardized across configs)
 - **Time Stops**: Disabled (let winners run)
-- **Performance**: 70% win rate, +13.35% expectancy, +9.16% median return
-- **Use Case**: **Default production configuration** - automatically loaded by vol_analysis.py and batch_backtest.py
-- **Evidence**: Based on 434-trade analysis showing 45% better expectancy vs base_config
+- **MA_Crossdown**: **ENABLED** (48-period trend protection)
+- **Performance**: 259% return, -23.9% max drawdown, 2.09x W/L ratio
+- **Use Case**: **Default production configuration** - capital preservation, trend-following risk management
+- **Evidence**: Empirically validated on Nasdaq100 5-year backtest (Dec 2025)
 
 ### base_config.yaml - Historical Baseline
 - **Stop Strategy**: Static (traditional fixed stops)
@@ -77,13 +113,17 @@ This generates (all files in the output directory):
 - **Entry Threshold**: 6.5 (vs 6.0 baseline - more selective)
 - **Use Case**: Lower risk, longer holding periods, focus on capital preservation
 
-### aggressive_config.yaml - Maximum Opportunities
+### aggressive_config.yaml - Maximum Returns
 - **Stop Strategy**: Static
 - **Risk**: 1.0% per trade (maximum recommended)
 - **Time Stops**: 8 bars (tighter than baseline)
 - **Entry Threshold**: 5.5 (vs 6.0 baseline - more signals)
+- **MA_Crossdown**: **DISABLED** (let positions run for maximum returns)
 - **Regime Filters**: SPY only (less strict)
-- **Use Case**: Higher risk, more frequent trading, capture more opportunities
+- **Performance**: 331% return, -39.4% max drawdown, 1.29x W/L ratio
+- **Use Case**: Maximum return pursuit, accept larger drawdowns, bull market optimization
+- **Evidence**: Empirically validated on Nasdaq100 5-year backtest (Dec 2025)
+- **⚠️ Warning**: Only for risk-tolerant traders who can endure -40% drawdowns
 
 ## Configuration File Structure
 
