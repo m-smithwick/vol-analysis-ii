@@ -57,6 +57,9 @@ Need the deeper architecture or indicator breakdown? See `docs/ARCHITECTURE_REFE
    **Option B: Massive.com (Advanced - Requires AWS S3 credentials and massive.com subscription)**
    ```bash
    # For users with Massive.com access (faster bulk downloads)
+   # Single ticker (NEW - convenient for testing/updates)
+   python populate_cache_bulk.py --ticker AAPL --months 24 --use-duckdb
+   
    # Default: uses ticker_lists/stocks.txt
    python populate_cache_bulk.py --months 1
    
@@ -66,8 +69,8 @@ Need the deeper architecture or indicator breakdown? See `docs/ARCHITECTURE_REFE
    # Use multiple ticker files
    python populate_cache_bulk.py --months 12 --ticker-files ticker_lists/indices.txt ticker_lists/sector_etfs.txt
 
-   # Use a date range for catching up the last few days. 
-   python populate_cache_bulk.py --start 2025-11-23 --end 2025-11-28  --ticker-files ticker_lists/indices.txt ticker_lists/sector_etfs.txt
+   # Use a date range for catching up the last few days
+   python populate_cache_bulk.py --start 2025-11-23 --end 2025-11-28 --ticker-files ticker_lists/indices.txt ticker_lists/sector_etfs.txt
    ```
    
    **⚡ Performance Optimization (Optional - 10-20x faster for Massive.com users):**
@@ -78,6 +81,8 @@ Need the deeper architecture or indicator breakdown? See `docs/ARCHITECTURE_REFE
    # Then use fast mode (4-8 min vs 41-84 min for 24 months, 50 tickers)
    python populate_cache_bulk.py --months 24 --use-duckdb
    python populate_cache_bulk.py --months 24 --use-duckdb --ticker-files ticker_lists/ibd50-nov-29.txt 
+   python populate_cache_bulk.py --months 24 --use-duckdb --ticker-files ticker_lists/nasdaq100.txt
+   python populate_cache_bulk.py --months 24 --use-duckdb --ticker-files ticker_lists/sp100.txt
    ```
    > 📖 **Details**: See `docs/DUCKDB_OPTIMIZATION.md` for complete guide
    
@@ -108,7 +113,7 @@ Need the deeper architecture or indicator breakdown? See `docs/ARCHITECTURE_REFE
    python vol_analysis.py --file ticker_lists/short.txt --save-excel --output-dir custom_results
 
    # Batch backtest a watchlist
-   python batch_backtest.py  -p 24mo  --no-individual-reports -f ticker_lists/ibd50-nov-29.txt
+   python batch_backtest.py  -p 36mo  --no-individual-reports -f ticker_lists/ibd50-nov-29.txt
    # Risk-managed runs default to static stops (optimal performance validated Nov 2025)
    # Override via --stop-strategy if testing alternatives
 
@@ -132,7 +137,7 @@ After running backtests, use these tools to evaluate and optimize your strategy:
 ### Professional Evaluation
 ```bash
 # Calculate institutional-grade metrics (Sharpe, drawdown, etc.)
-python analyze_professional_metrics.py --csv backtest_results/LOG_FILE_ibd50-nov-29_24mo_20251201_174257.csv
+python analyze_professional_metrics.py --csv backtest_results/LOG_FILE_sp100_36mo_20251206_150544.csv
 ```
 **Outputs:** Sharpe ratio (3.35), maximum drawdown (-9.37%), monthly consistency (73.9%),  
 loss streaks (16 max), professional grading (Institutional Quality: Grade A-)
@@ -220,6 +225,7 @@ Full details and review cadence live in `docs/VALIDATION_STATUS.md`.
 - `-o` / `--output-dir`: batch output directory (default `results_volume`).
 - `--config` / `-c`: **NEW** Path to YAML configuration file (e.g., `configs/aggressive_config.yaml`). Applies signal thresholds and all config settings.
 - `--save-charts`: store PNG/HTML charts during batch runs.
+- `--all-charts`: generate charts for ALL tickers in batch mode (default: only actionable signals). Actionable tickers have active signals meeting empirical thresholds (Moderate Buy ≥6.5, Profit Taking ≥7.0, etc.). Using this flag increases processing time 5-10x but provides complete portfolio visibility.
 - `--save-excel`: save Excel files with complete DataFrame data (requires openpyxl: pip install openpyxl).
 - `--chart-backend {matplotlib,plotly}`: control renderer (default `matplotlib`).
 - `--data-source {yfinance,massive}`: select data provider.
@@ -254,7 +260,8 @@ python vol_analysis.py AAPL --config configs/base_config.yaml
 - `--months N`: number of months to backfill (mutually exclusive with `--start`).
 - `--start YYYY-MM-DD`: explicit start date.
 - `--end YYYY-MM-DD`: optional end date (defaults to today).
-- `--ticker-files FILE [FILE ...]`: ticker file(s) to use (space-separated, default: `stocks.txt`).
+- `--ticker SYMBOL`: **NEW** single ticker symbol to populate (e.g., `AAPL`). Mutually exclusive with `--ticker-files`. Ideal for testing or updating individual tickers with DuckDB fast mode.
+- `--ticker-files FILE [FILE ...]`: ticker file(s) to use (space-separated, default: `stocks.txt`). Mutually exclusive with `--ticker`.
 - `--use-duckdb`: use DuckDB fast mode (10-20x faster, requires index built with `scripts/build_massive_index.py`).
 - `--no-save-others`: skip writing non-tracked tickers to `massive_cache/`.
 
@@ -278,7 +285,7 @@ python vol_analysis.py AAPL --config configs/base_config.yaml
 python batch_backtest.py -f ticker_lists/ibd.txt
 
 # Explicitly specify conservative (same as default)
-python batch_backtest.py -f ticker_lists/ibd.txt -c configs/conservative_config.yaml
+python batch_backtest.py -f ticker_lists/nasdaq100.txt -c configs/conservative_config.yaml
 
 # Use balanced settings (alternative - best risk-adjusted for mixed portfolios)
 python batch_backtest.py -f ticker_lists/ibd.txt -c configs/balanced_config.yaml

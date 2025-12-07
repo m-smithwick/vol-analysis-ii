@@ -958,7 +958,8 @@ def read_ticker_file(filepath: str) -> List[str]:
 
 def process_batch(ticker_file: str, period='12mo', output_dir='results_volume', 
                  save_charts=False, save_excel=False, text_only=False, generate_html=True, verbose=True,
-                 chart_backend: str = 'matplotlib', data_source: str = 'yfinance'):
+                 chart_backend: str = 'matplotlib', data_source: str = 'yfinance', all_charts=False,
+                 config_file: str = None):
     """
     Process multiple tickers from a file and save individual analysis reports.
     
@@ -973,6 +974,8 @@ def process_batch(ticker_file: str, period='12mo', output_dir='results_volume',
         verbose (bool): Print progress output during batch processing
         chart_backend (str): Chart engine ('matplotlib' PNG or 'plotly' HTML) passed to analyze_ticker
         data_source (str): Data source to use ('yfinance' or 'massive')
+        all_charts (bool): If True, generate charts for ALL tickers instead of just actionable ones (default: False)
+        config_file (str): Optional path to YAML config file (e.g., 'configs/conservative_config.yaml')
         
     Raises:
         DataValidationError: If input parameters are invalid
@@ -980,6 +983,7 @@ def process_batch(ticker_file: str, period='12mo', output_dir='results_volume',
     """
     # Import analyze_ticker function from vol_analysis
     from vol_analysis import analyze_ticker
+    from config_loader import load_config
     
     with ErrorContext("batch processing tickers", ticker_file=ticker_file, period=period):
         # Validate inputs
@@ -1028,6 +1032,19 @@ def process_batch(ticker_file: str, period='12mo', output_dir='results_volume',
         print(f"🎨 Chart backend: {chart_backend}")
         print("="*50)
     
+    # Load config if provided
+    config = None
+    if config_file:
+        try:
+            config_loader = load_config(config_file)
+            config = config_loader.config
+            if verbose:
+                print(f"📋 Loaded config: {config.get('config_name', 'Unknown')}")
+        except Exception as e:
+            logger.warning(f"Could not load config file {config_file}: {e}")
+            if verbose:
+                print(f"⚠️  Could not load config: {e}")
+    
     # Track results for summary
     results = []
     errors = []
@@ -1056,7 +1073,8 @@ def process_batch(ticker_file: str, period='12mo', output_dir='results_volume',
                     show_summary=False,
                     debug=False,  # Quiet mode for metrics calculation
                     chart_backend=chart_backend,
-                    data_source=data_source
+                    data_source=data_source,
+                    config=config  # CRITICAL: Pass config for MA_Crossdown and other exit signal params
                 )
                 
                 # Calculate metrics using empirically validated thresholds
@@ -1099,18 +1117,25 @@ def process_batch(ticker_file: str, period='12mo', output_dir='results_volume',
             continue
     
     # ============================================================================
-    # PASS 2: Save files (text + charts + Excel) ONLY for actionable tickers
+    # PASS 2: Save files (text + charts + Excel) for selected tickers
     # ============================================================================
-    # Filter for actionable tickers using the new function
-    actionable_results = [r for r in results if is_ticker_actionable(r)]
-    
-    if actionable_results:
+    # Filter tickers based on all_charts flag
+    if all_charts:
+        chart_results = results  # Process ALL tickers
         if verbose:
-            print(f"\n📊 PASS 2: Creating files for {len(actionable_results)} actionable tickers...")
+            print(f"\n📊 PASS 2: Creating files for ALL {len(chart_results)} tickers...")
+            print(f"   (--all-charts mode: generating charts for every ticker)")
+    else:
+        # Default: Filter for actionable tickers only
+        chart_results = [r for r in results if is_ticker_actionable(r)]
+        if verbose:
+            print(f"\n📊 PASS 2: Creating files for {len(chart_results)} actionable tickers...")
             print(f"   (Files only created for tickers with active + validated signals)")
-            print(f"   Skipping {len(results) - len(actionable_results)} non-actionable tickers")
+            print(f"   Skipping {len(results) - len(chart_results)} non-actionable tickers")
+    
+    if chart_results:
         
-        for i, result in enumerate(actionable_results, 1):
+        for i, result in enumerate(chart_results, 1):
             ticker = result['ticker']
             df = result['df']  # Get DataFrame from Pass 1
             
@@ -1129,7 +1154,7 @@ def process_batch(ticker_file: str, period='12mo', output_dir='results_volume',
                     signal_types.append('Profit Taking')
                 
                 signal_str = ', '.join(signal_types) if signal_types else 'Unknown'
-                print(f"  [{i}/{len(actionable_results)}] {ticker} ({signal_str})...", end=' ')
+                print(f"  [{i}/{len(chart_results)}] {ticker} ({signal_str})...", end=' ')
             
             try:
                 # Generate filename with date range (same format as before)

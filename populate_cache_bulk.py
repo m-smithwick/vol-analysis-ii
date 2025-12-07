@@ -52,10 +52,24 @@ def read_ticker_file(filepath: str) -> List[str]:
                 tickers.append(ticker)
     return tickers
 
-def collect_all_tickers(ticker_files: List[str]) -> Set[str]:
-    """Collect all unique tickers from specified ticker files."""
-    all_tickers = set()
+def collect_all_tickers(ticker_files: List[str] = None, single_ticker: str = None) -> Set[str]:
+    """
+    Collect all unique tickers from specified ticker files or single ticker.
     
+    Args:
+        ticker_files: List of ticker file paths (optional)
+        single_ticker: Single ticker symbol (optional)
+    
+    Returns:
+        Set of uppercase ticker symbols
+    """
+    if single_ticker:
+        return {single_ticker.upper()}
+    
+    if not ticker_files:
+        ticker_files = ['stocks.txt']
+    
+    all_tickers = set()
     for file in ticker_files:
         tickers = read_ticker_file(file)
         all_tickers.update(tickers)
@@ -322,9 +336,17 @@ def populate_cache_bulk(
     
     # Collect tickers
     print("\n1. Collecting tickers...")
-    ticker_files = kwargs.get('ticker_files', ['stocks.txt'])
-    all_tickers = collect_all_tickers(ticker_files)
-    print(f"   Found {len(all_tickers)} unique tickers from: {', '.join(ticker_files)}")
+    single_ticker = kwargs.get('single_ticker')
+    ticker_files = kwargs.get('ticker_files')
+    
+    if single_ticker:
+        all_tickers = collect_all_tickers(single_ticker=single_ticker)
+        print(f"   Single ticker mode: {single_ticker.upper()}")
+    else:
+        if not ticker_files:
+            ticker_files = ['stocks.txt']
+        all_tickers = collect_all_tickers(ticker_files=ticker_files)
+        print(f"   Found {len(all_tickers)} unique tickers from: {', '.join(ticker_files)}")
     
     # Check if DuckDB mode is requested
     if use_duckdb:
@@ -537,14 +559,18 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
+  # Single ticker with DuckDB fast mode (NEW - recommended for testing)
+  python populate_cache_bulk.py --ticker AAPL --months 24 --use-duckdb
+  python populate_cache_bulk.py --ticker NVDA --start 2024-01-01 --end 2024-12-31 --use-duckdb
+  
   # Populate last 1 month (stocks.txt only by default)
   python populate_cache_bulk.py --months 1
   
   # Populate last 24 months with specific ticker file
-  python populate_cache_bulk.py --months 24 --ticker-files ibd20.txt
+  python populate_cache_bulk.py --months 24 --ticker-files ticker_lists/ibd20.txt
   
   # Populate with multiple ticker files
-  python populate_cache_bulk.py --months 24 --ticker-files stocks.txt ibd20.txt
+  python populate_cache_bulk.py --months 24 --ticker-files ticker_lists/stocks.txt ticker_lists/ibd20.txt
   
   # Populate specific date range
   python populate_cache_bulk.py --start 2024-01-01 --end 2024-12-31
@@ -579,12 +605,21 @@ Examples:
         action='store_true',
         help='Do not save non-tracked tickers to massive_cache/'
     )
-    parser.add_argument(
+    
+    # Mutually exclusive ticker input methods
+    ticker_group = parser.add_mutually_exclusive_group()
+    ticker_group.add_argument(
+        '--ticker',
+        type=str,
+        help='Single ticker symbol to populate (e.g., AAPL). Mutually exclusive with --ticker-files.'
+    )
+    ticker_group.add_argument(
         '--ticker-files',
         nargs='+',
         default=['stocks.txt'],
-        help='Ticker file(s) to use (space-separated). Default: stocks.txt'
+        help='Ticker file(s) to use (space-separated). Default: stocks.txt. Mutually exclusive with --ticker.'
     )
+    
     parser.add_argument(
         '--use-duckdb',
         action='store_true',
@@ -609,6 +644,7 @@ Examples:
         end_date=end_date,
         save_others=not args.no_save_others,
         use_duckdb=args.use_duckdb,
+        single_ticker=args.ticker,
         ticker_files=args.ticker_files
     )
 

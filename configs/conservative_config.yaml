@@ -42,12 +42,21 @@ signal_thresholds:
     momentum_exhaustion: 5.0
     profit_taking: 5.0
     distribution_warning: 5.0
+    ma_crossdown: 5.0  # Moving average crossdown exit
   enabled_entry_signals:
     - "moderate_buy_pullback"
   enabled_exit_signals:
     - "momentum_exhaustion"
     - "profit_taking"
     - "distribution_warning"
+    - "ma_crossdown"
+
+exit_signal_params:
+  ma_crossdown:
+    enabled: true
+    ma_period: 48  # Use 48 instead of 50 to avoid crowd behavior
+    confirmation_days: 1  # 1=immediate, 2=two-day confirmation
+    buffer_pct: 0.0  # No buffer (0.5 would add 0.5% buffer to reduce whipsaws)
 
 regime_filters:
   enable_spy_regime: true

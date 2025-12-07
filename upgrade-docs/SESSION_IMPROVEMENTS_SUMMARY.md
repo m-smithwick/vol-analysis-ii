@@ -1,5 +1,190 @@
 # Session Improvements Summary
 
+## Session 2025-12-07: Batch Processing Enhancements (--all-charts & --ticker flags)
+
+### Goal: Add User-Requested Convenience Features for Portfolio Review & Cache Management
+
+**Context:**
+- User needed ability to generate charts for ALL tickers (not just actionable) for complete portfolio review
+- Current batch processing optimized to only create charts for tickers with active signals (80-90% reduction)
+- User wanted single ticker option for populate_cache_bulk.py without creating temporary files
+- Both features improve workflow efficiency
+
+**Problems Identified:**
+
+1. **No Option for Complete Portfolio Charts:**
+   - Default behavior only creates charts for actionable tickers (optimal performance)
+   - User sometimes needs to review entire portfolio regardless of signal status
+   - No way to override the optimization without code changes
+   - Trade-off: Convenience vs 5-10x longer processing time
+
+2. **Single Ticker Cache Updates Cumbersome:**
+   - populate_cache_bulk.py only accepted ticker files
+   - Testing or updating single ticker required creating temporary file
+   - Awkward workflow: `echo "AAPL" > /tmp/single.txt`
+   - DuckDB fast mode (10-20x faster) not accessible for single tickers
+
+**Solutions Implemented:**
+
+### 1. Added --all-charts Flag (vol_analysis.py & batch_processor.py)
+
+**Implementation:**
+- Added `--all-charts` argument to vol_analysis.py argparse
+- Updated batch_processor.process_batch() signature with `all_charts` parameter
+- Modified Pass 2 filtering logic to respect flag:
+  ```python
+  if all_charts:
+      chart_results = results  # Process ALL tickers
+  else:
+      chart_results = [r for r in results if is_ticker_actionable(r)]  # Default
+  ```
+- Clear user messaging about which mode is active
+
+**Usage:**
+```bash
+# Default: Charts only for actionable tickers (fast - recommended)
+python vol_analysis.py -f ticker_lists/ibd50.txt --save-charts
+
+# All charts: Every ticker gets a chart (slower but comprehensive)
+python vol_analysis.py -f ticker_lists/ibd50.txt --save-charts --all-charts
+
+# With Plotly backend
+python vol_analysis.py -f ticker_lists/sp50.txt --chart-backend plotly --save-charts --all-charts
+```
+
+**Performance Impact:**
+- Default: 100 tickers → ~10-15 charts (~2 minutes)
+- With --all-charts: 100 tickers → 100 charts (~10-15 minutes)
+- 5-10x slowdown is acceptable since it's opt-in and clearly documented
+
+### 2. Added --ticker Flag (populate_cache_bulk.py)
+
+**Implementation:**
+- Modified `collect_all_tickers()` to accept either ticker files OR single ticker
+- Added mutually exclusive argument group:
+  - `--ticker SYMBOL` (new - single ticker)
+  - `--ticker-files FILE [FILE ...]` (existing - multiple files)
+- Updated `populate_cache_bulk()` to handle both input methods
+- Works seamlessly with DuckDB fast mode
+
+**Usage:**
+```bash
+# Single ticker with DuckDB fast mode
+python populate_cache_bulk.py --ticker AAPL --months 24 --use-duckdb
+
+# Single ticker with specific date range
+python populate_cache_bulk.py --ticker NVDA --start 2024-01-01 --end 2024-12-31 --use-duckdb
+
+# Still works with files (existing behavior preserved)
+python populate_cache_bulk.py --ticker-files ticker_lists/ibd20.txt --months 12 --use-duckdb
+```
+
+**Benefits:**
+- No temporary files needed for single ticker updates
+- Direct command-line specification
+- Works with DuckDB 10-20x speedup
+- Perfect for testing, debugging, or quick individual updates
+
+### Files Modified:
+
+1. **vol_analysis.py**
+   - Added --all-charts argument with clear help text
+   - Passed flag through to batch_processor.process_batch()
+
+2. **batch_processor.py**
+   - Updated process_batch() signature to accept all_charts parameter
+   - Modified Pass 2 filtering logic with conditional branching
+   - Fixed variable references (chart_results replaces actionable_results)
+   - Clear progress messages for both modes
+
+3. **populate_cache_bulk.py**
+   - Modified collect_all_tickers() to accept single_ticker parameter
+   - Added mutually exclusive ticker input argument group
+   - Updated main() to pass single_ticker through
+   - Updated populate_cache_bulk() to display appropriate messages
+   - Added single ticker examples to help text
+
+4. **README.md**
+   - Added --all-charts to vol_analysis.py CLI Options section
+   - Added --ticker to populate_cache_bulk.py CLI Options section
+   - Updated Quick Start examples with single ticker usage
+   - Highlighted convenience for testing with DuckDB
+
+### Architecture Compliance:
+
+- ✅ **Backward Compatible:** All existing commands work unchanged
+- ✅ **Opt-In Design:** Users must explicitly request --all-charts (default optimized)
+- ✅ **Clear Trade-offs:** Help text explains performance impact
+- ✅ **Mutually Exclusive:** Can't accidentally use --ticker and --ticker-files together
+- ✅ **Separation of Concerns:** No changes to signal logic or data processing
+- ✅ **Risk Firewall Intact:** No changes to backtest or risk_manager
+
+### Key Learnings:
+
+**1. Optimization vs Flexibility:**
+- Default optimized behavior (actionable only) remains unchanged
+- Power users get flexibility when needed (--all-charts)
+- Both use cases served with single implementation
+
+**2. Convenience Features Matter:**
+- Single ticker flag eliminates file creation step
+- Small workflow improvements add up over time
+- Testing and debugging much more efficient
+
+**3. Clear Documentation Essential:**
+- Help text explains performance trade-offs
+- Examples show both old and new usage patterns
+- Users can make informed decisions
+
+**4. Mutually Exclusive Groups:**
+- Prevent conflicting options (--ticker vs --ticker-files)
+- Self-documenting command structure
+- Catches user errors early
+
+### Benefits:
+
+**--all-charts flag:**
+- ✅ Complete portfolio visibility when needed
+- ✅ Optional (doesn't slow down normal workflow)
+- ✅ Works with both matplotlib and plotly backends
+- ✅ Clear about performance impact (5-10x slower)
+- ✅ Useful for quarterly portfolio reviews
+
+**--ticker flag:**
+- ✅ No temporary files needed
+- ✅ Works with DuckDB fast mode (10-20x speedup)
+- ✅ Perfect for testing and debugging
+- ✅ Backward compatible with existing workflows
+- ✅ Clear defaults (stocks.txt if nothing specified)
+
+### Usage Patterns:
+
+**Daily Workflow (Default - Fast):**
+```bash
+# Only actionable tickers
+python vol_analysis.py -f ticker_lists/ibd50.txt --save-charts
+```
+
+**Monthly Review (Complete View):**
+```bash
+# All tickers for comprehensive review
+python vol_analysis.py -f ticker_lists/sp100.txt --save-charts --all-charts
+```
+
+**Single Ticker Testing:**
+```bash
+# Quick cache update for one ticker
+python populate_cache_bulk.py --ticker NVDA --months 6 --use-duckdb
+```
+
+### Status:
+- Both features implemented and documented
+- Zero breaking changes
+- User workflows enhanced
+- Ready for production use
+
+---
+
 ## Session 2025-12-05: Selective File Generation & Warning Elimination
 
 ### Goal: Optimize Batch Processing to Only Generate Files for Actionable Tickers

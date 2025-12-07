@@ -465,11 +465,11 @@ def generate_stop_loss_signals(df: pd.DataFrame) -> pd.Series:
     - Price declining
     
     Args:
-        df: DataFrame with required columns: Close, Support_Level, Relative_Volume,
+        df (pd.DataFrame): DataFrame with required columns: Close, Support_Level, Relative_Volume,
             Above_VWAP
             
     Returns:
-        Boolean Series indicating stop loss triggers
+        pd.Series: Boolean Series indicating stop loss triggers
     """
     return (
         (df['Close'] < df['Support_Level']) &
@@ -480,7 +480,91 @@ def generate_stop_loss_signals(df: pd.DataFrame) -> pd.Series:
     )
 
 
-def generate_all_entry_signals(df: pd.DataFrame, apply_prefilters: bool = True, 
+def generate_ma_crossdown_signals(
+    df: pd.DataFrame,
+    ma_period: int = 50,
+    confirmation_days: int = 1,
+    buffer_pct: float = 0.0
+) -> pd.Series:
+    """
+    Detect moving average crossdown exit signals.
+    
+    This signal triggers when price crosses below a moving average, indicating
+    a potential trend reversal or weakness. Designed to complement volume-based
+    exits with trend structure confirmation.
+    
+    Criteria:
+    - Close crosses below N-day moving average
+    - Optional: Requires confirmation over multiple days
+    - Optional: Buffer zone to reduce whipsaws
+    
+    Args:
+        df (pd.DataFrame): DataFrame with Close prices
+        ma_period (int): Number of days for moving average (default: 50)
+            Common values: 20, 48, 50, 60, 200
+            Use 48 to avoid crowd behavior at exact 50-day
+        confirmation_days (int): Days below MA required to trigger (default: 1)
+            1 = Immediate exit on crossdown
+            2 = Conservative, requires 2 consecutive closes below MA
+        buffer_pct (float): Buffer percentage below MA (default: 0.0)
+            0.0 = No buffer, trigger at exact crossdown
+            0.5 = Trigger when price < MA * 0.995 (0.5% below)
+            Reduces whipsaws in choppy markets
+            
+    Returns:
+        pd.Series: Boolean Series indicating MA crossdown signals
+        
+    Examples:
+        >>> # Simple 50-day MA crossdown (immediate)
+        >>> signals = generate_ma_crossdown_signals(df, ma_period=50, confirmation_days=1)
+        
+        >>> # Conservative 48-day MA with 2-day confirmation
+        >>> signals = generate_ma_crossdown_signals(df, ma_period=48, confirmation_days=2)
+        
+        >>> # 50-day MA with 0.5% buffer to reduce whipsaws
+        >>> signals = generate_ma_crossdown_signals(df, ma_period=50, buffer_pct=0.5)
+    """
+    # Calculate moving average
+    ma = df['Close'].rolling(window=ma_period).mean()
+    
+    # Apply buffer if specified (price must be X% below MA to trigger)
+    threshold = ma * (1 - buffer_pct / 100)
+    
+    # Detect when price is below MA (with buffer)
+    below_ma = df['Close'] < threshold
+    
+    # Apply confirmation requirement
+    if confirmation_days == 1:
+        # Immediate crossdown - trigger on first close below MA
+        # Previous bar was above MA, current bar is below
+        prev_above_ma = df['Close'].shift(1) >= ma.shift(1)
+        crossdown = below_ma & prev_above_ma
+        return crossdown
+    
+    elif confirmation_days == 2:
+        # Two-day confirmation - require 2 consecutive closes below MA
+        # Current bar AND previous bar both below MA
+        prev_below_ma = df['Close'].shift(1) < threshold.shift(1)
+        # Two days ago was above MA (ensures this is a fresh crossdown)
+        two_days_ago_above = df['Close'].shift(2) >= ma.shift(2)
+        
+        confirmed_crossdown = below_ma & prev_below_ma & two_days_ago_above
+        return confirmed_crossdown
+    
+    else:
+        # General N-day confirmation
+        # Require N consecutive days below MA
+        # Use rolling sum to count consecutive days below MA
+        consecutive_below = below_ma.rolling(window=confirmation_days).sum()
+        
+        # Also check that N+1 days ago was above MA (fresh crossdown)
+        n_plus_1_ago_above = df['Close'].shift(confirmation_days) >= ma.shift(confirmation_days)
+        
+        confirmed_crossdown = (consecutive_below == confirmation_days) & n_plus_1_ago_above
+        return confirmed_crossdown
+
+
+def generate_all_entry_signals(df: pd.DataFrame, apply_prefilters: bool = True,
                                thresholds: dict = None) -> pd.DataFrame:
     """
     Generate all entry signals and add to DataFrame.
@@ -548,7 +632,7 @@ def generate_all_entry_signals(df: pd.DataFrame, apply_prefilters: bool = True,
     return df
 
 
-def generate_all_exit_signals(df: pd.DataFrame) -> pd.DataFrame:
+def generate_all_exit_signals(df: pd.DataFrame, exit_params: dict = None) -> pd.DataFrame:
     """
     Generate all exit signals and add to DataFrame.
     
@@ -559,9 +643,20 @@ def generate_all_exit_signals(df: pd.DataFrame) -> pd.DataFrame:
     - Sell signals
     - Momentum Exhaustion signals
     - Stop Loss signals
+    - MA Crossdown signals (optional, configured via exit_params)
     
     Args:
         df: DataFrame with OHLCV data and technical indicators
+        exit_params: Optional dict with exit signal parameters from config file
+            Expected structure:
+            {
+                'ma_crossdown': {
+                    'enabled': bool,
+                    'ma_period': int,
+                    'confirmation_days': int,
+                    'buffer_pct': float
+                }
+            }
         
     Returns:
         DataFrame with all exit signal columns added
@@ -577,6 +672,29 @@ def generate_all_exit_signals(df: pd.DataFrame) -> pd.DataFrame:
     df['Distribution_Warning'] = generate_distribution_warning_signals(df)
     df['Momentum_Exhaustion'] = generate_momentum_exhaustion_signals(df)
     df['Stop_Loss'] = generate_stop_loss_signals(df)
+    
+    # Generate MA crossdown signal if configured
+    if exit_params and 'ma_crossdown' in exit_params:
+        ma_config = exit_params['ma_crossdown']
+        
+        # Only generate if enabled
+        if ma_config.get('enabled', False):
+            ma_period = ma_config.get('ma_period', 50)
+            confirmation_days = ma_config.get('confirmation_days', 1)
+            buffer_pct = ma_config.get('buffer_pct', 0.0)
+            
+            df['MA_Crossdown'] = generate_ma_crossdown_signals(
+                df,
+                ma_period=ma_period,
+                confirmation_days=confirmation_days,
+                buffer_pct=buffer_pct
+            )
+        else:
+            # Signal disabled, create column with all False
+            df['MA_Crossdown'] = False
+    else:
+        # No config provided, create column with all False for backward compatibility
+        df['MA_Crossdown'] = False
     
     return df
 

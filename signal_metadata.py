@@ -105,6 +105,13 @@ SIGNAL_METADATA: Dict[str, SignalMeta] = {
         description="Support breakdown / stop trigger",
         chart_marker="Dark red triangles",
     ),
+    "MA_Crossdown": SignalMeta(
+        key="MA_Crossdown",
+        name="MA Crossdown",
+        emoji="📉",
+        description="Price crosses below moving average (trend failure)",
+        chart_marker="Blue X's",
+    ),
 }
 
 

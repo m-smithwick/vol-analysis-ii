@@ -826,6 +826,14 @@ Note: Legacy periods (1y, 2y, 5y, etc.) are automatically converted to month equ
     )
     
     parser.add_argument(
+        '--all-charts',
+        action='store_true',
+        help='Generate charts for ALL tickers in batch mode, not just actionable signals. '
+             'Default behavior only creates charts for tickers with active signals meeting '
+             'empirical thresholds (saves 80-90%% time). Use this flag for complete portfolio review.'
+    )
+    
+    parser.add_argument(
         '--save-excel',
         action='store_true',
         help='Save Excel files with complete DataFrame data (requires openpyxl: pip install openpyxl)'
@@ -971,7 +979,9 @@ Note: Legacy periods (1y, 2y, 5y, etc.) are automatically converted to month equ
                 text_only=args.text_only,
                 chart_backend=args.chart_backend,
                 verbose=args.debug,
-                data_source=args.data_source
+                data_source=args.data_source,
+                all_charts=args.all_charts,
+                config_file=args.config  # Pass config file for MA_Crossdown and other exit signal params
             )
             if args.debug:
                 print(f"\n✅ Batch processing complete!")

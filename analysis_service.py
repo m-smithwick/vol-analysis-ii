@@ -205,12 +205,18 @@ def prepare_analysis_dataframe(
     signal_thresholds = None
     if config:
         signal_thresholds = config.get('signal_thresholds', {}).get('entry', {})
-    
+
+    # Extract exit signal params from config if provided
+    exit_params = None
+    if config:
+        exit_params = config.get('exit_signal_params', {})
+
     # Generate all signals using unified function
     # Updated 2025-12-05: Individual signal thresholds from config are authoritative
     # Updated 2025-11-27: Passes configurable thresholds from YAML config files
+    # Updated 2025-12-07: Added configurable exit signal parameters (MA crossdown)
     df = signal_generator.generate_all_entry_signals(df, apply_prefilters=False, thresholds=signal_thresholds)
-    df = signal_generator.generate_all_exit_signals(df)
+    df = signal_generator.generate_all_exit_signals(df, exit_params=exit_params)
 
     # Apply historical regime filter (bar-by-bar for backtest accuracy)
     # This eliminates lookahead bias by checking regime status for each historical date

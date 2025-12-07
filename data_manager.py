@@ -237,6 +237,7 @@ def normalize_period(period: str) -> str:
             '10yr': '120mo',
             '1y': '12mo',
             '2y': '24mo',
+            '3y': '36mo',
             '5y': '60mo',
             '10y': '120mo'
         }

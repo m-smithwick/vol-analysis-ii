@@ -129,7 +129,7 @@ def analyze_exit_signals(df: pd.DataFrame) -> Dict:
     """
     exit_signal_keys = [
         'Profit_Taking', 'Distribution_Warning', 'Sell_Signal',
-        'Momentum_Exhaustion', 'Stop_Loss'
+        'Momentum_Exhaustion', 'Stop_Loss', 'MA_Crossdown'
     ]
     exit_signals = {key: get_display_name(key) for key in exit_signal_keys}
     
@@ -857,7 +857,7 @@ def run_backtest(df: pd.DataFrame, ticker: str, period: str,
         'Strong_Buy', 'Moderate_Buy', 'Stealth_Accumulation', 'Confluence_Signal', 'Volume_Breakout'
     ]
     exit_signal_keys = [
-        'Profit_Taking', 'Distribution_Warning', 'Sell_Signal', 'Momentum_Exhaustion', 'Stop_Loss'
+        'Profit_Taking', 'Distribution_Warning', 'Sell_Signal', 'Momentum_Exhaustion', 'Stop_Loss', 'MA_Crossdown'
     ]
     entry_signals = {key: get_display_name(key) for key in entry_signal_keys}
     exit_signals = {key: get_display_name(key) for key in exit_signal_keys}
@@ -947,8 +947,8 @@ def optimize_signal_thresholds(df: pd.DataFrame, signal_col: str, score_col: str
         # Run backtest analysis on filtered signals
         try:
             # Use existing pair_entry_exit_signals with filtered signal
-            exit_signals = ['Profit_Taking', 'Distribution_Warning', 'Sell_Signal', 
-                           'Momentum_Exhaustion', 'Stop_Loss']
+            exit_signals = ['Profit_Taking', 'Distribution_Warning', 'Sell_Signal',
+                           'Momentum_Exhaustion', 'Stop_Loss', 'MA_Crossdown']
             
             # Pair filtered entry signals with exit signals
             paired_trades = pair_entry_exit_signals(
@@ -1261,7 +1261,7 @@ def run_risk_managed_backtest(
                      'Confluence_Signal', 'Volume_Breakout']
     
     exit_signals = ['Profit_Taking', 'Distribution_Warning', 'Sell_Signal',
-                    'Momentum_Exhaustion', 'Stop_Loss']
+                    'Momentum_Exhaustion', 'Stop_Loss', 'MA_Crossdown']
     
     # Track all trades with sequential transaction numbers
     all_trades = []

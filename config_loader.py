@@ -293,6 +293,17 @@ class ConfigLoader:
         """
         return self.config['regime_filters']
     
+    def get_exit_signal_params(self) -> Dict[str, Any]:
+        """
+        Extract exit signal parameters (optional section).
+        
+        Returns:
+            Dict with exit signal parameters, or empty dict if not present.
+            This allows backward compatibility with configs that don't have
+            exit_signal_params section.
+        """
+        return self.config.get('exit_signal_params', {})
+    
     def get_backtest_config(self) -> Dict[str, Any]:
         """
         Extract backtest configuration.

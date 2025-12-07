@@ -124,9 +124,43 @@ def run_batch_backtest(ticker_file: str, period: str = '12mo',
                 try:
                     validate_ticker(ticker)
                     
+                    # Calculate period based on date range if provided
+                    fetch_period = period
+                    if start_date and end_date:
+                        start_dt = datetime.strptime(start_date, '%Y-%m-%d')
+                        end_dt = datetime.strptime(end_date, '%Y-%m-%d')
+                        
+                        # Calculate days in range and add buffer
+                        days_in_range = (end_dt - start_dt).days
+                        # Add 30-day buffer to ensure we have enough data for indicators
+                        days_needed = days_in_range + 30
+                        
+                        # Convert to months (round up)
+                        months_needed = (days_needed + 29) // 30
+                        
+                        # Map to valid yfinance periods (1mo, 3mo, 6mo, 12mo, 24mo, 36mo, 60mo, 120mo)
+                        if months_needed <= 1:
+                            fetch_period = "1mo"
+                        elif months_needed <= 3:
+                            fetch_period = "3mo"
+                        elif months_needed <= 6:
+                            fetch_period = "6mo"
+                        elif months_needed <= 12:
+                            fetch_period = "12mo"
+                        elif months_needed <= 24:
+                            fetch_period = "24mo"
+                        elif months_needed <= 36:
+                            fetch_period = "36mo"
+                        elif months_needed <= 60:
+                            fetch_period = "60mo"
+                        else:
+                            fetch_period = "120mo"
+                        
+                        logger.info(f"Date range requires {days_in_range} days ({months_needed} months), fetching {fetch_period}")
+                    
                     df = prepare_analysis_dataframe(
                         ticker=ticker,
-                        period=period,
+                        period=fetch_period,
                         data_source='yfinance',
                         force_refresh=False,
                         verbose=False
@@ -134,9 +168,6 @@ def run_batch_backtest(ticker_file: str, period: str = '12mo',
                     
                     # Filter to requested date range if specified
                     if start_date and end_date:
-                        start_dt = datetime.strptime(start_date, '%Y-%m-%d')
-                        end_dt = datetime.strptime(end_date, '%Y-%m-%d')
-                        
                         # Filter dataframe to date range
                         mask = (df.index >= start_dt) & (df.index <= end_dt)
                         df = df[mask].copy()

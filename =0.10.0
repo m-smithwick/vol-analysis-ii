@@ -1,6 +1,0 @@
-Collecting duckdb
-  Downloading duckdb-1.4.2-cp312-cp312-macosx_11_0_arm64.whl.metadata (4.3 kB)
-Downloading duckdb-1.4.2-cp312-cp312-macosx_11_0_arm64.whl (13.7 MB)
-   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 13.7/13.7 MB 49.4 MB/s eta 0:00:00
-Installing collected packages: duckdb
-Successfully installed duckdb-1.4.2

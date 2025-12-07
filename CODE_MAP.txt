@@ -8,7 +8,7 @@
 ## Core Analysis Pipeline
 
 **`vol_analysis.py`** - CLI entry point; wires data loading, indicator prep, signal generation, charting, and reporting for single tickers or batches.  
-**`signal_generator.py`** - Implements entry/exit scoring, stealth accumulation flags, divergence checks, and publishes the per-bar signal payload.  
+**`signal_generator.py`** - Implements entry/exit scoring, stealth accumulation flags, divergence checks, MA crossdown exit signals, and publishes the per-bar signal payload.
 **`indicators.py`** - Hosts technical indicator functions (Anchored VWAP, ATR, z-score utilities, pre-trade filters, next-day references) shared across the stack.  
 **`swing_structure.py`** - Detects pivots, builds swing levels, and emits proximity/failure signals used for stops and chart overlays.  
 **`volume_features.py`** - Computes CMF, CMF z-scores, volume surprise, event-day markers, and volume divergence features.  
@@ -20,7 +20,7 @@
 ## Data & Cache Layer
 
 **`data_manager.py`** - Unified data access layer (Yahoo Finance + cached data) with schema versioning and date-range helpers.  
-**`populate_cache.py` / `populate_cache_bulk.py`** - Populate or refresh cache files across ticker lists with progress reporting and error isolation. Supports DuckDB fast mode (10-20x faster) via `--use-duckdb` flag.  
+**`populate_cache.py` / `populate_cache_bulk.py`** - Populate or refresh cache files across ticker lists with progress reporting and error isolation. Supports DuckDB fast mode (10-20x faster) via `--use-duckdb` flag. `populate_cache_bulk.py` accepts single ticker via `--ticker` or multiple files via `--ticker-files`.
 **`refresh_cache_rest.py`** - Massive REST API script for same-day data (requires Developer/Advanced tier; reference only).  
 **`query_cache_range.py`** - CLI tool to inspect cached coverage, preview stats, and validate regime windows.  
 **`schema_manager.py`** - Owns cache schema migrations and upgrade validation.  
@@ -152,6 +152,26 @@ signal_generator.py
 backtest.py
 └── schema_manager.py
 ```
+
+---
+
+## Development Best Practices
+
+**⚠️ CRITICAL: Parameter Propagation Rule**
+- See `.clinerules/parameter-propagation.md` for MANDATORY checklist when adding configurable features
+- **Issue**: Multi-entry-point system (single ticker vs batch mode) requires parameter threading through ALL paths
+- **Real incident**: MA_Crossdown exit signal (Dec 2025) - worked in single-ticker mode, silently failed in batch mode
+- **Prevention**: Test BOTH single-ticker AND batch paths when adding any configurable feature
+- **Quick check**: If batch results identical before/after feature, parameter propagation failed
+
+**Entry Point Reference** (for parameter propagation verification):
+1. `vol_analysis.py TICKER` → `analyze_ticker()` → `analysis_service.py` → `signal_generator.py`
+2. `vol_analysis.py --file` → `batch_processor.py` → `analyze_ticker()` → (same chain)
+3. Direct imports by other scripts
+
+**Other Development Rules**:
+- See `.clinerules/financial-data-verification.md` - Time-series data verification standards
+- See `.clinerules/version-control-policy.md` - Git workflow and AI responsibilities
 
 ---
 

@@ -28,12 +28,7 @@ def load_trade_data(csv_path: str) -> pd.DataFrame:
     """
     Load and validate trade data from CSV.
     
-    VALIDATION CONTEXT (from previous work):
-    - 441 trades total
-    - Date range: 2023-12-27 to 2025-11-21 (24 months)
-    - Equity: $100,000 → $244,454 (+144.45%)
-    - Primary signal: Moderate Buy Pullback only
-    - Already validated: No lookahead bias, execution timing correct
+    Loads and validates trade data from CSV file.
     
     Returns:
         DataFrame with validated trade data
@@ -73,14 +68,6 @@ def load_trade_data(csv_path: str) -> pd.DataFrame:
         print(f"  Ending Equity: ${df['portfolio_equity'].iloc[-1]:,.2f}")
         print(f"  Total Return: {((df['portfolio_equity'].iloc[-1] / df['portfolio_equity'].iloc[0]) - 1) * 100:.2f}%")
         print(f"  Unique Tickers: {df['ticker'].nunique()}")
-        
-        # Validate against known values from plan
-        expected_trades = 441
-        expected_start = 100000
-        expected_end = 244454
-        
-        if len(df) != expected_trades:
-            print(f"\n⚠️  WARNING: Expected {expected_trades} trades, found {len(df)}")
         
         return df
         
