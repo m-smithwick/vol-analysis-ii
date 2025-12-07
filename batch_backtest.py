@@ -182,6 +182,11 @@ def run_batch_backtest(ticker_file: str, period: str = '12mo',
                     logger.info(f"Applied empirical thresholds for {ticker}")
                     
                     if risk_managed:
+                        # Extract transaction costs from config if available
+                        transaction_costs = None
+                        if config:
+                            transaction_costs = config.get('transaction_costs', None)
+                        
                         # Use RiskManager for position management and exits
                         risk_result = backtest.run_risk_managed_backtest(
                             df=df,
@@ -190,6 +195,7 @@ def run_batch_backtest(ticker_file: str, period: str = '12mo',
                             risk_pct=risk_pct,
                             stop_strategy=stop_strategy,
                             time_stop_bars=time_stop_bars,
+                            transaction_costs=transaction_costs,
                             save_to_file=save_individual_reports,
                             output_dir=output_dir,
                             verbose=save_individual_reports

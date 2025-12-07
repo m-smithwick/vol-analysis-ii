@@ -1200,6 +1200,7 @@ def run_risk_managed_backtest(
     risk_pct: float = 0.75,
     stop_strategy: str = DEFAULT_STOP_STRATEGY,
     time_stop_bars: int = DEFAULT_TIME_STOP_BARS,
+    transaction_costs: Optional[Dict] = None,
     save_to_file: bool = True,
     output_dir: str = 'backtest_results',
     verbose: bool = True
@@ -1246,7 +1247,8 @@ def run_risk_managed_backtest(
         account_value=account_value,
         risk_pct_per_trade=risk_pct,
         stop_strategy=stop_strategy,
-        time_stop_bars=time_stop_bars
+        time_stop_bars=time_stop_bars,
+        transaction_costs=transaction_costs
     )
     
     if verbose:
@@ -1509,6 +1511,39 @@ def generate_risk_managed_report(
     report_lines.append(f"  Net Profit: {analysis.get('Net Profit $', 'N/A')} ({analysis.get('Return %', 'N/A')})")
     report_lines.append(f"  Total Dollar P&L: {analysis.get('Total Dollar P&L', 'N/A')}")
     report_lines.append("")
+    
+    # Transaction Cost Impact Analysis
+    if trades and 'net_pnl' in trades[0]:
+        report_lines.append("💰 TRANSACTION COST IMPACT:")
+        
+        total_gross = sum(t.get('gross_pnl', 0) for t in trades)
+        total_net = sum(t.get('net_pnl', 0) for t in trades)
+        total_commissions = sum(t.get('total_commission', 0) for t in trades)
+        total_slippage_cost = sum(t.get('slippage_cost', 0) for t in trades)
+        
+        # Calculate percentage impacts
+        slippage_pct_impact = (total_slippage_cost / abs(total_gross) * 100) if total_gross != 0 else 0
+        commission_pct_impact = (total_commissions / abs(total_gross) * 100) if total_gross != 0 else 0
+        total_cost_pct = (abs(total_gross - total_net) / abs(total_gross) * 100) if total_gross != 0 else 0
+        
+        report_lines.append(f"  Gross P&L:           ${total_gross:,.0f} (before costs)")
+        report_lines.append(f"  Slippage Cost:       ${total_slippage_cost:,.0f} ({slippage_pct_impact:.2f}% of gross)")
+        report_lines.append(f"  Commission Cost:     ${total_commissions:,.0f} ({commission_pct_impact:.2f}% of gross)")
+        report_lines.append(f"  Total Costs:         ${abs(total_gross - total_net):,.0f} ({total_cost_pct:.2f}% of gross)")
+        report_lines.append(f"  Net P&L:             ${total_net:,.0f} (after costs)")
+        report_lines.append("")
+        
+        # Per-trade average costs
+        if len(trades) > 0:
+            avg_slippage_per_trade = total_slippage_cost / len(trades)
+            avg_commission_per_trade = total_commissions / len(trades)
+            
+            report_lines.append(f"  Average Cost per Trade:")
+            report_lines.append(f"    Slippage:          ${avg_slippage_per_trade:,.2f}")
+            report_lines.append(f"    Commission:        ${avg_commission_per_trade:,.2f}")
+            report_lines.append(f"    Total:             ${(avg_slippage_per_trade + avg_commission_per_trade):,.2f}")
+            report_lines.append("")
+    
     
     # Overall Performance
     report_lines.append("📊 OVERALL PERFORMANCE:")

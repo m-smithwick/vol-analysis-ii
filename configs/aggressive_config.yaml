@@ -33,6 +33,11 @@ risk_management:
       day_10_mult: 2.0
       day_15_mult: 1.5
 
+transaction_costs:
+  slippage_pct: 0.10        # 10 basis points per side (STRESS TEST - 2x normal)
+  commission_per_share: 0.005  # $0.005/share commission (stress test scenario)
+  enabled: true              # Master switch to disable costs for testing
+
 signal_thresholds:
   entry:
     moderate_buy_pullback: 5.5  # Lower threshold for more entries

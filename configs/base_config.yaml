@@ -54,6 +54,12 @@ risk_management:
       day_10_mult: 2.0       # Medium stop days 6-10
       day_15_mult: 1.5       # Tight stop after day 15
 
+# Transaction Costs
+transaction_costs:
+  slippage_pct: 0.05        # 5 basis points per side (conservative for liquid stocks)
+  commission_per_share: 0.0  # $0 if zero-commission broker, else 0.005
+  enabled: true              # Master switch to disable costs for testing
+
 # Signal Thresholds
 signal_thresholds:
   # Entry Signals

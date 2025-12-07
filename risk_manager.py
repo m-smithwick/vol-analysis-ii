@@ -39,7 +39,7 @@ class RiskManager:
     
     def __init__(self, account_value: float, risk_pct_per_trade: float = 0.75,
                  stop_strategy: str = DEFAULT_STOP_STRATEGY, time_stop_bars: int = DEFAULT_TIME_STOP_BARS,
-                 stop_params: Optional[Dict] = None):
+                 stop_params: Optional[Dict] = None, transaction_costs: Optional[Dict] = None):
         """
         Initialize risk manager.
         
@@ -49,6 +49,10 @@ class RiskManager:
             stop_strategy: Stop loss strategy - 'static', 'vol_regime', 'atr_dynamic', 'pct_trail', 'time_decay'
             time_stop_bars: Number of bars before TIME_STOP exit if <+1R (default from risk_constants.py, set to 0 or negative to disable)
             stop_params: Optional dict with stop strategy parameters (from config file). If None, uses defaults.
+            transaction_costs: Optional dict with:
+                - slippage_pct: Slippage percentage per side (e.g., 0.05 = 5 basis points)
+                - commission_per_share: Commission per share (e.g., 0.005 = $0.005/share)
+                - enabled: Master switch (default: True)
         """
         self.account_value = account_value
         self.starting_equity = account_value
@@ -61,6 +65,15 @@ class RiskManager:
         self.time_stop_bars = time_stop_bars
         self.active_positions: Dict[str, Dict] = {}
         self.closed_trades: List[Dict] = []
+        
+        # Transaction cost model - use provided config or defaults
+        if transaction_costs is None:
+            transaction_costs = {
+                'slippage_pct': 0.05,
+                'commission_per_share': 0.0,
+                'enabled': True
+            }
+        self.transaction_costs = transaction_costs
         
         # Stop strategy parameters - use provided config or defaults
         if stop_params is not None:
@@ -359,7 +372,7 @@ class RiskManager:
         position = {
             'ticker': ticker,
             'entry_date': entry_date,
-            'entry_price': entry_price,
+            'entry_price': entry_price,  # Clean price (Next_Open)
             'stop_price': stop_price,
             'position_size': position_size,
             'original_position_size': position_size,
@@ -377,6 +390,23 @@ class RiskManager:
             'signal_scores': signal_scores or {},
             'regime_status': regime_status or {}
         }
+        
+        # Apply entry slippage and commission if costs enabled
+        if self.transaction_costs.get('enabled', True):
+            slippage_pct = self.transaction_costs.get('slippage_pct', 0.05)
+            commission_per_share = self.transaction_costs.get('commission_per_share', 0.0)
+            
+            # Entry slippage: buy at ask (higher price)
+            position['entry_slippage_pct'] = slippage_pct
+            position['actual_entry_price'] = entry_price * (1 + slippage_pct / 100)
+            
+            # Entry commission
+            position['entry_commission'] = position_size * commission_per_share
+        else:
+            # No costs
+            position['actual_entry_price'] = entry_price
+            position['entry_commission'] = 0.0
+            position['entry_slippage_pct'] = 0.0
         
         self.active_positions[ticker] = position
         
@@ -545,6 +575,19 @@ class RiskManager:
         
         pos = self.active_positions[ticker]
         
+        # Apply exit costs if enabled
+        actual_exit_price = exit_price
+        exit_commission = 0.0
+        exit_slippage_pct = 0.0
+        
+        if self.transaction_costs.get('enabled', True):
+            slippage_pct = self.transaction_costs.get('slippage_pct', 0.05)
+            commission_per_share = self.transaction_costs.get('commission_per_share', 0.0)
+            
+            # Exit slippage: sell at bid (lower price)
+            exit_slippage_pct = slippage_pct
+            actual_exit_price = exit_price * (1 - slippage_pct / 100)
+        
         # Calculate final P&L
         risk_amount = pos['entry_price'] - pos['stop_price']
         profit_amount = exit_price - pos['entry_price']
@@ -556,25 +599,50 @@ class RiskManager:
             exit_size = int(pos['position_size'] * partial_exit_pct)
             pos['position_size'] = pos['position_size'] - exit_size
             
-            # Record partial exit as separate trade
-            pnl = exit_size * (exit_price - pos['entry_price'])
-            self.equity += pnl
+            # Calculate exit commission
+            if self.transaction_costs.get('enabled', True):
+                commission_per_share = self.transaction_costs.get('commission_per_share', 0.0)
+                exit_commission = exit_size * commission_per_share
+            
+            # Calculate gross and net P&L
+            actual_entry_price = pos.get('actual_entry_price', pos['entry_price'])
+            entry_commission = pos.get('entry_commission', 0.0)
+            
+            gross_pnl = exit_size * (exit_price - pos['entry_price'])
+            net_pnl = exit_size * (actual_exit_price - actual_entry_price) - entry_commission - exit_commission
+            
+            # Update equity with NET P&L
+            self.equity += net_pnl
+            # Calculate net R-multiple using actual prices
+            net_profit_per_share = actual_exit_price - actual_entry_price
+            net_r_multiple = net_profit_per_share / risk_amount if risk_amount > 0 else 0
+            slippage_cost = gross_pnl - net_pnl - (entry_commission + exit_commission)
+            
             partial_trade = {
                 'ticker': ticker,
                 'entry_date': pos['entry_date'],
-                'entry_price': pos['entry_price'],
+                'entry_price': pos['entry_price'],  # Clean price
+                'actual_entry_price': actual_entry_price,  # With slippage
                 'exit_date': exit_date,
-                'exit_price': exit_price,
+                'exit_price': exit_price,  # Clean price
+                'actual_exit_price': actual_exit_price,  # With slippage
                 'exit_type': exit_type,
                 'bars_held': pos['bars_in_trade'],
-                'r_multiple': r_multiple,
-                'profit_pct': (exit_price / pos['entry_price'] - 1) * 100,
+                'r_multiple': net_r_multiple,  # Net R-multiple (after costs)
+                'gross_r_multiple': r_multiple,  # Gross R-multiple (before costs)
+                'profit_pct': (net_pnl / (exit_size * actual_entry_price)) * 100,
                 'position_size': exit_size,
                 'partial_exit': True,
                 'exit_pct': partial_exit_pct,
                 'peak_r_multiple': pos['peak_r_multiple'],
                 'profit_taken_50pct': exit_type == 'PROFIT_TARGET',
-                'dollar_pnl': pnl,
+                'gross_pnl': gross_pnl,  # Before costs
+                'net_pnl': net_pnl,  # After costs
+                'entry_commission': entry_commission,
+                'exit_commission': exit_commission,
+                'total_commission': entry_commission + exit_commission,
+                'slippage_cost': slippage_cost,
+                'dollar_pnl': net_pnl,  # Use NET for equity tracking
                 'equity_after_trade': self.equity,
                 # Signal metadata
                 'entry_signals': pos.get('entry_signals', []),
@@ -598,25 +666,60 @@ class RiskManager:
                 blended_r = r_multiple
             
             exit_size = pos['position_size']
-            pnl = exit_size * (exit_price - pos['entry_price'])
-            self.equity += pnl
+            
+            # Calculate exit commission
+            if self.transaction_costs.get('enabled', True):
+                commission_per_share = self.transaction_costs.get('commission_per_share', 0.0)
+                exit_commission = exit_size * commission_per_share
+            
+            # Calculate gross and net P&L
+            actual_entry_price = pos.get('actual_entry_price', pos['entry_price'])
+            entry_commission = pos.get('entry_commission', 0.0)
+            
+            gross_pnl = exit_size * (exit_price - pos['entry_price'])
+            net_pnl = exit_size * (actual_exit_price - actual_entry_price) - entry_commission - exit_commission
+            
+            # Update equity with NET P&L
+            self.equity += net_pnl
+            
+            # Calculate net R-multiple using actual prices
+            net_profit_per_share = actual_exit_price - actual_entry_price
+            net_r_multiple = net_profit_per_share / risk_amount if risk_amount > 0 else 0
+            
+            # Use blended R if profit scaling was used, otherwise use net R
+            if pos['profit_taken_50pct']:
+                # For blended, average the net R-multiples
+                final_r_multiple = blended_r  # Keep blended for 50% scaling case
+            else:
+                final_r_multiple = net_r_multiple  # Use net R for full exits
+            
+            slippage_cost = gross_pnl - net_pnl - (entry_commission + exit_commission)
             
             trade_result = {
                 'ticker': ticker,
                 'entry_date': pos['entry_date'],
-                'entry_price': pos['entry_price'],
+                'entry_price': pos['entry_price'],  # Clean price
+                'actual_entry_price': actual_entry_price,  # With slippage
                 'exit_date': exit_date,
-                'exit_price': exit_price,
+                'exit_price': exit_price,  # Clean price
+                'actual_exit_price': actual_exit_price,  # With slippage
                 'exit_type': exit_type,
                 'bars_held': pos['bars_in_trade'],
-                'r_multiple': blended_r,
-                'profit_pct': (exit_price / pos['entry_price'] - 1) * 100,
-                'position_size': pos['position_size'],
+                'r_multiple': final_r_multiple,  # Net R-multiple (after costs)
+                'gross_r_multiple': blended_r if pos['profit_taken_50pct'] else r_multiple,
+                'profit_pct': (net_pnl / (exit_size * actual_entry_price)) * 100,
+                'position_size': exit_size,
                 'partial_exit': False,
                 'exit_pct': 1.0,
                 'profit_taken_50pct': pos['profit_taken_50pct'],
                 'peak_r_multiple': pos['peak_r_multiple'],
-                'dollar_pnl': pnl,
+                'gross_pnl': gross_pnl,  # Before costs
+                'net_pnl': net_pnl,  # After costs
+                'entry_commission': entry_commission,
+                'exit_commission': exit_commission,
+                'total_commission': entry_commission + exit_commission,
+                'slippage_cost': slippage_cost,
+                'dollar_pnl': net_pnl,  # Use NET for equity tracking
                 'equity_after_trade': self.equity,
                 # Signal metadata
                 'entry_signals': pos.get('entry_signals', []),

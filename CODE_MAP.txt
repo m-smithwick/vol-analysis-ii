@@ -1,6 +1,6 @@
 # Volume Analysis Project - Code Map
 
-**Last Updated**: 2025-11-28  
+**Last Updated**: 2025-12-07  
 **Purpose**: Fast lookup for where core behaviors live so humans (and LLMs) can jump directly to the right module.
 
 ---
@@ -33,9 +33,9 @@
 
 ## Risk & Backtesting
 
-**`risk_manager.py`** - Central trade lifecycle manager (position sizing, stop logic, time/momentum exits, performance rolls). Accepts external configuration via `stop_params` parameter.  
-**`backtest.py`** - Entry-to-exit pairing engine with P&L attribution routed through `RiskManager`.  
-**`batch_backtest.py`** - Batch-oriented backtesting wrapper with regime/date filters and aggregate reporting.  
+**`risk_manager.py`** - Central trade lifecycle manager (position sizing, stop logic, time/momentum exits, performance rolls, transaction cost modeling). Accepts external configuration via `stop_params` and `transaction_costs` parameters. Applies realistic slippage (bid-ask spread) and commissions, tracks both gross and net P&L.
+**`backtest.py`** - Entry-to-exit pairing engine with P&L attribution routed through `RiskManager`. Supports transaction cost modeling with gross/net P&L reporting.
+**`batch_backtest.py`** - Batch-oriented backtesting wrapper with regime/date filters and aggregate reporting. Extracts transaction costs from config and passes to backtest engine.
 **`threshold_config.py`** - Houses calibrated thresholds for entry, exit, and quality filters.  
 **`threshold_validation.py`** - Walk-forward framework that reuses the optimization pipeline to guard against drift.
 
@@ -189,6 +189,7 @@ backtest.py
 **Cache & Data**
 - `BULK_CACHE_POPULATION.md`, `docs/CACHE_SCHEMA.md` - Cache architecture and schema notes  
 - `docs/DUCKDB_OPTIMIZATION.md` - DuckDB optimization guide (10-20x performance improvement for massive_cache queries)
+- `docs/TRANSACTION_COSTS.md` - Transaction cost model documentation (Dec 2025). Slippage and commission implementation, expected performance impact, configuration guide, validation procedures.
 
 **Trading Strategy**
 - `TRADING_STRATEGY.md`, `TRADING_STRATEGY_SECTOR_AWARE.md` - Trading rules, risk logic, and sector overlays  
@@ -203,6 +204,8 @@ backtest.py
 - `ticker_lists/a.txt` - Mixed portfolio (20 tickers: 50% stable + 50% volatile growth)
 - `ticker_lists/b.txt` - Mixed portfolio (20 tickers: 50% stable + 50% established tech)
 - `ticker_lists/alt.txt` - Momentum portfolio (20 tickers: high-growth tech focus)
+- `ticker_lists/nasdaq25.txt` - Transaction cost validation portfolio (25 random Nasdaq100 tickers, seed=2025)
+- `ticker_lists/sp25.txt` - Transaction cost validation portfolio (25 random SP100 tickers, seed=2025)
 
 **Strategy Analysis**
 - `docs/CONFIGURATION_STRATEGY_ANALYSIS.md` - Empirical study across 6 portfolio types (Nov 2025)
