@@ -70,7 +70,7 @@ Need the deeper architecture or indicator breakdown? See `docs/ARCHITECTURE_REFE
    python populate_cache_bulk.py --months 12 --ticker-files ticker_lists/indices.txt ticker_lists/sector_etfs.txt
 
    # Use a date range for catching up the last few days
-   python populate_cache_bulk.py --start 2025-11-23 --end 2025-11-28 --ticker-files ticker_lists/indices.txt ticker_lists/sector_etfs.txt
+   python populate_cache_bulk.py --start 2020-12-05 --end 2025-12-05 --ticker-files ticker_lists/indices.txt ticker_lists/sector_etfs.txt
    ```
    
    **⚡ Performance Optimization (Optional - 10-20x faster for Massive.com users):**
@@ -88,7 +88,41 @@ Need the deeper architecture or indicator breakdown? See `docs/ARCHITECTURE_REFE
    
    > 💡 **New users**: Start with Option A (Yahoo Finance). It works immediately without any setup.
    > Option B is for advanced users with Massive.com subscriptions who need to backfill years of data quickly.
-3. **Run analysis & dashboards**
+
+3. **🚀 Complete Single-Ticker Workflow (NEW)**
+   ```bash
+   # All-in-one: Cache → Analysis → Backtest → HTML Chart
+   # Default: 24 months, conservative config, $100K account
+   python single_ticker_workflow.py AAPL
+   
+   # Custom time period
+   python single_ticker_workflow.py NVDA --months 36
+   
+   # With specific configuration
+   python single_ticker_workflow.py TSLA --config configs/aggressive_config.yaml
+   
+   # Skip cache if already populated
+   python single_ticker_workflow.py MSFT --skip-cache
+   
+   # Custom account parameters
+   python single_ticker_workflow.py GOOGL --account-value 50000 --risk-pct 1.0
+   
+   # All outputs saved to results/TICKER/ directory:
+   #   • Interactive HTML chart (plotly)
+   #   • Risk-managed backtest report
+   #   • Signal analysis summary
+   ```
+   
+   **Workflow Steps**:
+   1. Populate cache from massive_cache (DuckDB fast mode)
+   2. Run volume analysis with signal generation
+   3. Execute risk-managed backtest
+   4. Generate interactive HTML chart
+   5. Save all outputs to organized directory
+   
+   **Best for**: Quick single-ticker analysis with all outputs in one command.
+
+4. **Run analysis & dashboards**
    ```bash
    # Single ticker analysis
    python vol_analysis.py NBIX --period 6mo
@@ -137,7 +171,7 @@ After running backtests, use these tools to evaluate and optimize your strategy:
 ### Professional Evaluation
 ```bash
 # Calculate institutional-grade metrics (Sharpe, drawdown, etc.)
-python analyze_professional_metrics.py --csv backtest_results/LOG_FILE_sp100_36mo_20251206_150544.csv
+python analyze_professional_metrics.py --csv backtest_results/LOG_FILE_nasdaq100_12mo_20251207_133605.csv
 ```
 **Outputs:** Sharpe ratio (3.35), maximum drawdown (-9.37%), monthly consistency (73.9%),  
 loss streaks (16 max), professional grading (Institutional Quality: Grade A-)
@@ -295,6 +329,12 @@ python batch_backtest.py -f ticker_lists/ibd.txt -c configs/base_config.yaml
 
 # Compare all configurations
 python batch_config_test.py -c configs/*.yaml -f ticker_lists/ibd.txt
+
+python batch_backtest.py \
+  -f ticker_lists/nasdaq100.txt \
+  -c configs/conservative_config.yaml \
+  --start-date 2020-12-07 \
+  --end-date 2025-12-05
 ```
 
 ### `batch_config_test.py`
