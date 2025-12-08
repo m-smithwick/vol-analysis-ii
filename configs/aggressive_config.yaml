@@ -55,17 +55,44 @@ signal_thresholds:
     - "momentum_exhaustion"
     - "profit_taking"
     - "distribution_warning"
-    # NOTE: ma_crossdown intentionally NOT included - disabled for aggressive strategy
+    # NOTE: ma_crossdown NOT included - deprecated strategy (see below)
 
+# ⚠️⚠️⚠️ MA_CROSSDOWN EXIT STRATEGY - DEPRECATED ⚠️⚠️⚠️
+# This exit strategy has been DISABLED based on empirical evidence from Dec 2025 backtesting.
+#
+# EVIDENCE (Full cycle test: Mar 2022 - Dec 2025):
+# - INCREASED max drawdown from -36.97% to -52.77% (43% WORSE, not better!)
+# - REDUCED win rate from 53.7% to 44.1% (lost 403 winning trades)
+# - REDUCED total return from 307.72% to 264.19%
+# - REDUCED Sharpe ratio from 1.62 to 1.34
+# - Created excessive whipsaws in volatile markets (2022 bear market)
+#
+# WHY IT FAILED:
+# 1. 50-day MA too close to price - triggers on normal volatility, not real trend breaks
+# 2. Cuts winning positions during healthy pullbacks
+# 3. Forces exits that prevent positions from recovering
+# 4. Re-entry after whipsaw creates "buy high, sell low" pattern
+#
+# PREVIOUS RATIONALE WAS INCORRECT:
+# Old claim: "331% return vs 259% with MA_Crossdown"
+# Reality: This comparison was misleading - MA_Crossdown actually REDUCED returns
+# and INCREASED drawdowns when tested properly over full market cycles.
+#
+# RECOMMENDATION: Use standard exit signals instead (they work better):
+# - Profit Taking: Captures gains at appropriate levels
+# - Momentum Exhaustion: Exits when upward momentum fades
+# - Distribution Warning: Exits on confirmed distribution
+# - Stop Loss: Hard stop for risk management
+#
+# FULL ANALYSIS: See backtest_comparison_all_three_configs.txt
+# DO NOT RE-ENABLE unless you have new evidence contradicting these results.
+#
 exit_signal_params:
   ma_crossdown:
-    enabled: false  # DISABLED: Let positions run for maximum returns
-    ma_period: 48   # Not used when disabled
+    enabled: false  # ⚠️ DISABLED - Proven harmful (see warning above)
+    ma_period: 48
     confirmation_days: 1
     buffer_pct: 0.0
-    # Rationale: Disabling MA_Crossdown allows larger winners but also larger drawdowns
-    # Backtest shows: 331% return vs 259% with MA_Crossdown enabled
-    # Trade-off: Accept -39.4% max drawdown vs -23.9% with protection
 
 regime_filters:
   enable_spy_regime: true

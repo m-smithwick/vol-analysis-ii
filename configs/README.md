@@ -37,11 +37,46 @@ This generates (all files in the output directory):
 
 **Note**: Configuration subdirectories are not created since individual per-ticker reports are disabled by default (saves disk space). All comparison files go directly into the output directory.
 
+## ⚠️⚠️⚠️ IMPORTANT: MA_CROSSDOWN EXIT STRATEGY DEPRECATED ⚠️⚠️⚠️
+
+**Status**: DISABLED in all configurations as of December 2025
+
+**Evidence**: Comprehensive full-cycle backtesting (Mar 2022 - Dec 2025, S&P 100 stocks) proved MA_Crossdown exit strategy is **harmful**, not helpful:
+
+### Empirical Results (3.69 years, full market cycle including 2022 bear market):
+
+| Metric | Standard Exits | With MA_Crossdown | Impact |
+|--------|---------------|-------------------|---------|
+| **Max Drawdown** | **-36.97%** ✅ | -52.77% | 43% WORSE! |
+| **Total Return** | **307.72%** ✅ | 264.19% | 14% WORSE |
+| **Sharpe Ratio** | **1.62** ✅ | 1.34 | 17% WORSE |
+| **Win Rate** | **53.7%** ✅ | 44.1% | Lost 403 trades! |
+| **Annual Return** | **46.39%** ✅ | 41.94% | 10% WORSE |
+| **Total Trades** | 2,121 | 1,670 | 451 fewer |
+
+### Why MA_Crossdown Failed:
+1. **50-day MA too sensitive**: Triggers on normal volatility, not real trend breaks
+2. **Cuts winners prematurely**: Exits during healthy pullbacks
+3. **Creates whipsaws**: Exit → re-enter → exit again = "buy high, sell low"
+4. **Prevents recovery**: Forces exits that don't allow positions to bounce back
+5. **Worse in bear markets**: Created MORE damage during 2022 decline, not less
+
+### Full Analysis:
+See `backtest_comparison_all_three_configs.txt` for complete evidence.
+
+### Current Configuration Status:
+- ✅ **conservative_config.yaml**: MA_Crossdown DISABLED with warnings
+- ✅ **aggressive_config.yaml**: MA_Crossdown DISABLED with warnings  
+- ✅ **balanced_config.yaml**: No MA_Crossdown (never had it)
+- ✅ **base_config.yaml**: No MA_Crossdown (never had it)
+
+**DO NOT RE-ENABLE** unless you have new evidence contradicting these results.
+
+---
+
 ## Available Configurations
 
-### Key Decision: Conservative vs Aggressive (MA_Crossdown Impact)
-
-**EMPIRICAL COMPARISON** (Nasdaq100, 5-year backtest, Dec 2025):
+### Key Decision: Risk Profile Selection
 
 | Metric | Conservative (MA_ON) | Aggressive (MA_OFF) | Winner |
 |--------|---------------------|---------------------|--------|

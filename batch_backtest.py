@@ -405,6 +405,15 @@ def generate_risk_managed_aggregate_report(results: Dict, period: str, output_di
             lambda x: x[0] if isinstance(x, list) and len(x) > 0 else ''
         )
         
+        # Extract EXIT signal metadata (parallel to entry signal handling)
+        ledger_df['exit_signals'] = ledger_df.get('exit_signals', pd.Series([[]] * len(ledger_df)))
+        ledger_df['exit_signals_str'] = ledger_df['exit_signals'].apply(
+            lambda x: ','.join(x) if isinstance(x, list) else ''
+        )
+        ledger_df['primary_exit_signal'] = ledger_df['exit_signals'].apply(
+            lambda x: x[0] if isinstance(x, list) and len(x) > 0 else ''
+        )
+        
         # Extract individual signal scores from signal_scores dict
         ledger_df['signal_scores'] = ledger_df.get('signal_scores', pd.Series([{}] * len(ledger_df)))
         ledger_df['accumulation_score'] = ledger_df['signal_scores'].apply(
@@ -472,6 +481,7 @@ def generate_risk_managed_aggregate_report(results: Dict, period: str, output_di
                                       'position_size', 'partial_exit', 'exit_pct', 'exit_type', 'dollar_pnl',
                                       'equity_before_trade', 'portfolio_equity', 'r_multiple', 'profit_pct',
                                       'entry_signals_str', 'primary_signal',
+                                      'exit_signals_str', 'primary_exit_signal',
                                       'accumulation_score', 'moderate_buy_score', 'profit_taking_score',
                                       'spy_regime_ok', 'sector_etf', 'sector_regime_ok',
                                       'xlk_regime_ok', 'xlf_regime_ok', 'xlv_regime_ok', 'xle_regime_ok',
