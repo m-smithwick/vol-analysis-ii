@@ -1237,8 +1237,9 @@ def run_risk_managed_backtest(
     except ImportError:
         raise ImportError("risk_manager module required for risk-managed backtesting")
     
-    # PERFORMANCE OPTIMIZATION: Pre-compute regime data
+    # PERFORMANCE OPTIMIZATION: Pre-compute regime data using cached data
     # Add regime columns to DataFrame BEFORE backtest loop to eliminate API calls
+    # Uses regime_cache.py for persistent caching across script invocations
     from regime_filter import add_regime_columns_to_df
     df = add_regime_columns_to_df(df, ticker)
     

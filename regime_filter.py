@@ -30,8 +30,8 @@ logger = logging.getLogger(__name__)
 _SECTOR_REGIME_CACHE = {}  # Format: {date_str: {xlk_regime_ok: bool, xlf_regime_ok: bool, ...}}
 _MARKET_REGIME_CACHE = {}  # Format: {date_str: {market_regime_ok: bool, spy_close: float, ...}}
 
-# Valid sector ETF symbols for validation
-VALID_SECTOR_ETFS = {'XLK', 'XLF', 'XLV', 'XLE', 'XLY', 'XLP', 'XLI', 'XLU', 'XLRE', 'XLB', 'XLC', 'SPY'}
+# Valid sector ETF symbols for validation (including special tickers that use themselves)
+VALID_SECTOR_ETFS = {'XLK', 'XLF', 'XLV', 'XLE', 'XLY', 'XLP', 'XLI', 'XLU', 'XLRE', 'XLB', 'XLC', 'SPY', 'GLD', 'SLV'}
 
 
 def load_sector_mappings(filepath: str = 'ticker_lists/sector_mappings.csv') -> Dict[str, str]:
@@ -746,13 +746,13 @@ def add_all_sector_regime_columns(df: pd.DataFrame) -> pd.DataFrame:
 
 def add_regime_columns_to_df(df: pd.DataFrame, ticker: str) -> pd.DataFrame:
     """
-    Pre-compute and add regime status columns to DataFrame.
+    Pre-compute and add regime status columns to DataFrame using cached data.
     
-    This function fetches regime data ONCE for the entire date range and adds
-    boolean columns to the DataFrame, eliminating API calls during backtest loop.
+    This function uses the regime cache to eliminate redundant API calls.
+    Cache contains pre-computed regime data for SPY + 11 sectors + GLD + SLV.
     
     PERFORMANCE CRITICAL: Call this BEFORE starting backtest loop!
-    OPTIMIZED: Fetches each ETF once with full date range, not date-by-date.
+    OPTIMIZED: Uses cached regime data instead of fetching each ETF.
     
     Args:
         df: DataFrame with DatetimeIndex
@@ -767,57 +767,116 @@ def add_regime_columns_to_df(df: pd.DataFrame, ticker: str) -> pd.DataFrame:
     """
     print(f"  📊 Pre-computing regime data for {ticker}...")
     
-    # Get date range from DataFrame with buffer for MA calculations
-    start_date = df.index.min() - pd.DateOffset(months=7)  # Buffer for 200-day MA
-    end_date = df.index.max()
-    
-    # Fetch SPY data ONCE for entire range
-    spy_data = load_benchmark_data('SPY', period=None, start_date=start_date, end_date=end_date)
-    
-    if spy_data is not None and len(spy_data) >= 200:
-        # Calculate 200-day MA
-        spy_data['MA200'] = spy_data['Close'].rolling(200, min_periods=200).mean()
-        spy_data['spy_regime_ok'] = spy_data['Close'] > spy_data['MA200']
+    try:
+        # Import regime cache module
+        from regime_cache import get_regime_data
         
-        # Normalize timezone and align with df
-        if spy_data.index.tz is not None:
-            spy_data.index = spy_data.index.tz_localize(None)
+        # Get date range from DataFrame
+        start_date = df.index.min()
+        end_date = df.index.max()
+        
+        # Get cached regime data for this date range
+        regime_df = get_regime_data(start_date, end_date)
+        
+        if regime_df.empty:
+            logger.warning("  Failed to load regime cache - using fallback (all False)")
+            # Fallback: mark all regime checks as False
+            df['spy_regime_ok'] = False
+            sector_etfs = ['XLK', 'XLF', 'XLV', 'XLE', 'XLY', 'XLP', 'XLI', 'XLU', 'XLRE', 'XLB', 'XLC']
+            for etf in sector_etfs:
+                df[f'{etf.lower()}_regime_ok'] = False
+            
+            primary_sector = get_sector_etf(ticker)
+            df['sector_etf'] = primary_sector
+            df['primary_sector_regime_ok'] = False
+            
+            return df
+        
+        # Normalize timezone for index alignment
+        if regime_df.index.tz is not None:
+            regime_df.index = regime_df.index.tz_localize(None)
         df_index_norm = df.index.tz_localize(None) if df.index.tz is not None else df.index
         
-        df['spy_regime_ok'] = spy_data['spy_regime_ok'].astype(bool).reindex(df_index_norm, method='ffill').fillna(False)
-        df['spy_regime_ok'].index = df.index  # Restore original index
-    else:
-        df['spy_regime_ok'] = False
-    
-    # Fetch all 11 sector ETFs ONCE each for entire range
-    sector_etfs = ['XLK', 'XLF', 'XLV', 'XLE', 'XLY', 'XLP', 'XLI', 'XLU', 'XLRE', 'XLB', 'XLC']
-    
-    for etf_symbol in sector_etfs:
-        col_name = f'{etf_symbol.lower()}_regime_ok'
+        # Align SPY regime with df dates (use fill_value to avoid fillna warning)
+        spy_series = regime_df['spy_regime_ok'].astype(bool).reindex(df_index_norm, method='ffill', fill_value=False)
+        df['spy_regime_ok'] = spy_series
+        df['spy_regime_ok'].index = df.index
         
-        etf_data = load_benchmark_data(etf_symbol, period=None, start_date=start_date, end_date=end_date)
+        # Align all sector ETF regimes
+        sector_etfs = ['XLK', 'XLF', 'XLV', 'XLE', 'XLY', 'XLP', 'XLI', 'XLU', 'XLRE', 'XLB', 'XLC']
+        for etf in sector_etfs:
+            regime_col = f'{etf.lower()}_regime_ok'
+            if regime_col in regime_df.columns:
+                regime_series = regime_df[regime_col].astype(bool).reindex(df_index_norm, method='ffill', fill_value=False)
+                df[regime_col] = regime_series
+                df[regime_col].index = df.index
+            else:
+                df[regime_col] = False
         
-        if etf_data is not None and len(etf_data) >= 50:
-            # Calculate 50-day MA
-            etf_data['MA50'] = etf_data['Close'].rolling(50, min_periods=50).mean()
-            etf_data[col_name] = etf_data['Close'] > etf_data['MA50']
+        # Add stock's primary sector for reference
+        primary_sector = get_sector_etf(ticker)
+        df['sector_etf'] = primary_sector
+        
+        # For special tickers (GLD, SLV), check if they use themselves
+        if primary_sector == ticker and f'{ticker.lower()}_regime_ok' in regime_df.columns:
+            # Ticker uses itself as regime (e.g., GLD, SLV)
+            ticker_series = regime_df[f'{ticker.lower()}_regime_ok'].astype(bool).reindex(df_index_norm, method='ffill', fill_value=False)
+            df['primary_sector_regime_ok'] = ticker_series
+            df['primary_sector_regime_ok'].index = df.index
+        else:
+            # Normal case: use sector ETF regime
+            df['primary_sector_regime_ok'] = df[f'{primary_sector.lower()}_regime_ok']
+        
+        print(f"  ✓ Regime columns added from cache")
+        
+    except Exception as e:
+        logger.error(f"  Error loading regime cache: {e}")
+        logger.warning("  Falling back to direct fetch (this will be slower)...")
+        
+        # Fallback to old method if cache fails
+        start_date = df.index.min() - pd.DateOffset(months=7)
+        end_date = df.index.max()
+        
+        # Fetch SPY data
+        spy_data = load_benchmark_data('SPY', period=None, start_date=start_date, end_date=end_date)
+        
+        if spy_data is not None and len(spy_data) >= 200:
+            spy_data['MA200'] = spy_data['Close'].rolling(200, min_periods=200).mean()
+            spy_data['spy_regime_ok'] = spy_data['Close'] > spy_data['MA200']
             
-            # Normalize timezone and align
-            if etf_data.index.tz is not None:
-                etf_data.index = etf_data.index.tz_localize(None)
+            if spy_data.index.tz is not None:
+                spy_data.index = spy_data.index.tz_localize(None)
             df_index_norm = df.index.tz_localize(None) if df.index.tz is not None else df.index
             
-            df[col_name] = etf_data[col_name].astype(bool).reindex(df_index_norm, method='ffill').fillna(False)
-            df[col_name].index = df.index  # Restore original index
+            df['spy_regime_ok'] = spy_data['spy_regime_ok'].astype(bool).reindex(df_index_norm, method='ffill').fillna(False)
+            df['spy_regime_ok'].index = df.index
         else:
-            df[col_name] = False
-    
-    # Add stock's primary sector for reference
-    primary_sector = get_sector_etf(ticker)
-    df['sector_etf'] = primary_sector
-    df['primary_sector_regime_ok'] = df[f'{primary_sector.lower()}_regime_ok']
-    
-    print(f"  ✓ Regime columns added")
+            df['spy_regime_ok'] = False
+        
+        # Fetch sector ETFs
+        sector_etfs = ['XLK', 'XLF', 'XLV', 'XLE', 'XLY', 'XLP', 'XLI', 'XLU', 'XLRE', 'XLB', 'XLC']
+        for etf_symbol in sector_etfs:
+            col_name = f'{etf_symbol.lower()}_regime_ok'
+            etf_data = load_benchmark_data(etf_symbol, period=None, start_date=start_date, end_date=end_date)
+            
+            if etf_data is not None and len(etf_data) >= 50:
+                etf_data['MA50'] = etf_data['Close'].rolling(50, min_periods=50).mean()
+                etf_data[col_name] = etf_data['Close'] > etf_data['MA50']
+                
+                if etf_data.index.tz is not None:
+                    etf_data.index = etf_data.index.tz_localize(None)
+                df_index_norm = df.index.tz_localize(None) if df.index.tz is not None else df.index
+                
+                df[col_name] = etf_data[col_name].astype(bool).reindex(df_index_norm, method='ffill').fillna(False)
+                df[col_name].index = df.index
+            else:
+                df[col_name] = False
+        
+        primary_sector = get_sector_etf(ticker)
+        df['sector_etf'] = primary_sector
+        df['primary_sector_regime_ok'] = df[f'{primary_sector.lower()}_regime_ok']
+        
+        print(f"  ✓ Regime columns added (fallback method)")
     
     return df
 

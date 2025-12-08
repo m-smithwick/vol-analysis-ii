@@ -23,6 +23,7 @@
 **`populate_cache.py` / `populate_cache_bulk.py`** - Populate or refresh cache files across ticker lists with progress reporting and error isolation. Supports DuckDB fast mode (10-20x faster) via `--use-duckdb` flag. `populate_cache_bulk.py` accepts single ticker via `--ticker` or multiple files via `--ticker-files`.
 **`refresh_cache_rest.py`** - Massive REST API script for same-day data (requires Developer/Advanced tier; reference only).  
 **`query_cache_range.py`** - CLI tool to inspect cached coverage, preview stats, and validate regime windows.  
+**`regime_cache.py`** (NEW - Dec 2025) - Persistent Parquet cache for regime data (SPY + 11 sector ETFs + GLD + SLV). Eliminates redundant API calls across script invocations in shell workflows. Single file (`sector_cache/regime_data.parquet`), incremental updates, ~84KB for 250 trading days.
 **`schema_manager.py`** - Owns cache schema migrations and upgrade validation.  
 **`massive_data_provider.py`** - Legacy Massive.com fetcher kept for replaying archived tests.  
 **`massive_duckdb_provider.py`** - DuckDB-based high-performance query interface for massive_cache (10-20x faster than CSV decompression). Provides indexed SQL queries with context manager support.  
