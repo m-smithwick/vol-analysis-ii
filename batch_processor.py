@@ -1185,14 +1185,14 @@ def process_batch(ticker_file: str, period='12mo', output_dir='results_volume',
                         chart_filename = f"{ticker}_{period}_{start_date}_{end_date}_chart.html"
                         chart_path = os.path.join(output_dir, chart_filename)
                         generate_chart_plotly(df=df, ticker=ticker, period=period,
-                                            save_path=chart_path, show=False)
+                                            save_path=chart_path, show=False, config=config)
                     else:
                         # Use matplotlib for PNG charts
                         from chart_builder import generate_analysis_chart
                         chart_filename = f"{ticker}_{period}_{start_date}_{end_date}_chart.png"
                         chart_path = os.path.join(output_dir, chart_filename)
                         generate_analysis_chart(df=df, ticker=ticker, period=period, 
-                                              save_path=chart_path, show=False)
+                                              save_path=chart_path, show=False, config=config)
                 
                 # Save Excel if requested
                 if save_excel:

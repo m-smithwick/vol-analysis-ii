@@ -1179,8 +1179,15 @@ def main():
         print("\n❌ No results generated. Check for errors above.")
         sys.exit(1)
     
-    # Extract stock file basename (e.g., "ibd" from "ibd.txt")
-    stock_file_base = os.path.splitext(os.path.basename(args.ticker_file))[0]
+    # Determine filename base: use ticker symbol for single-ticker runs, file basename for multi-ticker
+    tickers_processed = results.get('tickers_processed', [])
+    if len(tickers_processed) == 1:
+        # Single ticker run (e.g., from a.sh using process substitution)
+        # Use ticker symbol instead of file descriptor number
+        stock_file_base = tickers_processed[0]
+    else:
+        # Multiple tickers - use file basename (e.g., "sp25" from "sp25.txt")
+        stock_file_base = os.path.splitext(os.path.basename(args.ticker_file))[0]
     
     # Determine period display for reports
     if args.start_date and args.end_date:

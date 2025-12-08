@@ -430,7 +430,8 @@ def analyze_ticker(ticker: str, period='6mo', save_to_file=False, output_dir='.'
             ticker=ticker,
             period=period,
             save_path=chart_path,
-            show=show_chart
+            show=show_chart,
+            config=config
         )
     
     # Handle text output with error handling

@@ -27,7 +27,62 @@ from error_handler import (
 from signal_metadata import get_chart_label
 
 
-def create_price_chart(ax, df: pd.DataFrame, ticker: str, period: str) -> None:
+def format_config_metadata(config: dict) -> str:
+    """
+    Extract and format key config parameters for chart display.
+    
+    Args:
+        config (dict): Configuration dictionary from YAML file
+        
+    Returns:
+        str: Formatted metadata text for chart display
+    """
+    if not config:
+        return ""
+    
+    lines = []
+    
+    # Config header
+    config_name = config.get('config_name', 'Unknown')
+    config_version = config.get('config_version', '')
+    version_str = f" v{config_version}" if config_version else ""
+    lines.append(f"Config: {config_name}{version_str}")
+    lines.append("─" * 35)
+    
+    # Entry thresholds
+    thresholds = config.get('signal_thresholds', {})
+    entry = thresholds.get('entry', {})
+    lines.append("Entry Thresholds:")
+    lines.append(f"  • Moderate Buy: ≥{entry.get('moderate_buy_pullback', '?')}")
+    lines.append(f"  • Stealth: ≥{entry.get('stealth_accumulation', '?')}")
+    
+    # Exit strategy
+    exit_thresholds = thresholds.get('exit', {})
+    lines.append("")
+    lines.append("Exit Strategy:")
+    lines.append(f"  • Mom/Profit/Dist: ≥{exit_thresholds.get('momentum_exhaustion', '?')}")
+    
+    # MA Crossdown status
+    ma_params = config.get('exit_signal_params', {}).get('ma_crossdown', {})
+    ma_enabled = ma_params.get('enabled', False)
+    ma_status = "ENABLED" if ma_enabled else "DISABLED"
+    ma_warning = " ⚠️" if not ma_enabled else ""
+    lines.append(f"  • MA Crossdown: {ma_status}{ma_warning}")
+    
+    # Risk management
+    risk = config.get('risk_management', {})
+    lines.append("")
+    lines.append("Risk Management:")
+    lines.append(f"  • Risk/Trade: {risk.get('risk_pct_per_trade', '?')}%")
+    lines.append(f"  • Stop: {risk.get('stop_strategy', '?')}")
+    time_stop = risk.get('time_stop_bars', 0)
+    time_status = "disabled" if time_stop == 0 else f"{time_stop} bars"
+    lines.append(f"  • Time Stop: {time_status}")
+    
+    return "\n".join(lines)
+
+
+def create_price_chart(ax, df: pd.DataFrame, ticker: str, period: str, config: Optional[dict] = None) -> None:
     """
     Create the top panel price chart with all signal markers.
     
@@ -169,6 +224,21 @@ def create_price_chart(ax, df: pd.DataFrame, ticker: str, period: str) -> None:
     ax.legend(loc='upper left')
     ax.set_title(f'{ticker} — Accumulation/Distribution Analysis ({period})')
     ax.grid(True, alpha=0.3)
+    
+    # Add config metadata if provided (below legend on left side)
+    if config:
+        metadata_text = format_config_metadata(config)
+        # Get the font size from the legend for consistency
+        legend_fontsize = ax.legend_.get_texts()[0].get_fontsize() if ax.legend_ else 10
+        # Position at bottom-left, below where legend appears
+        ax.text(0.02, 0.02, metadata_text,
+                transform=ax.transAxes,
+                verticalalignment='bottom',
+                horizontalalignment='left',
+                bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.85, edgecolor='gray'),
+                fontsize=legend_fontsize,
+                family='monospace',
+                zorder=15)
 
 
 def create_volume_indicators_chart(ax, df: pd.DataFrame) -> None:
@@ -305,7 +375,7 @@ def create_volume_bars_chart(ax, ax_twin, df: pd.DataFrame) -> None:
 
 def generate_analysis_chart(df: pd.DataFrame, ticker: str, period: str, 
                            save_path: Optional[str] = None, show: bool = True,
-                           figsize: Tuple[int, int] = (12, 9)) -> None:
+                           figsize: Tuple[int, int] = (12, 9), config: Optional[dict] = None) -> None:
     """
     Generate complete 3-panel analysis chart.
     
@@ -316,6 +386,7 @@ def generate_analysis_chart(df: pd.DataFrame, ticker: str, period: str,
         save_path (Optional[str]): If provided, save chart to this path
         show (bool): If True, display chart interactively
         figsize (Tuple[int, int]): Figure size (width, height)
+        config (Optional[dict]): Configuration dictionary for displaying parameters on chart
         
     Raises:
         DataValidationError: If DataFrame is invalid
@@ -338,8 +409,8 @@ def generate_analysis_chart(df: pd.DataFrame, ticker: str, period: str,
         # Create figure and subplots (3-panel layout optimized for 16" Mac)
         fig, (ax1, ax2, ax3) = plt.subplots(3, 1, figsize=figsize, sharex=True)
         
-        # Create the three chart panels
-        create_price_chart(ax1, df, ticker, period)
+        # Create the three chart panels (pass config to price chart)
+        create_price_chart(ax1, df, ticker, period, config)
         create_volume_indicators_chart(ax2, df)
         
         # Create twin axis for volume/score panel
