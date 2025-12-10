@@ -118,7 +118,7 @@ def _signal_labels() -> dict:
     return {key: get_chart_label(key) for key in keys}
 
 
-def create_price_chart(fig, df: pd.DataFrame, ticker: str, period: str, row: int = 1, config: Optional[dict] = None) -> None:
+def create_price_chart(fig, df: pd.DataFrame, ticker: str, period: str, row: int = 1, config: Optional[dict] = None, show_signal_legends: bool = True) -> None:
     """
     Create the top panel price chart with all signal markers.
     
@@ -132,6 +132,7 @@ def create_price_chart(fig, df: pd.DataFrame, ticker: str, period: str, row: int
         period (str): Analysis period
         row (int): Subplot row number
         config (Optional[dict]): Configuration dictionary for displaying parameters on chart
+        show_signal_legends (bool): Whether to show signal markers in legend (default: True)
     """
     labels = _signal_labels()
     
@@ -276,6 +277,7 @@ def create_price_chart(fig, df: pd.DataFrame, ticker: str, period: str, row: int
                 symbol='circle',
                 line=dict(width=2, color='darkgreen')
             ),
+            showlegend=show_signal_legends,
             hovertemplate=f'<b>{labels["Strong_Buy"]}</b><br>Date: %{{customdata}}<br>Price: $%{{y:.2f}}<extra></extra>'
         ), row=row, col=1)
     
@@ -290,12 +292,13 @@ def create_price_chart(fig, df: pd.DataFrame, ticker: str, period: str, row: int
             customdata=moderate_buy_dates,
             mode='markers',
             name=labels['Moderate_Buy'],
+            line=dict(width=0),
             marker=dict(
                 size=10,
                 color='gold',
-                symbol='circle',
-                line=dict(width=1.5, color='orange')
+                symbol='circle'
             ),
+            showlegend=show_signal_legends,
             hovertemplate=f'<b>{labels["Moderate_Buy"]}</b><br>Date: %{{customdata}}<br>Price: $%{{y:.2f}}<extra></extra>'
         ), row=row, col=1)
     
@@ -316,6 +319,7 @@ def create_price_chart(fig, df: pd.DataFrame, ticker: str, period: str, row: int
                 symbol='diamond',
                 opacity=0.8
             ),
+            showlegend=show_signal_legends,
             hovertemplate=f'<b>{labels["Stealth_Accumulation"]}</b><br>Date: %{{customdata}}<br>Price: $%{{y:.2f}}<extra></extra>'
         ), row=row, col=1)
     
@@ -335,6 +339,7 @@ def create_price_chart(fig, df: pd.DataFrame, ticker: str, period: str, row: int
                 color='magenta',
                 symbol='star'
             ),
+            showlegend=show_signal_legends,
             hovertemplate=f'<b>{labels["Confluence_Signal"]}</b><br>Date: %{{customdata}}<br>Price: $%{{y:.2f}}<extra></extra>'
         ), row=row, col=1)
     
@@ -355,6 +360,7 @@ def create_price_chart(fig, df: pd.DataFrame, ticker: str, period: str, row: int
                 symbol='triangle-up',
                 line=dict(width=1, color='darkred')
             ),
+            showlegend=show_signal_legends,
             hovertemplate=f'<b>{labels["Volume_Breakout"]}</b><br>Date: %{{customdata}}<br>Price: $%{{y:.2f}}<extra></extra>'
         ), row=row, col=1)
     
@@ -371,12 +377,13 @@ def create_price_chart(fig, df: pd.DataFrame, ticker: str, period: str, row: int
             customdata=profit_take_dates,
             mode='markers',
             name=labels['Profit_Taking'],
+            line=dict(width=0),
             marker=dict(
                 size=12,
                 color='orange',
-                symbol='circle',
-                line=dict(width=2, color='darkorange')
+                symbol='circle'
             ),
+            showlegend=show_signal_legends,
             hovertemplate=f'<b>{labels["Profit_Taking"]}</b><br>Date: %{{customdata}}<br>Price: $%{{y:.2f}}<extra></extra>'
         ), row=row, col=1)
     
@@ -391,12 +398,13 @@ def create_price_chart(fig, df: pd.DataFrame, ticker: str, period: str, row: int
             customdata=dist_warning_dates,
             mode='markers',
             name=labels['Distribution_Warning'],
+            line=dict(width=0),
             marker=dict(
                 size=10,
                 color='gold',
-                symbol='square',
-                line=dict(width=2, color='darkgoldenrod')
+                symbol='square'
             ),
+            showlegend=show_signal_legends,
             hovertemplate=f'<b>{labels["Distribution_Warning"]}</b><br>Date: %{{customdata}}<br>Price: $%{{y:.2f}}<extra></extra>'
         ), row=row, col=1)
     
@@ -417,6 +425,7 @@ def create_price_chart(fig, df: pd.DataFrame, ticker: str, period: str, row: int
                 symbol='circle',
                 line=dict(width=2, color='darkred')
             ),
+            showlegend=show_signal_legends,
             hovertemplate=f'<b>{labels["Sell_Signal"]}</b><br>Date: %{{customdata}}<br>Price: $%{{y:.2f}}<extra></extra>'
         ), row=row, col=1)
     
@@ -431,12 +440,13 @@ def create_price_chart(fig, df: pd.DataFrame, ticker: str, period: str, row: int
             customdata=momentum_exhaust_dates,
             mode='markers',
             name=labels['Momentum_Exhaustion'],
+            line=dict(width=0),
             marker=dict(
                 size=12,
                 color='purple',
-                symbol='x',
-            line=dict(width=3)
+                symbol='x'
             ),
+            showlegend=show_signal_legends,
             hovertemplate=f'<b>{labels["Momentum_Exhaustion"]}</b><br>Date: %{{customdata}}<br>Price: $%{{y:.2f}}<extra></extra>'
         ), row=row, col=1)
     
@@ -451,12 +461,13 @@ def create_price_chart(fig, df: pd.DataFrame, ticker: str, period: str, row: int
             customdata=stop_loss_dates,
             mode='markers',
             name=labels['Stop_Loss'],
+            line=dict(width=0),
             marker=dict(
                 size=13,
                 color='darkred',
-                symbol='triangle-down',
-                line=dict(width=2, color='black')
+                symbol='triangle-down'
             ),
+            showlegend=show_signal_legends,
             hovertemplate=f'<b>{labels["Stop_Loss"]}</b><br>Date: %{{customdata}}<br>Price: $%{{y:.2f}}<extra></extra>'
         ), row=row, col=1)
     
@@ -478,17 +489,18 @@ def create_price_chart(fig, df: pd.DataFrame, ticker: str, period: str, row: int
                 line=dict(width=2, color='orange'),
                 opacity=0.8
             ),
+            showlegend=show_signal_legends,
             hovertemplate='<b>Event Day</b><br>Date: %{customdata}<br>High: $%{y:.2f}<extra></extra>'
         ), row=row, col=1)
     
-    # Add config metadata if provided (bottom right of chart)
+    # Add config metadata if provided (positioned under the legend)
     if config:
         metadata_text = format_config_metadata(config)
-        # Add as annotation - positioned at bottom right
+        # Add as annotation - positioned below the legend
         fig.add_annotation(
             text=metadata_text,
             xref="paper", yref="paper",
-            x=1.01, y=0.05,  # Right side, bottom
+            x=1.01, y=0.05,  # Under the legend
             xanchor="left", yanchor="bottom",
             showarrow=False,
             bgcolor="wheat",
@@ -679,14 +691,14 @@ def create_volume_bars_chart(fig, df: pd.DataFrame, row: int = 3) -> None:
     
     # Threshold lines on secondary y-axis
     threshold_lines = [
-        (8, 'darkred', 'Urgent Exit (8)'),
-        (7, 'lime', 'Strong Entry (7)'),
-        (6, 'orange', 'High Exit Risk (6)'),
-        (4, 'gold', 'Moderate Risk (4)'),
-        (2, 'lightcoral', 'Low Risk (2)')
+        (8, 'darkred', 'Urgent Exit (8)', True),
+        (7, 'lime', 'Strong Entry (7)', True),
+        (6, 'orange', 'High Exit Risk (6)', True),
+        (4, 'gold', 'Moderate Risk (4)', True),
+        (2, 'lightcoral', 'Low Risk (2)', False)  # Hide from legend to reduce clutter
     ]
     
-    for threshold, color, label in threshold_lines:
+    for threshold, color, label, show_legend in threshold_lines:
         fig.add_trace(go.Scatter(
             x=[0, len(df) - 1],
             y=[threshold, threshold],
@@ -695,7 +707,7 @@ def create_volume_bars_chart(fig, df: pd.DataFrame, row: int = 3) -> None:
             line=dict(color=color, width=1, dash='dot'),
             opacity=0.7,
             yaxis='y2',
-            showlegend=True,
+            showlegend=show_legend,
             hovertemplate=f'<b>{label}</b><extra></extra>'
         ), row=row, col=1, secondary_y=True)
     

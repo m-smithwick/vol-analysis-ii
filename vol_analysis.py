@@ -933,8 +933,28 @@ Note: Legacy periods (1y, 2y, 5y, etc.) are automatically converted to month equ
             config_loader.print_summary()
             config_dict = config_loader.config
             print("\n✅ Configuration will be applied to signal generation!")
-            print(f"   Using threshold: {config_dict['signal_thresholds']['entry']['moderate_buy_pullback']:.1f} for Moderate Buy")
-            print(f"   Using threshold: {config_dict['signal_thresholds']['entry']['strong_buy']:.1f} for Strong Buy\n")
+            
+            # Only show thresholds for ENABLED signals
+            enabled_entry_signals = config_dict['signal_thresholds']['enabled_entry_signals']
+            entry_thresholds = config_dict['signal_thresholds']['entry']
+            
+            for signal_name in enabled_entry_signals:
+                if signal_name in entry_thresholds:
+                    threshold = entry_thresholds[signal_name]
+                    # Convert config names to display names
+                    display_name = signal_name.replace('_', ' ').title().replace('Pullback', '(Pullback)')
+                    print(f"   ✅ {display_name}: threshold ≥{threshold:.1f}")
+            
+            # Show which signals are disabled
+            all_possible_signals = set(entry_thresholds.keys())
+            disabled_signals = all_possible_signals - set(enabled_entry_signals)
+            if disabled_signals:
+                print("   📋 Disabled entry signals:")
+                for signal_name in sorted(disabled_signals):
+                    display_name = signal_name.replace('_', ' ').title()
+                    print(f"      ❌ {display_name} (not used in this config)")
+            
+            print()
         except (ConfigValidationError, FileNotFoundError) as e:
             print(f"❌ Configuration error: {e}")
             sys.exit(1)

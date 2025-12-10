@@ -29,6 +29,9 @@ from data_manager import read_ticker_file
 # Import configuration loader
 from config_loader import load_config, ConfigValidationError
 
+# Import config name utilities
+from config_name_utils import get_config_name
+
 # Configure logging for this module
 setup_logging()
 
@@ -191,6 +194,7 @@ def run_batch_backtest(ticker_file: str, period: str = '12mo',
                         risk_result = backtest.run_risk_managed_backtest(
                             df=df,
                             ticker=ticker,
+                            config=config,
                             account_value=account_value,
                             risk_pct=risk_pct,
                             stop_strategy=stop_strategy,
@@ -332,7 +336,9 @@ def run_batch_backtest(ticker_file: str, period: str = '12mo',
         return aggregated_results
 
 
-def generate_risk_managed_aggregate_report(results: Dict, period: str, output_dir: str, stock_file_base: str = "portfolio") -> str:
+def generate_risk_managed_aggregate_report(results: Dict, period: str, output_dir: str, 
+                                          stock_file_base: str = "portfolio",
+                                          config: dict = None, config_path: str = None) -> str:
     """Generate aggregate report for risk-managed backtests.
     
     Args:
@@ -340,6 +346,8 @@ def generate_risk_managed_aggregate_report(results: Dict, period: str, output_di
         period: Analysis period (e.g., "12mo", "24mo")
         output_dir: Directory to save reports
         stock_file_base: Base name of stock file (e.g., "ibd" from "ibd.txt")
+        config: Optional configuration dictionary
+        config_path: Optional configuration file path
     """
     try:
         from risk_manager import analyze_risk_managed_trades
@@ -487,8 +495,12 @@ def generate_risk_managed_aggregate_report(results: Dict, period: str, output_di
                                       'xlk_regime_ok', 'xlf_regime_ok', 'xlv_regime_ok', 'xle_regime_ok',
                                       'xly_regime_ok', 'xlp_regime_ok', 'xli_regime_ok', 'xlu_regime_ok',
                                       'xlre_regime_ok', 'xlb_regime_ok', 'xlc_regime_ok']]
+        
+        # Get config name for filename
+        config_name = get_config_name(config_dict=config, config_path=config_path)
+        
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-        ledger_filename = f"LOG_FILE_{stock_file_base}_{period}_{timestamp}.csv"
+        ledger_filename = f"LOG_FILE_{stock_file_base}_{period}_{config_name}_{timestamp}.csv"
         ledger_csv_path = os.path.join(output_dir, ledger_filename)
         ledger_xlsx_path = os.path.join(output_dir, ledger_filename.replace('.csv', '.xlsx'))
         
@@ -1200,13 +1212,19 @@ def main():
     # Generate aggregate report tailored to run mode
     print(f"\n📊 Generating aggregate optimization report...")
     if args.risk_managed:
-        aggregate_report = generate_risk_managed_aggregate_report(results, args.period, args.output_dir, stock_file_base)
+        aggregate_report = generate_risk_managed_aggregate_report(
+            results, args.period, args.output_dir, stock_file_base,
+            config=config_dict, config_path=args.config
+        )
     else:
         aggregate_report = generate_aggregate_report(results, period_display, args.output_dir)
     
+    # Get config name for aggregate report filename
+    config_name = get_config_name(config_dict=config_dict, config_path=args.config)
+    
     # Save aggregate report
     timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-    agg_filename = f"AGGREGATE_optimization_{stock_file_base}_{file_suffix}_{timestamp}.txt"
+    agg_filename = f"AGGREGATE_optimization_{stock_file_base}_{file_suffix}_{config_name}_{timestamp}.txt"
     agg_filepath = os.path.join(args.output_dir, agg_filename)
     
     with open(agg_filepath, 'w') as f:

@@ -1,5 +1,158 @@
 # Session Improvements Summary
 
+## Session 2025-12-09: Signal Filtering Bug Fix & Configuration Validation
+
+### Goal: Fix Critical Signal Filtering Bug & Validate Configuration Comparisons
+
+**Context:**
+- User compared config files (conservative, base, aggressive) and found they all use `moderate_buy_pullback` only
+- User ran backtest and found NBIX conservative config was using `Stealth_Accumulation` signals (5/7 trades) despite config only enabling `moderate_buy_pullback`
+- This revealed a **CRITICAL SYSTEM BUG** where all configurations were ignoring `enabled_entry_signals`
+
+**Root Cause Discovered:**
+- `backtest.py` had hard-coded signal lists that completely ignored YAML configuration:
+```python
+# WRONG: Hard-coded lists
+entry_signals = ['Strong_Buy', 'Moderate_Buy', 'Stealth_Accumulation', 
+                 'Confluence_Signal', 'Volume_Breakout']
+exit_signals = ['Profit_Taking', 'Distribution_Warning', 'Sell_Signal',
+                'Momentum_Exhaustion', 'Stop_Loss', 'MA_Crossdown']
+```
+- Backtest used ALL signals regardless of config
+- Parameter propagation failure (config loaded but not threaded through)
+
+**Solution Implemented:**
+
+### 1. Created Signal Mapping Utility (`signal_config_utils.py`)
+```python
+CONFIG_TO_DATAFRAME_SIGNAL_MAP = {
+    'moderate_buy_pullback': 'Moderate_Buy',
+    'stealth_accumulation': 'Stealth_Accumulation',
+    # ... etc
+}
+
+def get_enabled_signals_from_config(config):
+    """Converts config signal names to DataFrame column names"""
+    # Returns: {'entry': ['Moderate_Buy'], 'exit': ['Profit_Taking', ...]}
+```
+
+### 2. Updated backtest.py
+- Added `config: Optional[Dict] = None` parameter to `run_risk_managed_backtest()`
+- Implemented config-driven signal filtering:
+```python
+if config:
+    from signal_config_utils import get_enabled_signals_from_config
+    enabled_signals = get_enabled_signals_from_config(config)
+    entry_signals = enabled_signals['entry']  # Config-driven
+    exit_signals = enabled_signals['exit']    # Config-driven
+else:
+    # Fallback to all signals (legacy)
+```
+
+### 3. Updated batch_backtest.py
+- Pass config parameter to `run_risk_managed_backtest()`:
+```python
+risk_result = backtest.run_risk_managed_backtest(
+    df=df,
+    ticker=ticker,
+    config=config,  # ✅ ADDED
+    # ... other params
+)
+```
+
+### 4. Fixed Misleading Display Messages (vol_analysis.py)
+- **Before:** Showed thresholds for ALL signals (misleading)
+- **After:** Only shows thresholds for ENABLED signals with disabled list
+
+**Validation Results:**
+
+**NBIX Conservative Config:**
+- Before Fix: 7 trades (5 Stealth_Accumulation, 2 Moderate_Buy)  
+- After Fix: 3 trades (ALL Moderate_Buy) ✅
+- Zero deprecated signals used ✅
+
+**4-Ticker Test (VRT, GLD, SLV, APP) - 24-month period:**
+
+| Config | Win Rate | Profit | Trades | Key Finding |
+|--------|----------|--------|--------|-------------|
+| **Base** | 68.2% | +8.89% | 22 | 🥇 Best balanced |
+| **Conservative** | 61.5% | +3.10% | 13 | 🥈 Capital preservation |
+| **Aggressive** | 39.3% | +0.43% | 28 | 🥉 Time stops kill trades |
+
+**Critical Insights from Corrected Analysis:**
+
+1. **Time Stops Drive Performance:**
+   - Conservative (0 bars): Let winners run
+   - Base (20 bars): 36% time stopped - balanced
+   - **Aggressive (8 bars): 89% time stopped - DEVASTATING**
+
+2. **Lower Thresholds Hurt:**
+   - Aggressive 5.5 threshold → 39% win rate
+   - Base 6.0 threshold → 68% win rate  
+   - Conservative 6.5 threshold → 62% win rate
+   - Sweet spot: 6.0-6.5 range
+
+3. **Transaction Costs Matter:**
+   - Aggressive uses 2x costs (stress test)
+   - 59% of gross P&L consumed by costs
+   - High frequency + high costs = poor results
+
+4. **Previous Comparisons Were Invalid:**
+   - All configs were using identical signal sets
+   - Performance differences were random, not config-driven
+   - Must re-run ALL historical config comparisons
+
+**Files Created:**
+1. `signal_config_utils.py` - Signal name mapping utilities
+2. `SIGNAL_FILTERING_FIX_SUMMARY.md` - Comprehensive bug documentation  
+3. `CORRECTED_CONFIG_COMPARISON.md` - Accurate configuration analysis
+
+**Files Modified:**
+1. `backtest.py` - Added config parameter and filtering logic
+2. `batch_backtest.py` - Pass config to backtest functions
+3. `vol_analysis.py` - Fixed misleading threshold display
+
+**Architecture Compliance:**
+- ✅ Fixes parameter propagation bug (documented in .clinerules)
+- ✅ Config-driven behavior now working correctly
+- ✅ Backward compatible (fallback to all signals if no config)
+- ✅ Validates enabled signals exist in DataFrame
+
+**Key Learnings:**
+
+**1. Parameter Propagation Critical:**
+- Config defined but not threaded through execution layer
+- Silent failure - no errors, just wrong behavior
+- Must test ALL entry points when adding parameters
+- Cross-path validation essential
+
+**2. Hard-Coded Lists Are Anti-Pattern:**
+- Config should be single source of truth
+- Hard-coded fallbacks mask configuration errors
+- Use config-driven approach from the start
+
+**3. Display Messages Must Match Reality:**
+- Showing thresholds for disabled signals is misleading
+- User assumes all displayed signals are active
+- Only show what actually gets used
+
+**4. Validation Catches Silent Bugs:**
+- User noticed trade log discrepancy
+- Without validation, bug would persist indefinitely
+- Empirical testing > trusting implementation
+
+**Benefits:**
+- ✅ Configurations now do what they claim
+- ✅ Performance comparisons are valid
+- ✅ Deprecated signals properly excluded
+- ✅ Clear indication of enabled vs disabled signals
+- ✅ All previous invalid comparisons identified
+- ✅ Parameter propagation documented for future
+
+**Status:** Critical signal filtering bug fixed, validated, and fully documented. All configuration comparisons must be re-run for accuracy.
+
+---
+
 ## Session 2025-12-08: Regime Data Caching System
 
 ### Goal: Eliminate Duplicate Sector ETF Warnings & Improve Performance

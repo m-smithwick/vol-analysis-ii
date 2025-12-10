@@ -1196,6 +1196,7 @@ def run_full_threshold_optimization(df: pd.DataFrame, ticker: str, period: str,
 def run_risk_managed_backtest(
     df: pd.DataFrame, 
     ticker: str, 
+    config: Optional[Dict] = None,
     account_value: float = 100000,
     risk_pct: float = 0.75,
     stop_strategy: str = DEFAULT_STOP_STRATEGY,
@@ -1260,11 +1261,35 @@ def run_risk_managed_backtest(
         print("="*70)
     
     # Entry and exit signal columns to monitor
-    entry_signals = ['Strong_Buy', 'Moderate_Buy', 'Stealth_Accumulation', 
-                     'Confluence_Signal', 'Volume_Breakout']
-    
-    exit_signals = ['Profit_Taking', 'Distribution_Warning', 'Sell_Signal',
-                    'Momentum_Exhaustion', 'Stop_Loss', 'MA_Crossdown']
+    # Use config-driven signals if provided, otherwise fallback to all signals
+    if config:
+        from signal_config_utils import get_enabled_signals_from_config, validate_enabled_signals
+        
+        enabled_signals = get_enabled_signals_from_config(config)
+        entry_signals = enabled_signals['entry']
+        exit_signals = enabled_signals['exit']
+        
+        # Validate signals exist in DataFrame
+        validate_enabled_signals(entry_signals, df.columns.tolist(), 'entry')
+        validate_enabled_signals(exit_signals, df.columns.tolist(), 'exit')
+        
+        if verbose:
+            print(f"\n📋 CONFIG-DRIVEN SIGNAL FILTERING:")
+            print(f"   Entry Signals: {entry_signals}")
+            print(f"   Exit Signals: {exit_signals}")
+            print("="*70)
+    else:
+        # Fallback: Use all signals (legacy behavior)
+        entry_signals = ['Strong_Buy', 'Moderate_Buy', 'Stealth_Accumulation', 
+                         'Confluence_Signal', 'Volume_Breakout']
+        
+        exit_signals = ['Profit_Taking', 'Distribution_Warning', 'Sell_Signal',
+                        'Momentum_Exhaustion', 'Stop_Loss', 'MA_Crossdown']
+        
+        if verbose:
+            print(f"\n⚠️  WARNING: No config provided - using ALL signals")
+            print(f"   This may include deprecated signals like Stealth_Accumulation")
+            print("="*70)
     
     # Track all trades with sequential transaction numbers
     all_trades = []
