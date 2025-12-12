@@ -113,6 +113,86 @@ class MomentumScreener:
             
             return self.ticker_data
     
+    def apply_velvet_rope_filter(self, ticker: str, df: pd.DataFrame) -> Tuple[bool, Dict]:
+        """
+        Apply "Velvet Rope" institutional quality filter.
+        
+        Filters OUT low-quality stocks BEFORE expensive calculations:
+        1. Price Floor: Close >= $15 (no penny stocks)
+        2. Dollar Volume: 20d avg >= $20M (institutional liquidity)
+        3. Trend Alignment: Price > 200 SMA AND 200 SMA rising
+        4. Volatility Cap: ADR_20 <= 6% (reject choppy stocks)
+        
+        Args:
+            ticker (str): Ticker symbol
+            df (pd.DataFrame): Stock OHLCV data
+            
+        Returns:
+            Tuple[bool, Dict]: (passes_filter, metrics_dict)
+        """
+        with ErrorContext("applying velvet rope filter", ticker=ticker):
+            try:
+                # 1. Price Floor
+                current_price = df['Close'].iloc[-1]
+                if current_price < 15.0:
+                    return False, {'filter_failed': 'price_floor', 'price': current_price}
+                
+                # 2. Institutional Liquidity (Dollar Volume)
+                dollar_volume = df['Close'] * df['Volume']
+                avg_dollar_vol_20d = dollar_volume.rolling(window=20).mean().iloc[-1]
+                
+                if np.isnan(avg_dollar_vol_20d) or avg_dollar_vol_20d < 20_000_000:
+                    return False, {
+                        'filter_failed': 'dollar_volume',
+                        'dollar_vol_20d': avg_dollar_vol_20d if not np.isnan(avg_dollar_vol_20d) else 0
+                    }
+                
+                # 3. Trend Alignment (Price > 200 SMA AND 200 SMA rising)
+                sma_200 = df['Close'].rolling(window=200).mean()
+                current_sma = sma_200.iloc[-1]
+                
+                if np.isnan(current_sma):
+                    return False, {'filter_failed': 'insufficient_data'}
+                
+                # Check if price above 200 SMA
+                if current_price <= current_sma:
+                    return False, {
+                        'filter_failed': 'trend_alignment',
+                        'reason': 'price_below_sma'
+                    }
+                
+                # Check if 200 SMA is rising (current > 20 days ago)
+                if len(sma_200) >= 20:
+                    sma_20d_ago = sma_200.iloc[-20]
+                    if current_sma <= sma_20d_ago:
+                        return False, {
+                            'filter_failed': 'trend_alignment',
+                            'reason': 'sma_not_rising'
+                        }
+                
+                # 4. Volatility Cap (ADR <= 6%)
+                daily_range_pct = (df['High'] - df['Low']) / df['Close']
+                adr_20 = daily_range_pct.rolling(window=20).mean().iloc[-1]
+                
+                if np.isnan(adr_20) or adr_20 > 0.06:
+                    return False, {
+                        'filter_failed': 'volatility_cap',
+                        'adr_20': adr_20 if not np.isnan(adr_20) else 0
+                    }
+                
+                # Passed all filters!
+                return True, {
+                    'price': current_price,
+                    'dollar_vol_20d': avg_dollar_vol_20d,
+                    'sma_200': current_sma,
+                    'sma_slope': current_sma - sma_20d_ago if len(sma_200) >= 20 else np.nan,
+                    'adr_20': adr_20
+                }
+                
+            except Exception as e:
+                logger.warning(f"{ticker}: Velvet Rope filter error - {e}")
+                return False, {'filter_failed': 'error', 'error': str(e)}
+    
     def calculate_rs_velocity(self, ticker: str, df: pd.DataFrame) -> Dict[str, float]:
         """
         Calculate Relative Strength Velocity metrics.
@@ -294,7 +374,10 @@ class MomentumScreener:
     
     def run_screen(self, tickers: List[str]) -> pd.DataFrame:
         """
-        Run screening on all tickers and return results.
+        Run two-stage screening on all tickers.
+        
+        Stage 1: Velvet Rope Filter (fast, institutional quality)
+        Stage 2: Momentum Calculations (expensive, only on survivors)
         
         Args:
             tickers (List[str]): List of tickers to screen
@@ -302,19 +385,78 @@ class MomentumScreener:
         Returns:
             pd.DataFrame: Screening results sorted by RS velocity
         """
-        logger.info(f"⚙️  Running momentum screening on {len(tickers)} tickers...")
+        logger.info(f"🚪 STAGE 1: Velvet Rope Filter ({len(tickers)} tickers)")
+        logger.info(f"   Filtering for institutional quality...")
+        
+        # Stage 1: Apply Velvet Rope filter to all tickers
+        survivors = {}
+        filter_stats = {
+            'price_floor': 0,
+            'dollar_volume': 0,
+            'trend_alignment': 0,
+            'volatility_cap': 0,
+            'insufficient_data': 0,
+            'error': 0
+        }
+        
+        for i, ticker in enumerate(tickers, 1):
+            if i % 50 == 0:
+                logger.info(f"   Filtering: {i}/{len(tickers)}")
+            
+            if ticker not in self.ticker_data:
+                continue
+            
+            df = self.ticker_data[ticker]
+            passes, metrics = self.apply_velvet_rope_filter(ticker, df)
+            
+            if passes:
+                survivors[ticker] = metrics
+            else:
+                # Track rejection reason
+                reason = metrics.get('filter_failed', 'unknown')
+                if reason in filter_stats:
+                    filter_stats[reason] += 1
+        
+        # Log Velvet Rope results
+        total_filtered = sum(filter_stats.values())
+        survivors_count = len(survivors)
+        pass_rate = (survivors_count / len(tickers) * 100) if len(tickers) > 0 else 0
+        
+        logger.info(f"")
+        logger.info(f"🎯 Velvet Rope Results:")
+        logger.info(f"   Survivors: {survivors_count}/{len(tickers)} ({pass_rate:.1f}%)")
+        logger.info(f"   Filtered out: {total_filtered}")
+        if total_filtered > 0:
+            logger.info(f"   Rejection breakdown:")
+            for reason, count in sorted(filter_stats.items(), key=lambda x: x[1], reverse=True):
+                if count > 0:
+                    pct = (count / total_filtered * 100)
+                    logger.info(f"     - {reason}: {count} ({pct:.1f}%)")
+        logger.info(f"")
+        
+        if survivors_count == 0:
+            logger.error("❌ No tickers passed Velvet Rope filter")
+            return pd.DataFrame()
+        
+        # Stage 2: Run expensive momentum calculations on survivors only
+        logger.info(f"⚙️  STAGE 2: Momentum Screening ({survivors_count} survivors)")
+        logger.info(f"   Running RS Velocity and VCP calculations...")
         
         results = []
-        for i, ticker in enumerate(tickers, 1):
-            if i % 10 == 0 or i == len(tickers):
-                logger.info(f"   Progress: {i}/{len(tickers)} tickers processed")
+        for i, ticker in enumerate(survivors.keys(), 1):
+            if i % 10 == 0 or i == survivors_count:
+                logger.info(f"   Progress: {i}/{survivors_count} tickers processed")
             
             result = self.screen_ticker(ticker)
             if result:
+                # Add Velvet Rope metrics to result
+                result['velvet_rope_passed'] = True
+                result['dollar_vol_20d'] = survivors[ticker].get('dollar_vol_20d', np.nan)
+                result['adr_20'] = survivors[ticker].get('adr_20', np.nan)
                 results.append(result)
         
         if not results:
-            logger.error("❌ No tickers successfully screened")
+            logger.error("❌ No tickers successfully completed momentum screening")
             return pd.DataFrame()
         
         # Convert to DataFrame
@@ -323,10 +465,12 @@ class MomentumScreener:
         # Sort by RS slope (descending) - strongest momentum first
         df = df.sort_values('rs_slope_10d', ascending=False)
         
-        # Log summary
-        total = len(df)
-        passed = df['passes_all_filters'].sum()
-        logger.info(f"🎯 Results: {passed} of {total} tickers passed all filters")
+        # Log final summary
+        total_screened = len(df)
+        passed_all = df['passes_all_filters'].sum()
+        logger.info(f"")
+        logger.info(f"✅ Final Results: {passed_all} of {total_screened} passed all momentum filters")
+        logger.info(f"   Pass rate: {passed_all/total_screened*100:.1f}%")
         
         return df
 

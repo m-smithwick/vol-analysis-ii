@@ -49,7 +49,41 @@ Already included in `requirements.txt`:
 
 ## Screening Methodology
 
-### 1. Relative Strength (RS) Velocity
+The screener uses a **two-stage filtering approach** to efficiently process large ticker universes:
+
+### Stage 1: Velvet Rope Filter (Institutional Quality)
+
+Applied **first** to eliminate low-quality stocks before expensive calculations:
+
+1. **Price Floor**: Close >= $15 (eliminates penny stocks)
+2. **Dollar Volume**: 20-day avg >= $20M (institutional liquidity requirement)
+3. **Trend Alignment**: Price > 200 SMA **AND** 200 SMA rising (not just above, but in rising trend)
+4. **Volatility Cap**: ADR_20 <= 6% (rejects overly choppy stocks)
+
+**Performance Impact**:
+- Filters out ~85% of stocks instantly
+- Eliminates penny stocks (typically ~45% of raw universe)
+- Removes low-liquidity names (typically ~40% of remaining)
+- Only high-quality survivors proceed to Stage 2
+
+**Example Results** (Batch 01, 1000 tickers):
+```
+Loaded: 787 tickers (213 had insufficient data)
+Velvet Rope Survivors: 116/787 (14.7%)
+Filtered Out: 671 (85.3%)
+
+Rejection Breakdown:
+  - Price floor (<$15): 309 (46.1%)
+  - Dollar volume (<$20M): 259 (38.6%)
+  - Trend alignment: 90 (13.4%)
+  - Volatility cap (>6% ADR): 13 (1.9%)
+```
+
+### Stage 2: Momentum Calculations (Survivors Only)
+
+Expensive calculations performed only on institutional-quality survivors:
+
+### 2.1. Relative Strength (RS) Velocity
 
 **Purpose**: Identify stocks with accelerating momentum relative to the market.
 
