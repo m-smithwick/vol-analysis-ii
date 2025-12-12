@@ -1,9 +1,24 @@
+# ⚠️ EXPERIMENTAL CONFIGURATION - NOT RECOMMENDED FOR PRODUCTION
+#
 # Time Decay Stop Strategy Configuration
-# Tests the winning time_decay strategy validated at +22% improvement (1.52R avg)
+#
+# VALIDATION RESULTS (Nov 2025 - 982 trades, 36-month period):
+# - time_decay: $53,359 P&L, 23% stop rate, $319/trade avg
+# - static:     $161,278 P&L, 15% stop rate, $417/trade avg ⭐ RECOMMENDED
+#
+# CONCLUSION: Static stops outperform time_decay by 3x
+# - Time decay tightens too aggressively, cutting winners short
+# - Trades that would hit +2R PROFIT_TARGET get stopped at breakeven
+# - "Lock in gains" logic backfires in practice
+#
+# STATUS: Preserved for research purposes only
+# RECOMMENDATION: Use conservative_config.yaml or base_config.yaml instead
+#
+# See: STOP_STRATEGY_VALIDATION.md for complete empirical analysis
 
-config_name: "time_decay_test"
+config_name: "time_decay_experimental"
 config_version: "1.0"
-description: "Time decay stop strategy - gradually tightens stops over trade lifetime"
+description: "⚠️ EXPERIMENTAL - Time decay stops (underperforms static by 3x)"
 
 risk_management:
   account_value: 100000

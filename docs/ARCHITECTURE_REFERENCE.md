@@ -2,6 +2,10 @@
 
 Consolidated documentation for the internal module layout, testing harness, and analytical building blocks used across the volume analysis platform.
 
+**🔍 Quick Module Lookup**: See `CODE_MAP.txt` in project root for fast "change X → edit file Y" routing table.
+
+**📚 Complete Documentation**: See `DOCUMENTATION_INVENTORY.md` for full documentation inventory with categorization into user, technical, research, and historical volumes.
+
 ---
 
 ## 1. Modular Architecture (Item #7)

@@ -571,6 +571,204 @@ The regime filter is **always active** and automatically applied to all entry si
 
 ## 8. Risk Management & Position Sizing
 
+### Position Sizing Mechanics: Understanding the Formula
+
+The system uses **fixed-percentage risk position sizing** to ensure consistent risk management across all trades. This is a cornerstone of professional trading—every trade risks the same percentage of account equity, regardless of stock price or signal strength.
+
+#### The Fixed Risk Principle
+
+**Default Configuration**: Each trade risks **0.75% of current account equity**
+
+**Example with $500,000 account**:
+- Risk per trade = $500,000 × 0.75% = **$3,750**
+- This risk amount stays constant across all positions
+- Whether you're buying a $20 stock or a $1,000 stock, you risk $3,750
+
+**Why fixed risk matters**:
+- Prevents over-exposure on any single trade
+- Ensures you can survive long losing streaks (133 consecutive losses to blow up account)
+- Professional risk management standard
+- Protects capital during drawdown periods
+
+#### The Position Sizing Formula
+
+Position size is calculated using this formula:
+
+```
+Step 1: Calculate Risk Amount
+risk_amount = account_equity × (risk_pct / 100)
+risk_amount = $500,000 × 0.75% = $3,750
+
+Step 2: Calculate Stop Distance
+stop_distance = entry_price - stop_price
+Example: $100 entry - $95 stop = $5 per share
+
+Step 3: Calculate Position Size
+position_size = risk_amount / stop_distance
+position_size = $3,750 / $5 = 750 shares
+
+Step 4: Calculate Transaction Size
+transaction_size = position_size × entry_price
+transaction_size = 750 shares × $100 = $75,000
+```
+
+**Key Insight**: The transaction size varies dramatically based on stock price and stop distance, but the RISK remains constant at $3,750.
+
+#### How Stop Distance is Determined
+
+The stop price combines **technical structure** and **volatility adjustment**:
+
+```python
+stop = min(
+    Recent_Swing_Low - 0.5×ATR,  # Structure-based (support)
+    VWAP - 1.0×ATR                # Cost basis (institutional entry)
+)
+```
+
+**Two factors drive stop placement**:
+
+1. **Technical Structure (Recent_Swing_Low)**:
+   - Identifies actual support levels from price action
+   - Respects swing lows where buyers previously stepped in
+   - Prevents getting stopped out on normal pullbacks
+
+2. **Volatility (ATR20 = 20-day Average True Range)**:
+   - Adjusts for how much the stock typically moves
+   - High volatility stocks get wider stops (more room to breathe)
+   - Low volatility stocks get tighter stops (less noise)
+
+**The system uses whichever stop is tighter** (higher price), providing the most conservative risk management.
+
+#### Worked Examples: Same Risk, Different Sizes
+
+Let's see how the same $3,750 risk translates to vastly different transaction sizes:
+
+**Example 1: ARQT (Low-Priced Stock, Tight Stop)**
+```
+Entry Price: $29.63
+Stop Price: $28.16
+Stop Distance: $1.47 (4.96% away)
+
+Position Size: $3,750 / $1.47 = 2,551 shares
+Transaction Size: 2,551 × $29.63 = $75,562
+
+Why tight stop?
+- ATR20 might be $0.80 (low volatility)
+- Swing low at $28.66
+- Stop = min($28.66 - $0.40, VWAP - $0.80) = $28.16
+```
+
+**Example 2: FIX (High-Priced Stock, Wide Stop)**
+```
+Entry Price: $975.60
+Stop Price: $888.75
+Stop Distance: $86.85 (8.90% away)
+
+Position Size: $3,750 / $86.85 = 43 shares
+Transaction Size: 43 × $975.60 = $41,951
+
+Why wide stop?
+- ATR20 might be $45 (high volatility for a $1000 stock)
+- Swing low at $933.75
+- Stop = min($933.75 - $22.50, VWAP - $45) = $888.75
+```
+
+**Example 3: WGS (Mid-Priced Stock, Moderate Stop)**
+```
+Entry Price: $157.25
+Stop Price: $150.87
+Stop Distance: $6.38 (4.06% away)
+
+Position Size: $3,750 / $6.38 = 588 shares
+Transaction Size: 588 × $157.25 = $92,463
+
+Why moderate stop?
+- ATR20 might be $4.50 (moderate volatility)
+- Swing low at $153.12
+- Stop = min($153.12 - $2.25, VWAP - $4.50) = $150.87
+```
+
+#### Comparison Table: Transaction Size Variation
+
+| Stock | Entry | Stop | Distance | Risk | Shares | Transaction $ | % of Account |
+|-------|-------|------|----------|------|--------|---------------|--------------|
+| ARQT | $29.63 | $28.16 | $1.47 | $3,750 | 2,551 | $75,562 | 15.1% |
+| WGS | $157.25 | $150.87 | $6.38 | $3,750 | 588 | $92,463 | 18.5% |
+| FIX | $975.60 | $888.75 | $86.85 | $3,750 | 43 | $41,951 | 8.4% |
+
+**Key Observations**:
+
+1. **Identical Risk**: All three trades risk exactly $3,750 (0.75% of $500k)
+2. **Transaction Size Range**: $42k to $92k (2.2x variation!)
+3. **Share Count Range**: 43 to 2,551 shares (59x variation!)
+4. **Account Exposure**: Varies from 8% to 19% of account
+5. **Stop Distance %**: Varies from 4% to 9% based on volatility
+
+#### Why Transaction Sizes Vary
+
+**Three factors create the variation**:
+
+1. **Stock Price**:
+   - $30 stock needs 2,500+ shares for $3,750 risk
+   - $1,000 stock needs only 43 shares for same risk
+   - Linear relationship (price 2x higher = shares 2x fewer)
+
+2. **Volatility (ATR)**:
+   - High volatility stocks require wider stops
+   - Wider stops = fewer shares for same risk
+   - ATR adjusts stop distance to match stock's typical movement
+
+3. **Technical Structure**:
+   - Strong support nearby = tighter stop possible
+   - Weak structure = wider stop required
+   - Swing lows provide natural stop placement
+
+**The Beautiful Math**:
+```
+Higher stock price → Fewer shares BUT larger $ per share
+Wider stop distance → Fewer shares BUT more $ at risk per share
+
+These two factors balance out to maintain constant $3,750 risk
+```
+
+#### Impact on Portfolio Construction
+
+Understanding position sizing mechanics has practical implications:
+
+**Capital Efficiency**:
+- High-priced stocks (FIX @ $975) are EASIER on capital ($42k position)
+- Low-priced stocks (ARQT @ $29) require MORE capital ($76k position)
+- With $500k account, you could hold:
+  - 11 positions like FIX (11 × $42k = $462k)
+  - 6 positions like ARQT (6 × $76k = $456k)
+
+**Diversification Considerations**:
+- Low-priced stocks concentrate more shares in fewer positions
+- High-priced stocks allow more positions with same capital
+- Mix both types for balanced portfolio construction
+
+**Risk Management Reality**:
+- Transaction size does NOT indicate conviction or signal strength
+- Large transaction size (WGS @ $92k) has SAME risk as small (FIX @ $42k)
+- Both hit stop → Both lose exactly $3,750
+
+#### Configuration: Adjusting Risk Percentage
+
+The risk percentage (default 0.75%) can be adjusted in configuration files:
+
+**Conservative**: 0.50% risk per trade (longer to build account, smoother equity curve)
+**Standard**: 0.75% risk per trade (balanced growth and drawdown protection)
+**Aggressive**: 1.00% risk per trade (faster growth, larger drawdowns)
+
+**Example impact on $500k account**:
+- 0.50% risk = $2,500 per trade → smaller positions, more longevity
+- 0.75% risk = $3,750 per trade → balanced approach (default)
+- 1.00% risk = $5,000 per trade → larger positions, higher volatility
+
+**Never exceed 1.5% risk per trade** unless you have extensive experience and understand the drawdown implications.
+
+---
+
 ### Position Sizing by Signal Strength
 
 **Entry Score 7-10 (Strong signals)**:

@@ -1,14 +1,44 @@
-# 🎯 Sector-Aware Trading Strategy
+---
+⚠️ **STRATEGY STATUS: ANALYSIS TOOLS ONLY - ADAPTIVE TRADING NOT IMPLEMENTED**
+
+This document describes sector rotation analysis tools and a proposed adaptive trading strategy.
+
+**✅ WHAT EXISTS (Implemented):**
+- Sector scoring tools (`sector_dashboard.py`, `sector_rotation.py`)
+- Sector strength tracking and comparison (0-14 scale)
+- Macro rotation analysis for manual trading decisions
+- Sector ETF regime filters (50-day MA checks)
+
+**❌ WHAT DOES NOT EXIST (Not Implemented):**
+- Position sizing does NOT adjust based on sector scores
+- Entry criteria do NOT check sector strength beyond regime filters
+- Risk management does NOT vary by sector environment
+- Stop placement does NOT adapt to sector scores
+- Profit targets do NOT change based on sector strength
+
+**CURRENT SYSTEM BEHAVIOR:**
+The trading system uses **fixed position sizing** (0.75% risk per trade) and **static risk management** regardless of sector scores. Sector analysis tools provide macro rotation insights for manual portfolio decisions, but the automated trading logic remains sector-agnostic.
+
+**USE CASES FOR THIS DOCUMENT:**
+1. **Sector Rotation Analysis** - Use scoring tools for macro portfolio decisions
+2. **Future Strategy Proposal** - Reference for potential adaptive implementation
+3. **Manual Trading Framework** - Apply concepts manually in trading decisions
+
+**FOR CURRENT AUTOMATED TRADING:** Use `TRADING_STRATEGY.md` which accurately reflects implemented system behavior.
+
+---
+
+# 🎯 Sector Rotation Analysis Guide
 
 **Version**: 1.0  
 **Date**: November 2025  
-**Purpose**: Source of truth for sector-aware position sizing and risk management
+**Purpose**: Guide for using sector analysis tools and proposed adaptive trading framework
 
 ---
 
 ## 📋 Executive Summary
 
-This document defines the complete trading strategy that adapts position sizing, entry criteria, and risk management based on current sector strength. It serves as the **source of truth** for validating code implementation against intended strategy.
+This document describes tools for analyzing sector rotation and proposes an adaptive trading strategy that adjusts position sizing, entry criteria, and risk management based on sector strength. The **analysis tools are implemented**; the **adaptive trading strategy is not**.
 
 **Core Principle**: Aggression scales with market strength. Trade size, frequency, and risk adjust systematically based on objective sector scoring (0-14 scale).
 

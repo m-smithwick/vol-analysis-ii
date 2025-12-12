@@ -1,6 +1,224 @@
 # Session Improvements Summary
 
+## Session 2025-12-11: Documentation Consolidation & Validation Rigor
+
+### Goal: Consolidate Documentation & Prevent Validation Contradictions
+
+**Context:**
+- User requested comprehensive manual creation for trading platform
+- Created DOCUMENTATION_INVENTORY.md cataloging 70+ files across 4 directories
+- Discovered critical validation contradiction: Nov 16 vs Nov 22 stop strategy testing
+- Identified 5 documentation overlap areas needing consolidation
+
+**Critical Discovery - Validation Contradiction:**
+
+**Nov 16 (VARIABLE_STOP_LOSS_FINDINGS.md):**
+- Finding: "time_decay wins! 1.52R vs 1.25R static (+22%)"
+- Conclusion: "IMPLEMENT IMMEDIATELY"
+- Method: R-multiple metric, 4,249 trades
+- Status: 🔬 PRELIMINARY (should have been labeled this)
+
+**Nov 22 (STOP_STRATEGY_VALIDATION.md):**
+- Finding: "Static wins by 3x! $161k vs $53k time_decay"
+- Conclusion: "Change defaults to static"
+- Method: Dollar P&L, 982 trades, same portfolio
+- Status: ✅ VALIDATED
+
+**Root Cause:** Premature validation conclusions without rigorous cross-validation
+
+**Consolidations Completed:**
+
+### 1. Configuration Documentation (Dec 10)
+- Restructured configs/README.md → Focus on usage (HOW)
+- Enhanced docs/CONFIGURATION_STRATEGY_ANALYSIS.md → Focus on strategy selection (WHY)
+- Added strong cross-references between both
+- Result: Two-tier structure, no duplication
+
+### 2. Validation Documentation (Dec 11)
+- Created docs/VALIDATION_MANUAL.md as master document
+- Consolidated 10 validation files into single source of truth
+- Sections: Entry signals, stop strategies, parameters, configs, timeline, references
+- Preserved detailed evidence documents for deep dives
+- Marked VARIABLE_STOP_LOSS_FINDINGS.md as 🔬 PRELIMINARY/SUPERSEDED
+- Marked STOP_STRATEGY_VALIDATION.md as ✅ VALIDATED/AUTHORITATIVE
+
+### 3. Validation Rigor Standard Created
+- File: `.clinerules/validation-rigor-standard.md`
+- Purpose: Prevent premature validation conclusions
+- Key rule: Label every validation as 🔬 PRELIMINARY or ✅ VALIDATED
+- Requirements: Same portfolio, multiple metrics, 100+ trades, reproducible
+- Enforcement: Push back on implementing PRELIMINARY findings
+
+**Files Created:**
+1. `.clinerules/validation-rigor-standard.md` - Preventive measure (200 words)
+2. `docs/VALIDATION_MANUAL.md` - Master validation document
+3. `DOCUMENTATION_INVENTORY.md` - Comprehensive 70+ file inventory
+
+**Files Modified:**
+1. `configs/README.md` - Restructured for usage focus
+2. `docs/CONFIGURATION_STRATEGY_ANALYSIS.md` - Added cross-references
+3. `VARIABLE_STOP_LOSS_FINDINGS.md` - Marked PRELIMINARY/SUPERSEDED with warnings
+4. `STOP_STRATEGY_VALIDATION.md` - Marked VALIDATED/AUTHORITATIVE
+5. `DOCUMENTATION_INVENTORY.md` - Updated with all consolidation changes (multiple updates)
+6. `CODE_MAP.txt` - Updated cross-references (Dec 10)
+7. `docs/ARCHITECTURE_REFERENCE.md` - Updated cross-references (Dec 10)
+8. `README.md` - Added documentation structure section (Dec 10)
+9. `SECTOR_ROTATION_ANALYSIS_GUIDE.md` - Renamed, added status banner (Dec 10)
+10. `configs/time_decay_config.yamlx` - Added warning headers (Dec 10)
+11. `configs/vol_regime_config.yamlx` - Added warning headers (Dec 10)
+
+**Key Accomplishments:**
+
+**Immediate Priorities (Dec 10):**
+- ✅ Sector strategy clarification (renamed file, added warnings)
+- ✅ Experimental config warnings (both .yamlx files + configs/README.md)
+- ✅ README.md updates (structure section, validation timeline, sector notes)
+- ✅ CODE_MAP/ARCHITECTURE integration (cross-references added)
+
+**Consolidation Work (Dec 10-11):**
+- ✅ Configuration documentation (2 files → two-tier structure)
+- ✅ Validation documentation (10 files → VALIDATION_MANUAL.md)
+- ✅ Validation contradiction resolved (Nov 16 vs Nov 22)
+- ✅ Validation rigor standard created (Cline rule)
+
+**Documentation Progress:**
+- Completed: 3 of 5 overlap areas
+- Remaining: Exit analysis (3 files), Operations manuals (5 files)
+- Created: Master validation document with all findings
+- Preserved: Detailed evidence for audit trail
+
+**Validated Findings Summary:**
+
+**Entry Signals:**
+- ✅ Moderate Buy (≥6.0) - 60-70% win, +6-7% median, regime-agnostic
+- ❌ Stealth Accumulation - Failed out-of-sample (53% → 23%)
+- ❌ Strong Buy - Regime collapse (84% → 17%)
+
+**Stop Strategies:**
+- ✅ Static stops - Winner ($161k vs $53k time_decay, 15% stop rate)
+- ❌ Time decay - 3x worse than static (23% stop rate)
+- ❌ Vol regime - Excessive stops (32% stop rate)
+
+**Parameters:**
+- ✅ Time stop: 20 bars optimal
+- ✅ Entry threshold: 6.0-6.5 range
+- ✅ Risk: 0.75-1.0% per trade
+
+**Configurations:**
+- ✅ Base config - Most balanced (68% win rate)
+- ✅ Conservative config - Capital preservation (62% win rate)
+- ❌ Aggressive config - NOT RECOMMENDED (89% time stop rate)
+
+**Key Learnings:**
+
+**1. Validation Rigor Prevents Costly Mistakes:**
+- Nov 16 declared "winner" prematurely (single metric, no cross-validation)
+- Nov 22 proper validation showed opposite conclusion
+- Financial decisions depend on accurate validation
+- New Cline rule prevents recurrence
+
+**2. Documentation Structure Matters:**
+- Master documents provide single source of truth
+- Detailed evidence preserved for deep dives
+- Cross-references improve navigation
+- Clear status labels (PRELIMINARY vs VALIDATED) critical
+
+**3. Configuration Documentation Needs Two Tiers:**
+- Usage guides answer "HOW to use"
+- Strategy analysis answers "WHY to choose"
+- Both serve distinct audiences and purposes
+
+**Benefits:**
+- ✅ Prevented future validation contradictions (Cline rule)
+- ✅ Created single source of truth for validated findings
+- ✅ Improved documentation navigation significantly
+- ✅ Resolved dangerous contradiction (time_decay vs static)
+- ✅ Set realistic performance expectations (12-18% annual, not 60%+)
+- ✅ Professional-grade documentation infrastructure
+
+**Status:** Documentation consolidation Phase 1 complete (3 of 5 overlap areas resolved), master validation document created, validation rigor standard implemented.
+
+---
+
 ## Session 2025-12-09: Signal Filtering Bug Fix & Configuration Validation
+</thinking>
+
+Now let me clear PROJECT-STATUS.md to the skeleton:
+
+<write_to_file>
+<path>PROJECT-STATUS.md</path>
+<content># Project Status
+
+**Last Updated**: 2025-12-11  
+**Current Status**: ✅ Ready for next objective
+
+---
+
+## 🎯 Current Context
+
+[To be updated with next session's focus]
+
+---
+
+## 🏗️ Architectural Impact
+
+[To be assessed for next work unit]
+
+---
+
+## 📋 Active Plan
+
+[No active work in progress]
+
+---
+
+## 🧹 Janitor Queue
+
+### Medium Priority
+
+**1. Position Sizing Gap: Backtest vs Live Signal Generation** (Architectural)
+   - **Issue**: Disconnect between compounding backtest and stateless live analysis
+   - **Workarounds Available**: Manual --account-value updates, extract from LOG_FILE
+   - **Future Enhancement**: Build portfolio_state.py tracker tool
+   - **Priority**: Medium (workarounds sufficient)
+   - **Date Identified**: 2025-12-01
+
+**2. Indicator Warmup Buffer Too Small** (Data Pipeline)
+   - **Issue**: batch_backtest.py uses 30-day buffer, but 200-day MA needs ~400 days
+   - **Impact**: Date range backtests start signal generation much later than expected
+   - **Workaround**: Manually use longer period (-p 60mo) when using date ranges
+   - **Fix Needed**: Increase buffer from 30 → 400 days in batch_backtest.py
+   - **Priority**: Medium (workaround available)
+   - **Date Identified**: 2025-12-07
+
+**3. DuckDB Mode User Confusion** (Documentation/UX)
+   - **Issue**: Users expect --use-duckdb to download missing data, but it only queries existing cache
+   - **Impact**: Confusion when date ranges not in massive_cache/ return no results
+   - **Workaround**: Use legacy mode first to download, then DuckDB for queries
+   - **Fix Needed**: Better error messages explaining DuckDB is query optimization, not data source
+   - **Priority**: Low (documentation clarified)
+   - **Date Identified**: 2025-12-07
+
+### Low Priority
+
+**4. Remaining Documentation Consolidation**
+   - Exit analysis docs (3 files in upgrade-docs/)
+   - Operations manuals (5 files → single manual)
+   - Gap-filling (Quick Start Guide, API Reference, etc.)
+   - Directory reorganization (docs/user/, docs/technical/, etc.)
+   - **Priority**: Low (3 of 5 overlap areas resolved)
+   - **Date Identified**: 2025-12-11
+
+**5. Cached Earnings Dates** (Future Enhancement)
+   - Currently bypassing earnings window filter (safe)
+   - Default parameter: `earnings_dates=[]`
+   - Impact: Low (current bypass works fine)
+
+**6. Residual Duplicate Dates in Regime Display**
+   - Display-only issue (cosmetic fix for future cleanup)
+
+---
+</content>
 
 ### Goal: Fix Critical Signal Filtering Bug & Validate Configuration Comparisons
 

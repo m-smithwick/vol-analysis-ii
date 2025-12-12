@@ -1,7 +1,11 @@
 # Volume Analysis Project - Code Map
 
-**Last Updated**: 2025-12-07  
+**Last Updated**: 2025-12-10  
 **Purpose**: Fast lookup for where core behaviors live so humans (and LLMs) can jump directly to the right module.
+
+**📖 For Conceptual Understanding**: See `docs/ARCHITECTURE_REFERENCE.md` for system design philosophy, data flow diagrams, and architectural decisions.
+
+**📋 For Complete Documentation**: See `DOCUMENTATION_INVENTORY.md` for full file inventory, categorization, and documentation structure (70+ files organized into 12 categories).
 
 ---
 
@@ -65,7 +69,9 @@
 **`utils.py`** - Generic helpers (I/O, formatting, math utilities).  
 **`error_handler.py`** - Standardized error capture/reporting for CLI tools.  
 **`chart_builder_plotly.py`** - Alternate visualization path for interactive dashboards.  
-**`sector_dashboard*.py` / `sector_rotation.py`** - Sector-level analytics, momentum ranking, and reporting.
+**`sector_dashboard*.py` / `sector_rotation.py`** - Sector-level analytics, momentum ranking, and reporting for macro rotation analysis.
+
+**⚠️ Sector Tools Note**: These tools provide sector scoring (0-14 scale) and rotation analysis for **manual trading decisions**. The automated trading system does NOT adjust position sizing, entry criteria, or risk management based on sector scores. See `SECTOR_ROTATION_ANALYSIS_GUIDE.md` (formerly `TRADING_STRATEGY_SECTOR_AWARE.md`) for using sector data in manual portfolio decisions.
 
 ---
 
@@ -228,6 +234,82 @@ backtest.py
 - `docs/ARCHITECTURE_REFERENCE.md` - Conceptual overview complementing this code map
 - `CODE_MAP.txt` - This file (module responsibilities and dependencies)
 
+**Documentation & Consolidation** (NEW - Dec 2025)
+- `DOCUMENTATION_INVENTORY.md` - Comprehensive 70+ file inventory across 12 categories. Master catalog of all documentation with overlap analysis, gap analysis, and consolidation status tracking.
+- `docs/VALIDATION_MANUAL.md` - Consolidated validation findings (entry signals, stop strategies, parameters, configurations). Single source of truth for all validated trading decisions. Includes validation timeline showing Nov 16 vs Nov 22 contradiction resolution.
+
+**Cline Rules** (Developer Guidelines)
+- `.clinerules/validation-rigor-standard.md` (NEW - Dec 2025) - Prevents premature validation conclusions. Requires labeling as 🔬 PRELIMINARY or ✅ VALIDATED with specific requirements (same portfolio, multiple metrics, 100+ trades).
+- `.clinerules/parameter-propagation.md` - Mandatory checklist for multi-entry-point parameter threading
+- `.clinerules/financial-data-verification.md` - Time-series data verification standards
+- `.clinerules/version-control-policy.md` - Git workflow and AI responsibilities
+
 ---
 
 **Maintenance**: Update when modules move, are renamed, or major tooling is added/removed—this file should stay lean and routing-focused.
+
+**Last Updated**: 2025-12-11
+</thinking>
+
+Now I'll present the final sprint close summary.
+
+<attempt_completion>
+<result>
+**Sprint Archived.**
+
+**Map Updated:** Yes  
+- Added `.clinerules/validation-rigor-standard.md` (NEW - Dec 2025)
+- Added `docs/VALIDATION_MANUAL.md` (master validation document)
+- Added `DOCUMENTATION_INVENTORY.md` (70+ file catalog)
+- Updated "Last Updated" to 2025-12-11
+
+**Debt Carried Over:** 4 items
+- Position sizing gap (backtest vs live)
+- Indicator warmup buffer too small
+- DuckDB mode user confusion
+- Remaining documentation consolidation (2 of 5 areas)
+
+**Ready for next objective.**
+
+---
+
+## Sprint Summary
+
+**Session 2025-12-11: Documentation Consolidation & Validation Rigor**
+
+### Critical Safety Issue Resolved
+- Discovered dangerous validation contradiction (Nov 16 vs Nov 22 stop strategies)
+- Nov 16: "time_decay wins, implement immediately!" (🔬 PRELIMINARY)
+- Nov 22: "static wins by 3x!" (✅ VALIDATED)
+- Root cause: Premature conclusions without proper cross-validation
+
+### Preventive Measures Implemented
+1. **Created validation-rigor-standard Cline rule** (200 words)
+   - Prevents premature validation declarations
+   - Requires labeling: 🔬 PRELIMINARY vs ✅ VALIDATED
+   - Enforces: same portfolio, multiple metrics, 100+ trades
+
+2. **Marked validation documents properly**
+   - VARIABLE_STOP_LOSS_FINDINGS.md → 🔬 PRELIMINARY/SUPERSEDED
+   - STOP_STRATEGY_VALIDATION.md → ✅ VALIDATED/AUTHORITATIVE
+
+### Documentation Consolidation
+1. **Configuration docs** (Dec 10) - Two-tier structure
+2. **Validation docs** (Dec 11) - Master VALIDATION_MANUAL.md created
+3. **3 of 5 overlap areas resolved**
+
+### Key Deliverables
+- `docs/VALIDATION_MANUAL.md` - Single source of truth for all validated findings
+- `.clinerules/validation-rigor-standard.md` - Prevents future contradictions
+- `DOCUMENTATION_INVENTORY.md` - Complete 70+ file catalog
+- Updated 11 files with warnings, cross-references, status labels
+
+### Validated Trading Decisions (from VALIDATION_MANUAL.md)
+- ✅ Use static stops (not time_decay or vol_regime)
+- ✅ Use Moderate Buy (≥6.0) only (not Stealth/Strong/Volume)
+- ✅ Use 20-bar time stop (optimal parameter)
+- ✅ Use base_config or conservative_config
+- ✅ Expect 12-18% annual (not 60%+)
+
+**Status:** Critical safety issue resolved, validation infrastructure established, 3 of 5 consolidation areas complete.
+</result>

@@ -1,9 +1,30 @@
+# ⚠️ EXPERIMENTAL CONFIGURATION - NOT RECOMMENDED FOR PRODUCTION
+#
 # Volatility Regime-Adjusted Stop Configuration
-# Adjusts stops based on market volatility (validated +30% improvement)
+#
+# VALIDATION RESULTS (Nov 2025 - 982 trades, 36-month period):
+# - vol_regime: $146,572 P&L, 32% stop rate (HIGHEST), $342/trade avg
+# - static:     $161,278 P&L, 15% stop rate (LOWEST), $417/trade avg ⭐ RECOMMENDED
+#
+# CONCLUSION: Vol_regime creates excessive stops despite sophistication
+# - 32% stop rate is 2x worse than static (15%)
+# - Adaptive nature makes it too sensitive to market conditions
+# - Stops out winners during normal market volatility
+# - Higher trade volume doesn't compensate for excessive stops
+#
+# THE VOL_REGIME PARADOX:
+# - Sounds sophisticated (adjusts to market conditions)
+# - Actually performs worse (highest stop rate, 10% lower P&L)
+# - Theory vs reality disconnect
+#
+# STATUS: Preserved for research purposes only
+# RECOMMENDATION: Use conservative_config.yaml or base_config.yaml instead
+#
+# See: STOP_STRATEGY_VALIDATION.md for complete empirical analysis
 
-config_name: "vol_regime_test"
+config_name: "vol_regime_experimental"
 config_version: "1.0"
-description: "Volatility regime stops - tighter in calm markets, wider in volatile markets"
+description: "⚠️ EXPERIMENTAL - Volatility regime stops (32% stop rate, excessive)"
 
 risk_management:
   account_value: 100000

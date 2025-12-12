@@ -74,91 +74,90 @@ See `backtest_comparison_all_three_configs.txt` for complete evidence.
 
 ---
 
+## ⚠️ Experimental Configurations (.yamlx files)
+
+**Files with `.yamlx` extension are EXPERIMENTAL and NOT RECOMMENDED for production trading.**
+
+### time_decay_config.yamlx
+- **Status**: ❌ NOT RECOMMENDED
+- **Validation Results** (Nov 2025, 982 trades, 36 months):
+  - time_decay: $53,359 P&L, 23% stop rate, $319/trade
+  - static: $161,278 P&L, 15% stop rate, $417/trade ⭐
+- **Performance**: 3x WORSE than static stops
+- **Problem**: Tightens too aggressively, cutting winners short before they reach profit targets
+- **Preserved for**: Research purposes only
+
+### vol_regime_config.yamlx
+- **Status**: ❌ NOT RECOMMENDED
+- **Validation Results** (Nov 2025, 982 trades, 36 months):
+  - vol_regime: $146,572 P&L, 32% stop rate (HIGHEST), $342/trade
+  - static: $161,278 P&L, 15% stop rate (LOWEST), $417/trade ⭐
+- **Performance**: 10% worse P&L, 2x worse stop rate than static
+- **Problem**: Adaptive logic creates excessive stops despite sophistication
+- **Preserved for**: Research purposes only
+
+**For Production Trading**: Use `.yaml` files only (conservative, balanced, base, aggressive)
+
+**See**: `STOP_STRATEGY_VALIDATION.md` for complete empirical validation analysis
+
+---
+
 ## Available Configurations
 
-### Key Decision: Risk Profile Selection
+> **📊 For comprehensive strategy analysis and selection guidance**, see [Configuration Strategy Analysis](../docs/CONFIGURATION_STRATEGY_ANALYSIS.md)
+>
+> That document includes:
+> - Empirical performance across 6 portfolio types
+> - Detailed strategy comparison tables
+> - Portfolio composition impact analysis
+> - Risk/reward trade-off analysis
+> - Decision framework for strategy selection
 
-| Metric | Conservative (MA_ON) | Aggressive (MA_OFF) | Winner |
-|--------|---------------------|---------------------|--------|
-| **Max Drawdown** | **-23.9%** ✅ | -39.4% | Conservative |
-| **Total Return** | 259% | **331%** ✅ | Aggressive |
-| **Annual Return** | 41.5% | 48.6% | Aggressive |
-| **Sharpe Ratio** | 1.83 | 2.13 | Aggressive |
-| **Win Rate** | 44.5% | 59.3% | Aggressive |
-| **W/L Ratio** | **2.09x** ✅ | 1.29x | Conservative |
-| **Monthly Win Rate** | **73.8%** ✅ | 60.9% | Conservative |
-| **Total Trades** | 1,747 | 1,099 | Conservative |
-| **Avg Win** | $840 | $1,099 | Aggressive |
-| **Avg Loss** | **-$402** ✅ | -$851 | Conservative |
+### Quick Reference
 
-**Conservative Strategy** (MA_Crossdown enabled):
-- **Better for**: Capital preservation, smaller accounts, sleep-at-night investing
-- **Advantage**: 40% smaller drawdown (-23.9% vs -39.4%)
-- **Advantage**: 2.09x W/L ratio (asymmetric risk/reward)
-- **Advantage**: 73.8% monthly win rate (psychological advantage)
-- **Advantage**: 59% more trades (faster capital rotation)
-- **Trade-off**: Lower total return (259% vs 331%)
+| Configuration | Best For | Return | Max DD | Status |
+|--------------|----------|--------|--------|--------|
+| **conservative_config.yaml** ⭐ | Capital preservation, diversified portfolios | 71-142% | -10% to -16% | ✅ Production |
+| **balanced_config.yaml** ⭐ | Most consistent across portfolio types | 67-139% | -10% to -15% | ✅ Production |
+| **base_config.yaml** | Historical baseline, testing reference | 57-127% | -9% to -14% | ✅ Production |
+| **aggressive_config.yaml** | Maximum returns (use with caution) | 49-114% | -9% to -14% | ⚠️ High risk |
+| time_decay_config.yamlx | Research only | 50-86% | -9% to -27% | ❌ Not recommended |
+| vol_regime_config.yamlx | Research only | 42-113% | -8% to -15% | ❌ Not recommended |
 
-**Aggressive Strategy** (MA_Crossdown disabled):
-- **Better for**: Risk-tolerant traders, larger accounts, bull market maximization
-- **Advantage**: 28% higher returns (331% vs 259%)
-- **Advantage**: Higher Sharpe ratio (2.13 vs 1.83)
-- **Advantage**: 59% win rate (more winning trades)
-- **Trade-off**: 65% larger drawdown (-39.4% vs -23.9%)
-- **Trade-off**: Smaller W/L ratio (1.29x - wins barely cover losses)
+**Performance data**: Based on Nov 2025 empirical validation (6 portfolio types, 20-254 tickers each)
 
-**Recommendation**: Start with conservative_config.yaml. Only switch to aggressive if you can psychologically handle -40% drawdowns.
+### Production Configurations (.yaml files)
 
-### conservative_config.yaml - Capital Preservation ⭐ (RECOMMENDED)
-- **Stop Strategy**: Static (traditional fixed stops)
-- **Entry Threshold**: 6.5 (empirically optimized - 45% better expectancy than 6.0)
-- **Risk**: 1.0% per trade (standardized across configs)
+#### conservative_config.yaml ⭐ RECOMMENDED FOR MOST USERS
+- **Entry Threshold**: 6.5 (high selectivity)
 - **Time Stops**: Disabled (let winners run)
-- **MA_Crossdown**: **ENABLED** (48-period trend protection)
-- **Performance**: 259% return, -23.9% max drawdown, 2.09x W/L ratio
-- **Use Case**: **Default production configuration** - capital preservation, trend-following risk management
-- **Evidence**: Empirically validated on Nasdaq100 5-year backtest (Dec 2025)
-
-### base_config.yaml - Historical Baseline
-- **Stop Strategy**: Static (traditional fixed stops)
-- **Entry Threshold**: 6.0 (original validated threshold)
 - **Risk**: 1.0% per trade
-- **Time Stops**: 20 bars
-- **Performance**: 68% win rate, +9.17% expectancy, +6.24% median return
-- **Use Case**: Historical reference for comparison testing, superseded by conservative_config
+- **Best Performance**: Diversified portfolios, stable/mixed stocks
+- **Win Rate**: 67-71% (highest consistency)
+- **Winner**: 3 of 6 validation tests
 
-### time_decay_config.yaml - Validated Winner ⭐
-- **Stop Strategy**: Time Decay (gradually tightens: 2.5 → 2.0 → 1.5 ATR)
-- **Risk**: 0.75% per trade
+#### balanced_config.yaml ⭐ MOST CONSISTENT
+- **Entry Threshold**: 6.5 (high selectivity)
+- **Time Stops**: 20 bars (moderate)
+- **Risk**: 1.0% per trade
+- **Best Performance**: Universal - works on all portfolio types
+- **Consistency**: Ranked 2nd in 5 of 6 tests (never worse than 4th)
+- **Recommended**: Default choice when portfolio composition unknown
+
+#### base_config.yaml - BASELINE REFERENCE
+- **Entry Threshold**: 6.0 (original validated)
 - **Time Stops**: 12 bars
-- **Performance**: +22% improvement (1.52R avg vs 1.25R baseline)
-- **Use Case**: Let trades develop early, tighten stops over time
+- **Risk**: 1.0% per trade
+- **Purpose**: Historical baseline for comparison testing
+- **Performance**: Consistent middle performer (3rd place in 4 of 6 tests)
 
-### vol_regime_config.yaml - Volatility Adaptive
-- **Stop Strategy**: Volatility Regime (adjusts based on ATR_Z)
-- **Risk**: 0.75% per trade
-- **Time Stops**: 12 bars
-- **Performance**: +30% improvement (1.62R avg)
-- **Use Case**: Wider stops in volatile markets, tighter in calm markets
-
-### conservative_config.yaml - Capital Preservation
-- **Stop Strategy**: Static
-- **Risk**: 0.5% per trade (lower)
-- **Time Stops**: Disabled (0 bars)
-- **Entry Threshold**: 6.5 (vs 6.0 baseline - more selective)
-- **Use Case**: Lower risk, longer holding periods, focus on capital preservation
-
-### aggressive_config.yaml - Maximum Returns
-- **Stop Strategy**: Static
-- **Risk**: 1.0% per trade (maximum recommended)
-- **Time Stops**: 8 bars (tighter than baseline)
-- **Entry Threshold**: 5.5 (vs 6.0 baseline - more signals)
-- **MA_Crossdown**: **DISABLED** (let positions run for maximum returns)
+#### aggressive_config.yaml ⚠️ HIGH RISK
+- **Entry Threshold**: 5.5 (lower selectivity)
+- **Time Stops**: 8 bars (tight)
+- **Risk**: 1.0% per trade
 - **Regime Filters**: SPY only (less strict)
-- **Performance**: 331% return, -39.4% max drawdown, 1.29x W/L ratio
-- **Use Case**: Maximum return pursuit, accept larger drawdowns, bull market optimization
-- **Evidence**: Empirically validated on Nasdaq100 5-year backtest (Dec 2025)
-- **⚠️ Warning**: Only for risk-tolerant traders who can endure -40% drawdowns
+- **Performance**: Bottom half in ALL 6 validation tests
+- **⛔ Warning**: Never ranked in top 3, proven inferior across all portfolio types
 
 ## Configuration File Structure
 

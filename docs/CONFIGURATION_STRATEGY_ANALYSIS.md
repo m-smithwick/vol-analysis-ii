@@ -1,9 +1,21 @@
 # Configuration Strategy Analysis
 ## Empirical Study Across 6 Portfolio Types
 
+> **📖 For usage instructions and quick reference**, see [Configuration System Documentation](../configs/README.md)
+>
+> This document provides:
+> - **Deep empirical analysis** across 6 portfolio types
+> - **Strategic decision framework** for configuration selection
+> - **Risk/reward trade-off analysis** with detailed performance data
+> - **Portfolio composition impact** on strategy effectiveness
+>
+> Use this document to **understand WHY to choose a configuration**.  
+> Use configs/README.md to learn **HOW to use configurations**.
+
 **Date**: November 28, 2025  
 **Analysis**: 6 backtests across different ticker universes  
-**Configurations Tested**: 6 (Conservative, Balanced, Base Config, Aggressive, Time Decay, Vol Regime)
+**Configurations Tested**: 6 (Conservative, Balanced, Base Config, Aggressive, Time Decay, Vol Regime)  
+**Document Purpose**: Strategic decision support and empirical research reference
 
 ---
 
@@ -653,11 +665,12 @@ Each report includes:
 
 ## Related Documentation
 
-- `configs/README.md` - Configuration system guide
+- **[Configuration System Documentation](../configs/README.md)** - Usage guide, file structure, troubleshooting
 - `CODE_MAP.txt` - Architecture reference
 - `STRATEGY_VALIDATION_COMPLETE.md` - Earlier validation findings
 - `TIME_STOP_OPTIMIZATION_RESULTS.md` - Time stop validation
 - `VARIABLE_STOP_LOSS_FINDINGS.md` - Stop loss strategy analysis
+- `STOP_STRATEGY_VALIDATION.md` - Nov 2025 stop strategy validation (static vs variables)
 
 ---
 

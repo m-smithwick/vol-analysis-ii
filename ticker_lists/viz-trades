@@ -1,0 +1,1 @@
+python visualize_trades.py --csv backtest_results/LOG_FILE_VRT_36mo_aggressive_20251208_162539.csv --ticker VRT --period 24mo

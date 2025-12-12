@@ -158,9 +158,46 @@ Need the deeper architecture or indicator breakdown? See `docs/ARCHITECTURE_REFE
    # Variable stop loss testing (4,249 trades validated)
    python test_variable_stops.py --file cmb.txt --period 2y
    python test_variable_stops.py --tickers AAPL MSFT --strategies static vol_regime time_decay
+   
+   # Momentum screening (RS Velocity + VCP)
+   python momentum_screener.py --file ticker_lists/ibd20.txt
+   python momentum_screener.py --file ticker_lists/sp100.txt --output sp100_momentum.csv
+   python momentum_screener.py --tickers AAPL MSFT GOOGL --period 18mo
    ```
 
 Need the full operational routine (daily/monthly/quarterly)? See `docs/USER_PLAYBOOK.md`.
+
+---
+
+## Momentum Screening (NEW)
+
+Identify "Momentum Ignition" candidates using RS Velocity and Volatility Contraction Patterns:
+
+```bash
+# Quick test with 4 tickers
+python momentum_screener.py --file ticker_lists/short.txt
+
+# Screen IBD 20 stocks
+python momentum_screener.py --file ticker_lists/ibd20.txt
+
+# Screen S&P 100 with custom output
+python momentum_screener.py --file ticker_lists/sp100.txt --output sp100_momentum.csv
+
+# Direct ticker screening
+python momentum_screener.py --tickers AAPL MSFT GOOGL --period 18mo
+```
+
+**Screening Criteria**:
+1. **RS Velocity Increasing**: 10-day RS slope > 50-day RS slope (momentum accelerating)
+2. **VCP Active**: Current volatility < 50% of 20-day average (tight consolidation)
+3. **Above 200-day SMA**: Price > 200-day simple moving average (trend confirmed)
+4. **Liquidity OK**: 20-day average volume > 500,000 shares
+
+**Output**: Console table + timestamped CSV with full metrics
+
+**Prerequisites**: All tickers must be cached. Requires minimum 250 trading days of data.
+
+**Documentation**: See `docs/MOMENTUM_SCREENER.md` for complete methodology, interpretation guide, and workflows.
 
 ---
 
@@ -171,7 +208,7 @@ After running backtests, use these tools to evaluate and optimize your strategy:
 ### Professional Evaluation
 ```bash
 # Calculate institutional-grade metrics (Sharpe, drawdown, etc.)
-python analyze_professional_metrics.py --csv backtest_results/LOG_FILE_nasdaq100_12mo_20251207_133605.csv
+python analyze_professional_metrics.py --csv backtest_results/LOG_FILE_passed_12mo_conservative_20251211_215934.csv
 ```
 **Outputs:** Sharpe ratio (3.35), maximum drawdown (-9.37%), monthly consistency (73.9%),  
 loss streaks (16 max), professional grading (Institutional Quality: Grade A-)
@@ -236,7 +273,10 @@ For detailed script purposes and overlap analysis, see `ANALYSIS_SCRIPTS_OVERLAP
   * Base: +68.21% return, -11.86% drawdown (smoothest equity curve - historical reference only)
   * **Key finding**: 20-bar time stops optimal (vs 0, 8, or 12 bars)
   * See `PROJECT-STATUS.md` for complete analysis
-- **Variable Stop Loss** – ✅ Validated with 4,249 trades. Time Decay winner: **+22% improvement** (1.52R vs 1.25R static).
+- **Variable Stop Loss** – ✅ Two-phase validation:
+  * **Phase 1 (Historical)**: 4,249 trades tested 5 variable strategies. Time Decay best among variables: +22% improvement (1.52R vs 1.25R other variables)
+  * **Phase 2 (Nov 2025)**: 982 trades, 36-month full validation proved **static stops superior to ALL variables**
+  * **Current Recommendation**: Use static stops (see Stop Strategy below)
 - **Stop Strategy** – ✅ **CRITICAL UPDATE (Nov 2025)**: Validated across 982 trades, 36-month period
   * **STATIC (RECOMMENDED)**: $161,278 P&L, 15% stop rate, $417/trade avg — **New default**
   * Time_decay: $53,359 P&L, 23% stop rate (3x worse than static) — **Not recommended**
@@ -368,6 +408,59 @@ Refer to each script's `--help` flag for full descriptions and examples.
 
 ---
 
+## Documentation Structure
+
+This project uses a multi-volume documentation structure optimized for different audiences:
+
+### 📍 Quick Reference (LLMs & Developers)
+- `CODE_MAP.txt` - Fast module lookup: "Change X → Edit file Y"
+- `DOCUMENTATION_INVENTORY.md` - Complete file inventory with categorization
+- `docs/ARCHITECTURE_REFERENCE.md` - System design and conceptual overview
+
+### 📚 Volume 1: User Documentation (Traders)
+- `README.md` - Quick start, commands, validation status (this file)
+- `TRADING_STRATEGY.md` - Volume analysis methodology, signals, risk management
+- `docs/USER_PLAYBOOK.md` - Daily operational workflow
+- `docs/TROUBLESHOOTING.md` - Problem solving guide
+- `configs/README.md` - Configuration system guide
+
+### 🔧 Volume 2: Technical Documentation (Developers)
+- `CODE_MAP.txt` - Module responsibilities and dependencies
+- `docs/ARCHITECTURE_REFERENCE.md` - System design philosophy
+- `docs/CACHE_SCHEMA.md` - Data structure and schema
+- `docs/DUCKDB_OPTIMIZATION.md` - Performance optimization (10-20x speedup)
+- `docs/TRANSACTION_COSTS.md` - Cost modeling documentation
+
+### 🔬 Volume 3: Research & Validation (Analysts)
+- `STOP_STRATEGY_VALIDATION.md` - Stop strategy testing (Nov 2025)
+- `STRATEGY_VALIDATION_COMPLETE.md` - Overall validation findings
+- `PROFESSIONAL_ANALYSIS_PLAN.md` - Metrics framework
+- `VARIABLE_STOP_LOSS_FINDINGS.md` - Variable stop research
+- `docs/CONFIGURATION_STRATEGY_ANALYSIS.md` - Config empirical study
+
+### 📊 Volume 4: Tools & Analysis (Advanced Users)
+- `SECTOR_ROTATION_ANALYSIS_GUIDE.md` - Macro sector analysis tools (see note below)
+- `ANALYSIS_SCRIPTS_OVERLAP.md` - Script purposes and workflow
+- `ALGORITHM_IMPROVEMENT_PLAN.md` - Future development roadmap
+
+### ⚠️ Sector Analysis Tools Note
+
+**Available Tools** (Implemented):
+- ✅ `sector_dashboard.py` - Sector scoring and rotation analysis
+- ✅ `sector_rotation.py` - Macro sector strength tracking
+- ✅ Sector ETF regime filters (50-day MA checks in signal generation)
+
+**NOT Implemented** (Trading system does NOT):
+- ❌ Adjust position sizing based on sector scores
+- ❌ Check sector strength beyond regime filters for entry criteria
+- ❌ Vary risk management by sector environment
+
+**Current Use**: Sector tools provide macro rotation analysis for **manual trading decisions**. The automated trading system uses **fixed position sizing** (0.75% risk per trade) and **static risk management** regardless of sector scores.
+
+**See**: `SECTOR_ROTATION_ANALYSIS_GUIDE.md` for using sector data in manual trading decisions.
+
+---
+
 ## Documentation Map
 
 | Topic | Reference |
@@ -378,8 +471,9 @@ Refer to each script's `--help` flag for full descriptions and examples.
 | Cache architecture & benchmarks | `BULK_CACHE_POPULATION.md` |
 | Massive.com integration | `MASSIVE_INTEGRATION.md` |
 | **DuckDB optimization (10-20x speedup)** | `docs/DUCKDB_OPTIMIZATION.md` |
+| **Momentum screening (RS Velocity + VCP)** | `docs/MOMENTUM_SCREENER.md` |
 | Sector rotation dashboard | `SECTOR_ROTATION_GUIDE.md` |
-| Sector-aware trading rules | `TRADING_STRATEGY_SECTOR_AWARE.md` |
+| Sector rotation analysis guide | `SECTOR_ROTATION_ANALYSIS_GUIDE.md` |
 | Variable stop loss validation | `VARIABLE_STOP_LOSS_FINDINGS.md` |
 | **Stop strategy validation (Nov 2025)** | `STOP_STRATEGY_VALIDATION.md` |
 | Architecture & indicators | `docs/ARCHITECTURE_REFERENCE.md` |

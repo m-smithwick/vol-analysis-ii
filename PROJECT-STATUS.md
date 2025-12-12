@@ -23,6 +23,48 @@
 
 ---
 
+## 🎯 Documentation Consolidation (Paused)
+
+**Status**: 3 of 5 overlap areas resolved, 2 remain + gap-filling work  
+**Reference**: See DOCUMENTATION_INVENTORY.md for full catalog
+
+### Remaining Consolidation Work
+
+**1. Exit Analysis Consolidation** (upgrade-docs/)
+   - Files: EXIT_ANALYSIS_*.md (3 files)
+   - Action: Review, consolidate findings, or archive if superseded
+   - Priority: Medium
+
+**2. Operations Manual Consolidation**
+   - Files to merge:
+     * docs/USER_PLAYBOOK.md (daily operations)
+     * docs/EOD_DATA_WORKFLOW.md (end-of-day workflow)
+     * docs/BULK_CACHE_POPULATION.md (cache management)
+     * git-workflow.md (version control)
+     * session-close.md (session management)
+   - Action: Create single Operations Manual with chapters
+   - Priority: Medium
+
+### Gap-Filling Work (From Inventory)
+
+**High Priority:**
+- Quick Start Guide (for new users)
+- API Reference (function/class documentation)
+- Migration Guide (version upgrade instructions)
+- Master Index (evolve from DOCUMENTATION_INVENTORY.md)
+
+**Medium/Low Priority:**
+- Contributing Guidelines, Testing Guide, Performance Tuning, Deployment Guide, etc.
+
+### Directory Reorganization (Proposed)
+
+- docs/user/ (user-facing documentation)
+- docs/technical/ (developer documentation)
+- docs/research/ (analysis & validation)
+- docs/history/ (historical/archival)
+
+---
+
 ## 🧹 Janitor Queue
 
 ### Medium Priority

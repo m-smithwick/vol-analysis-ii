@@ -1,12 +1,28 @@
 # Variable Stop Loss Testing - Findings and Recommendations
 
 **Date:** November 16, 2025  
+**Status:** 🔬 **PRELIMINARY** - Superseded by STOP_STRATEGY_VALIDATION.md (Nov 22, 2025)
+
+**⚠️ DO NOT USE FOR TRADING DECISIONS ⚠️**
+
+This document's findings were **invalidated** by later testing using consistent methodology. See [STOP_STRATEGY_VALIDATION.md](STOP_STRATEGY_VALIDATION.md) for authoritative ✅ VALIDATED results.
+
+**Why This Was Preliminary:**
+- Used R-multiple metric (not dollar P&L)
+- Tested different portfolios with different strategies (not apples-to-apples)
+- Declared "winner" without cross-validation on same dataset
+- Nov 22 testing with consistent methodology showed **opposite conclusion**: Static outperforms time_decay by 3x
+
+**Original document preserved below for historical reference only.**
+
+---
+
 **Test Periods:** 
 - Initial test: 1 year (160 trades, 3 tickers)
 - Extended test: 2 years (371 trades, 7 tickers)  
 - **COMPREHENSIVE TEST: 2 years (4,249 trades, 41 tickers)** ⭐ LATEST
 
-## Executive Summary
+## Executive Summary (🔬 PRELIMINARY - DO NOT USE)
 
 **🚀 COMPREHENSIVE TEST SCOPE (LATEST):** 4,249 trades across 41 tickers over 2 years - **LARGEST STOP LOSS VALIDATION IN TRADING HISTORY**
 

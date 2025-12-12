@@ -1,0 +1,230 @@
+MOMENTUM SCREENING SUMMARY
+======================================================================
+
+Total Tickers Screened: 9,698
+Perfect Candidates: 36
+
+Filter Results:
+  RS Velocity Increasing: 4,955 (51.1%)
+  VCP Active: 836 (8.6%)
+  Above 200 SMA: 6,773 (69.8%)
+  Liquidity OK: 3,278 (33.8%)
+
+PERFECT CANDIDATES:
+----------------------------------------------------------------------
+
+SMX
+  RS Velocity: 0.027958
+  Price: $146.30 (+1768.2% above 200 SMA)
+  VCP Contraction: 0.49
+  Volume: 4.07M avg
+
+ULTA
+  RS Velocity: 0.011662
+  Price: $600.65 (+28.2% above 200 SMA)
+  VCP Contraction: 0.47
+  Volume: 0.87M avg
+
+EXAS
+  RS Velocity: 0.006412
+  Price: $101.25 (+81.4% above 200 SMA)
+  VCP Contraction: 0.32
+  Volume: 10.80M avg
+
+TSEM
+  RS Velocity: 0.002892
+  Price: $126.51 (+123.9% above 200 SMA)
+  VCP Contraction: 0.43
+  Volume: 1.85M avg
+
+ALAB
+  RS Velocity: 0.001628
+  Price: $164.31 (+25.0% above 200 SMA)
+  VCP Contraction: 0.34
+  Volume: 7.12M avg
+
+NUVL
+  RS Velocity: 0.000974
+  Price: $105.74 (+30.2% above 200 SMA)
+  VCP Contraction: 0.49
+  Volume: 0.80M avg
+
+SKYT
+  RS Velocity: 0.000799
+  Price: $19.37 (+68.2% above 200 SMA)
+  VCP Contraction: 0.46
+  Volume: 1.72M avg
+
+HOOD
+  RS Velocity: 0.000747
+  Price: $135.66 (+47.8% above 200 SMA)
+  VCP Contraction: 0.50
+  Volume: 28.29M avg
+
+GLBE
+  RS Velocity: 0.000747
+  Price: $38.95 (+11.0% above 200 SMA)
+  VCP Contraction: 0.49
+  Volume: 1.73M avg
+
+ROBN
+  RS Velocity: 0.000705
+  Price: $83.90 (+59.5% above 200 SMA)
+  VCP Contraction: 0.48
+  Volume: 0.93M avg
+
+NUVB
+  RS Velocity: 0.000587
+  Price: $7.84 (+152.2% above 200 SMA)
+  VCP Contraction: 0.38
+  Volume: 10.27M avg
+
+FOXX
+  RS Velocity: 0.000526
+  Price: $5.93 (+16.2% above 200 SMA)
+  VCP Contraction: 0.27
+  Volume: 2.98M avg
+
+DNTH
+  RS Velocity: 0.000487
+  Price: $43.58 (+67.8% above 200 SMA)
+  VCP Contraction: 0.43
+  Volume: 0.77M avg
+
+AEHL
+  RS Velocity: 0.000407
+  Price: $3.14 (+23.7% above 200 SMA)
+  VCP Contraction: 0.37
+  Volume: 10.02M avg
+
+ANNX
+  RS Velocity: 0.000280
+  Price: $4.90 (+89.2% above 200 SMA)
+  VCP Contraction: 0.38
+  Volume: 3.46M avg
+
+FOSL
+  RS Velocity: 0.000221
+  Price: $3.86 (+98.2% above 200 SMA)
+  VCP Contraction: 0.45
+  Volume: 1.30M avg
+
+TH
+  RS Velocity: 0.000154
+  Price: $8.67 (+18.1% above 200 SMA)
+  VCP Contraction: 0.41
+  Volume: 0.51M avg
+
+KURA
+  RS Velocity: 0.000137
+  Price: $10.74 (+39.6% above 200 SMA)
+  VCP Contraction: 0.39
+  Volume: 1.90M avg
+
+IMAX
+  RS Velocity: 0.000136
+  Price: $38.11 (+32.8% above 200 SMA)
+  VCP Contraction: 0.46
+  Volume: 1.67M avg
+
+DVLT
+  RS Velocity: 0.000076
+  Price: $1.45 (+41.9% above 200 SMA)
+  VCP Contraction: 0.40
+  Volume: 38.89M avg
+
+CNTB
+  RS Velocity: 0.000068
+  Price: $2.35 (+65.8% above 200 SMA)
+  VCP Contraction: 0.26
+  Volume: 0.67M avg
+
+KTTA
+  RS Velocity: 0.000068
+  Price: $1.16 (+26.7% above 200 SMA)
+  VCP Contraction: 0.26
+  Volume: 21.57M avg
+
+SGBX
+  RS Velocity: 0.000066
+  Price: $3.66 (+97.0% above 200 SMA)
+  VCP Contraction: 0.36
+  Volume: 19.19M avg
+
+PSTV
+  RS Velocity: 0.000019
+  Price: $0.67 (+14.0% above 200 SMA)
+  VCP Contraction: 0.46
+  Volume: 5.90M avg
+
+RSKD
+  RS Velocity: 0.000018
+  Price: $5.00 (+3.6% above 200 SMA)
+  VCP Contraction: 0.37
+  Volume: 0.72M avg
+
+CAN
+  RS Velocity: 0.000004
+  Price: $0.94 (+4.1% above 200 SMA)
+  VCP Contraction: 0.50
+  Volume: 28.41M avg
+
+SAVA
+  RS Velocity: 0.000002
+  Price: $3.26 (+33.9% above 200 SMA)
+  VCP Contraction: 0.43
+  Volume: 1.08M avg
+
+RYLD
+  RS Velocity: -0.000006
+  Price: $15.34 (+2.4% above 200 SMA)
+  VCP Contraction: 0.18
+  Volume: 0.63M avg
+
+GRFS
+  RS Velocity: -0.000007
+  Price: $8.95 (+1.2% above 200 SMA)
+  VCP Contraction: 0.30
+  Volume: 0.55M avg
+
+HYPR
+  RS Velocity: -0.000014
+  Price: $1.04 (+2.6% above 200 SMA)
+  VCP Contraction: 0.44
+  Volume: 0.62M avg
+
+AMD
+  RS Velocity: -0.000028
+  Price: $221.42 (+34.8% above 200 SMA)
+  VCP Contraction: 0.45
+  Volume: 37.80M avg
+
+APPS
+  RS Velocity: -0.000037
+  Price: $4.99 (+5.9% above 200 SMA)
+  VCP Contraction: 0.42
+  Volume: 2.77M avg
+
+CONY
+  RS Velocity: -0.000072
+  Price: $47.49 (+426.8% above 200 SMA)
+  VCP Contraction: 0.48
+  Volume: 16.14M avg
+
+ALEX
+  RS Velocity: -0.000091
+  Price: $20.86 (+19.3% above 200 SMA)
+  VCP Contraction: 0.29
+  Volume: 1.23M avg
+
+BIDU
+  RS Velocity: -0.000117
+  Price: $126.07 (+25.2% above 200 SMA)
+  VCP Contraction: 0.48
+  Volume: 3.44M avg
+
+NTES
+  RS Velocity: -0.000545
+  Price: $136.06 (+6.6% above 200 SMA)
+  VCP Contraction: 0.34
+  Volume: 0.80M avg
